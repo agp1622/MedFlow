@@ -1,0 +1,149 @@
+trigger:
+  branches:
+    include: [main, develop]
+  paths:
+    exclude: ['*.md', 'docs/**']
+
+variables:
+  buildConfiguration: 'Release'
+  dotnetVersion: '8.x'
+  nodeVersion: '20.x'
+  azureSubscription: 'MedFlow-Azure-Connection'   # Update with your service connection name
+  resourceGroup: 'medflow-rg'
+  apiAppName: 'medflow-prod-api'
+  staticWebAppName: 'medflow-prod-client'
+
+stages:
+# ─────────────────────────────────────────────────────────────────────────────
+# STAGE 1: Build & Test
+# ─────────────────────────────────────────────────────────────────────────────
+- stage: Build
+  displayName: Build & Test
+  jobs:
+  - job: BuildApi
+    displayName: .NET API
+    pool: { vmImage: ubuntu-latest }
+    steps:
+    - task: UseDotNet@2
+      inputs: { version: $(dotnetVersion), packageType: sdk }
+
+    - task: DotNetCoreCLI@2
+      displayName: Restore
+      inputs: { command: restore, projects: '**/*.csproj' }
+
+    - task: DotNetCoreCLI@2
+      displayName: Build
+      inputs:
+        command: build
+        projects: '**/*.csproj'
+        arguments: '--configuration $(buildConfiguration) --no-restore'
+
+    - task: DotNetCoreCLI@2
+      displayName: Publish
+      inputs:
+        command: publish
+        publishWebProjects: true
+        arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/api'
+        zipAfterPublish: true
+
+    - publish: $(Build.ArtifactStagingDirectory)/api
+      artifact: api-drop
+
+  - job: BuildClient
+    displayName: React Client
+    pool: { vmImage: ubuntu-latest }
+    steps:
+    - task: NodeTool@0
+      inputs: { versionSpec: $(nodeVersion) }
+
+    - script: |
+        cd medflow-client
+        npm ci
+      displayName: Install dependencies
+
+    - script: |
+        cd medflow-client
+        npm run build
+      displayName: Build React app
+      env:
+        VITE_API_URL: 'https://$(apiAppName).azurewebsites.net'
+
+    - publish: medflow-client/dist
+      artifact: client-drop
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STAGE 2: Deploy to Staging
+# ─────────────────────────────────────────────────────────────────────────────
+- stage: DeployStaging
+  displayName: Deploy → Staging
+  dependsOn: Build
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+  jobs:
+  - deployment: DeployApiStg
+    displayName: Deploy API (staging slot)
+    environment: staging
+    pool: { vmImage: ubuntu-latest }
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureWebApp@1
+            inputs:
+              azureSubscription: $(azureSubscription)
+              appType: webApp
+              appName: $(apiAppName)
+              deployToSlotOrASE: true
+              resourceGroupName: $(resourceGroup)
+              slotName: staging
+              package: $(Pipeline.Workspace)/api-drop/**/*.zip
+
+  - deployment: DeployClientStg
+    displayName: Deploy Client (staging)
+    environment: staging
+    pool: { vmImage: ubuntu-latest }
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureStaticWebApp@0
+            inputs:
+              azure_static_web_apps_api_token: $(AZURE_STATIC_WEB_APPS_API_TOKEN)
+              app_location: '$(Pipeline.Workspace)/client-drop'
+              skip_app_build: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STAGE 3: Deploy to Production
+# ─────────────────────────────────────────────────────────────────────────────
+- stage: DeployProd
+  displayName: Deploy → Production
+  dependsOn: Build
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  - deployment: DeployApiProd
+    displayName: Deploy API (production)
+    environment: production
+    pool: { vmImage: ubuntu-latest }
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureWebApp@1
+            inputs:
+              azureSubscription: $(azureSubscription)
+              appType: webApp
+              appName: $(apiAppName)
+              package: $(Pipeline.Workspace)/api-drop/**/*.zip
+
+  - deployment: DeployClientProd
+    displayName: Deploy Client (production)
+    environment: production
+    pool: { vmImage: ubuntu-latest }
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureStaticWebApp@0
+            inputs:
+              azure_static_web_apps_api_token: $(AZURE_STATIC_WEB_APPS_API_TOKEN)
+              app_location: '$(Pipeline.Workspace)/client-drop'
+              skip_app_build: true
