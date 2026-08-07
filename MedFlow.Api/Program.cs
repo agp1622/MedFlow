@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using MedFlow.Api.Middleware;
 using MedFlow.Infrastructure;
 using MedFlow.Infrastructure.Data;
@@ -47,7 +48,8 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.AddAuthorization();
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddEndpointsApiExplorer();
 
 // Swagger with JWT
@@ -90,6 +92,7 @@ if (app.Environment.IsDevelopment())
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await db.Database.MigrateAsync();
+    await DbSeeder.SeedAsync(scope.ServiceProvider);
 }
 
 app.UseSerilogRequestLogging();

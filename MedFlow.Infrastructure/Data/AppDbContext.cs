@@ -43,6 +43,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.Property(p => p.LastName).HasMaxLength(100);
             e.Ignore(p => p.FullName);
             e.Ignore(p => p.Age);
+            e.HasOne(p => p.Doctor).WithMany(d => d.Patients)
+                .HasForeignKey(p => p.DoctorId).HasPrincipalKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         // Doctor
@@ -60,6 +63,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.Property(a => a.Status).HasConversion<string>();
             e.HasOne(a => a.Patient).WithMany(p => p.Appointments)
                 .HasForeignKey(a => a.PatientId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(a => a.Doctor).WithMany(d => d.Appointments)
+                .HasForeignKey(a => a.DoctorId).HasPrincipalKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         // Prescription
@@ -69,6 +75,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.Property(p => p.Status).HasConversion<string>();
             e.HasOne(p => p.Patient).WithMany(p => p.Prescriptions)
                 .HasForeignKey(p => p.PatientId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(p => p.Doctor).WithMany()
+                .HasForeignKey(p => p.DoctorId).HasPrincipalKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         // Invoice
@@ -81,6 +90,32 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.Property(i => i.Status).HasConversion<string>();
             e.HasOne(i => i.Patient).WithMany(p => p.Invoices)
                 .HasForeignKey(i => i.PatientId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(i => i.Doctor).WithMany()
+                .HasForeignKey(i => i.DoctorId).HasPrincipalKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // MedicalNote
+        builder.Entity<MedicalNote>(e =>
+        {
+            e.HasIndex(n => new { n.PatientId, n.DoctorId });
+            e.HasOne(n => n.Patient).WithMany(p => p.MedicalNotes)
+                .HasForeignKey(n => n.PatientId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(n => n.Doctor).WithMany()
+                .HasForeignKey(n => n.DoctorId).HasPrincipalKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // VitalSign
+        builder.Entity<VitalSign>(e =>
+        {
+            e.HasIndex(v => new { v.PatientId, v.RecordedAt });
+            e.Property(v => v.Weight).HasPrecision(5, 2);
+            e.Property(v => v.Height).HasPrecision(5, 2);
+            e.Property(v => v.Bmi).HasPrecision(5, 2);
+            e.Property(v => v.Temperature).HasPrecision(4, 1);
+            e.HasOne(v => v.Patient).WithMany(p => p.VitalSigns)
+                .HasForeignKey(v => v.PatientId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 

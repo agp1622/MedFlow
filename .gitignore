@@ -25,3 +25,5 @@ medflow-client/.env.production
 .DS_Store
 Thumbs.db
 *.log
+
+.fake
