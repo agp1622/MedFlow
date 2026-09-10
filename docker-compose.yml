@@ -3,7 +3,7 @@ services:
     image: mcr.microsoft.com/mssql/server:2022-latest
     platform: linux/amd64
     environment:
-      SA_PASSWORD: "MedFlow_Dev_2024!"
+      MSSQL_SA_PASSWORD: "MedFlow_Dev_2024!"
       ACCEPT_EULA: "Y"
       MSSQL_PID: "Developer"
     ports:
