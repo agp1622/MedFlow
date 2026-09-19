@@ -1,5 +1,6 @@
 using MedFlow.Core.Interfaces;
 using MedFlow.Infrastructure.Data;
+using MedFlow.Infrastructure.Email;
 using MedFlow.Infrastructure.Identity;
 using MedFlow.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Identity;
@@ -28,6 +29,9 @@ public static class DependencyInjection
         })
         .AddEntityFrameworkStores<AppDbContext>()
         .AddDefaultTokenProviders();
+
+        services.Configure<EmailSettings>(config.GetSection(EmailSettings.SectionName));
+        services.AddScoped<IEmailSender, SmtpEmailSender>();
 
         services.AddScoped<IPatientRepository, PatientRepository>();
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();

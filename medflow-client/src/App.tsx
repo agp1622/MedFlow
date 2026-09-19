@@ -1,7 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { AppLayout } from '@/components/layout/AppLayout'
-import { LoginPage, RegisterPage } from '@/pages/AuthPages'
+import { LoginPage, RegisterPage, ForgotPasswordPage, ResetPasswordPage } from '@/pages/AuthPages'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { PatientsPage, PatientDetailPage } from '@/pages/PatientsPage'
 import { AppointmentsPage } from '@/pages/AppointmentsPage'
@@ -22,6 +22,8 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
+      <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
+      <Route path="/reset-password" element={<PublicRoute><ResetPasswordPage /></PublicRoute>} />
 
       <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
         <Route index element={<DashboardPage />} />

@@ -1,4 +1,5 @@
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -42,6 +43,9 @@ export function LoginPage() {
         <Field label="Password" error={errors.password?.message}>
           <input className="input" type="password" placeholder="••••••••" {...register('password')} />
         </Field>
+        <div className="text-right -mt-2">
+          <Link to="/forgot-password" className="text-primary-600 text-sm font-semibold hover:underline">Forgot password?</Link>
+        </div>
         <button type="submit" className="btn-primary w-full h-10" disabled={mutation.isPending || googleMutation.isPending}>
           {mutation.isPending ? <Spinner className="w-4 h-4" /> : 'Sign In'}
         </button>
@@ -147,6 +151,103 @@ export function RegisterPage() {
       <p className="text-center text-sm text-gray-500 mt-5">
         Already have an account? <Link to="/login" className="text-primary-600 font-semibold hover:underline">Sign in</Link>
       </p>
+    </AuthShell>
+  )
+}
+
+// ── Forgot Password ───────────────────────────────────────────────────────────
+const forgotSchema = z.object({ email: z.string().email('Invalid email') })
+type ForgotForm = z.infer<typeof forgotSchema>
+
+export function ForgotPasswordPage() {
+  const [message, setMessage] = useState<string | null>(null)
+  const { register, handleSubmit, formState: { errors } } = useForm<ForgotForm>({ resolver: zodResolver(forgotSchema) })
+
+  const mutation = useMutation({
+    mutationFn: authApi.forgotPassword,
+    onSuccess: (data) => setMessage(data.message),
+    onError: (err: any) => toast.error(
+      err?.response?.status === 429 ? 'Too many requests. Please try again later.' : 'Something went wrong. Please try again.'),
+  })
+
+  return (
+    <AuthShell title="Forgot your password?" subtitle="Enter your email and we'll send you a reset link">
+      {message ? (
+        <div className="space-y-4">
+          <p className="text-sm text-gray-700">{message}</p>
+          <p className="text-center text-sm text-gray-500">
+            <Link to="/login" className="text-primary-600 font-semibold hover:underline">Back to sign in</Link>
+          </p>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit(d => mutation.mutate(d))} className="space-y-4">
+          <Field label="Email" error={errors.email?.message}>
+            <input className="input" type="email" placeholder="doctor@clinic.com" {...register('email')} />
+          </Field>
+          <button type="submit" className="btn-primary w-full h-10" disabled={mutation.isPending}>
+            {mutation.isPending ? <Spinner className="w-4 h-4" /> : 'Send reset link'}
+          </button>
+          <p className="text-center text-sm text-gray-500">
+            <Link to="/login" className="text-primary-600 font-semibold hover:underline">Back to sign in</Link>
+          </p>
+        </form>
+      )}
+    </AuthShell>
+  )
+}
+
+// ── Reset Password ────────────────────────────────────────────────────────────
+const resetSchema = z.object({
+  newPassword: z.string().min(8, 'Minimum 8 characters').regex(/[A-Z]/, 'Must contain uppercase').regex(/[0-9]/, 'Must contain a digit'),
+  confirmPassword: z.string(),
+}).refine(d => d.newPassword === d.confirmPassword, { message: 'Passwords do not match', path: ['confirmPassword'] })
+type ResetForm = z.infer<typeof resetSchema>
+
+export function ResetPasswordPage() {
+  const [params] = useSearchParams()
+  const token = params.get('token') ?? ''
+  const email = params.get('email') ?? ''
+  const [done, setDone] = useState(false)
+  const [linkError, setLinkError] = useState<string | null>(null)
+  const { register, handleSubmit, formState: { errors } } = useForm<ResetForm>({ resolver: zodResolver(resetSchema) })
+
+  const mutation = useMutation({
+    mutationFn: (d: ResetForm) => authApi.resetPassword({ email, token, ...d }),
+    onSuccess: () => setDone(true),
+    onError: (err: any) => {
+      const data = err?.response?.data
+      if (data?.error) setLinkError(data.error)
+      else toast.error(data?.errors?.[0] ?? 'Could not reset password. Please try again.')
+    },
+  })
+
+  const invalid = !token || !email || linkError
+
+  return (
+    <AuthShell title="Reset your password" subtitle="Choose a new password for your account">
+      {done ? (
+        <div className="space-y-4 text-center">
+          <p className="text-sm text-gray-700">Your password has been reset. You can now sign in.</p>
+          <Link to="/login" className="btn-primary w-full h-10 inline-flex items-center justify-center">Go to sign in</Link>
+        </div>
+      ) : invalid ? (
+        <div className="space-y-4 text-center">
+          <p className="text-sm text-gray-700">{linkError ?? 'This reset link is invalid or has expired. Please request a new one.'}</p>
+          <Link to="/forgot-password" className="btn-primary w-full h-10 inline-flex items-center justify-center">Request a new link</Link>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit(d => mutation.mutate(d))} className="space-y-4">
+          <Field label="New password" error={errors.newPassword?.message}>
+            <input className="input" type="password" placeholder="Min 8 chars, 1 uppercase, 1 digit" {...register('newPassword')} />
+          </Field>
+          <Field label="Confirm new password" error={errors.confirmPassword?.message}>
+            <input className="input" type="password" placeholder="Repeat password" {...register('confirmPassword')} />
+          </Field>
+          <button type="submit" className="btn-primary w-full h-10" disabled={mutation.isPending}>
+            {mutation.isPending ? <Spinner className="w-4 h-4" /> : 'Reset password'}
+          </button>
+        </form>
+      )}
     </AuthShell>
   )
 }

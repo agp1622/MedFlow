@@ -1,6 +1,7 @@
 import api from './client'
 import type {
   AuthResponse, LoginRequest, GoogleLoginRequest, RegisterRequest,
+  ForgotPasswordRequest, ResetPasswordRequest,
   PagedResult, QueryParams,
   PatientDto, PatientSummaryDto, CreatePatientRequest, UpdatePatientRequest,
   AppointmentDto, CreateAppointmentRequest, UpdateAppointmentRequest,
@@ -16,6 +17,8 @@ export const authApi = {
   login:    (data: LoginRequest)    => api.post<AuthResponse>('/auth/login', data).then(r => r.data),
   googleLogin: (data: GoogleLoginRequest) => api.post<AuthResponse>('/auth/google-login', data).then(r => r.data),
   register: (data: RegisterRequest) => api.post<AuthResponse>('/auth/register', data).then(r => r.data),
+  forgotPassword: (data: ForgotPasswordRequest) => api.post<{ message: string }>('/auth/forgot-password', data).then(r => r.data),
+  resetPassword:  (data: ResetPasswordRequest)  => api.post<{ message: string }>('/auth/reset-password', data).then(r => r.data),
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using System.Text.Json.Serialization;
 using MedFlow.Api.Middleware;
 using MedFlow.Infrastructure;
@@ -84,6 +85,27 @@ builder.Services.AddCors(options =>
         .AllowCredentials());
 });
 
+// Rate limiting (password recovery abuse protection)
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("forgot-password", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(15),
+                QueueLimit = 0
+            }));
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            new { error = "Too many requests. Please try again later." }, token);
+    };
+});
+
 var app = builder.Build();
 
 // Migrate DB on startup (dev convenience; use proper migration pipeline in prod)
@@ -100,6 +122,7 @@ app.UseSwagger();
 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "MedFlow API v1"));
 app.UseHttpsRedirection();
 app.UseCors("MedFlowClient");
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseMiddleware<ErrorHandlingMiddleware>();

@@ -5,6 +5,10 @@ export interface RegisterRequest {
   email: string; password: string
   firstName: string; lastName: string; specialty: string
 }
+export interface ForgotPasswordRequest { email: string }
+export interface ResetPasswordRequest {
+  email: string; token: string; newPassword: string; confirmPassword: string
+}
 export interface AuthResponse {
   token: string; refreshToken: string; expires: string
   user: UserDto
