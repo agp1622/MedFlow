@@ -1,6 +1,6 @@
 import api from './client'
 import type {
-  AuthResponse, LoginRequest, RegisterRequest,
+  AuthResponse, LoginRequest, GoogleLoginRequest, RegisterRequest,
   PagedResult, QueryParams,
   PatientDto, PatientSummaryDto, CreatePatientRequest, UpdatePatientRequest,
   AppointmentDto, CreateAppointmentRequest, UpdateAppointmentRequest,
@@ -8,12 +8,13 @@ import type {
   InvoiceDto, CreateInvoiceRequest, UpdateInvoiceRequest,
   VitalSignDto, CreateVitalSignRequest,
   MedicalNoteDto, CreateMedicalNoteRequest,
-  DashboardStatsDto, AppointmentStatus, PrescriptionStatus
+  DashboardStatsDto, AppointmentStatus
 } from '@/types'
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const authApi = {
   login:    (data: LoginRequest)    => api.post<AuthResponse>('/auth/login', data).then(r => r.data),
+  googleLogin: (data: GoogleLoginRequest) => api.post<AuthResponse>('/auth/google-login', data).then(r => r.data),
   register: (data: RegisterRequest) => api.post<AuthResponse>('/auth/register', data).then(r => r.data),
 }
 

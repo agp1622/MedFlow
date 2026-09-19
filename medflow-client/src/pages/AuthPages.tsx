@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -8,6 +7,7 @@ import { authApi } from '@/api/services'
 import { useAuthStore } from '@/store/authStore'
 import { Spinner } from '@/components/ui'
 import toast from 'react-hot-toast'
+import { GoogleLogin } from '@react-oauth/google'
 
 // ── Login ─────────────────────────────────────────────────────────────────────
 const loginSchema = z.object({
@@ -27,6 +27,12 @@ export function LoginPage() {
     onError: () => toast.error('Invalid email or password'),
   })
 
+  const googleMutation = useMutation({
+    mutationFn: authApi.googleLogin,
+    onSuccess: (data) => { login(data.token, data.user); navigate('/') },
+    onError: () => toast.error('Google sign in failed'),
+  })
+
   return (
     <AuthShell title="Welcome back" subtitle="Sign in to your MedFlow account">
       <form onSubmit={handleSubmit(d => mutation.mutate(d))} className="space-y-4">
@@ -36,10 +42,28 @@ export function LoginPage() {
         <Field label="Password" error={errors.password?.message}>
           <input className="input" type="password" placeholder="••••••••" {...register('password')} />
         </Field>
-        <button type="submit" className="btn-primary w-full h-10" disabled={mutation.isPending}>
+        <button type="submit" className="btn-primary w-full h-10" disabled={mutation.isPending || googleMutation.isPending}>
           {mutation.isPending ? <Spinner className="w-4 h-4" /> : 'Sign In'}
         </button>
       </form>
+
+      <div className="mt-6 mb-4 flex items-center justify-center">
+        <div className="w-full h-px bg-gray-200"></div>
+        <span className="px-4 text-sm text-gray-500 bg-surface">OR</span>
+        <div className="w-full h-px bg-gray-200"></div>
+      </div>
+      
+      <div className="flex justify-center">
+        <GoogleLogin
+          onSuccess={credentialResponse => {
+            if (credentialResponse.credential) {
+              googleMutation.mutate({ credential: credentialResponse.credential })
+            }
+          }}
+          onError={() => toast.error('Google Sign-In failed')}
+        />
+      </div>
+
       <p className="text-center text-sm text-gray-500 mt-5">
         No account? <Link to="/register" className="text-primary-600 font-semibold hover:underline">Register</Link>
       </p>
@@ -69,6 +93,12 @@ export function RegisterPage() {
     onError: () => toast.error('Registration failed. Email may already be in use.'),
   })
 
+  const googleMutation = useMutation({
+    mutationFn: authApi.googleLogin,
+    onSuccess: (data) => { login(data.token, data.user); navigate('/') },
+    onError: () => toast.error('Google sign in failed'),
+  })
+
   return (
     <AuthShell title="Create your account" subtitle="Start managing your patients today">
       <form onSubmit={handleSubmit(d => mutation.mutate(d))} className="space-y-4">
@@ -92,10 +122,28 @@ export function RegisterPage() {
         <Field label="Confirm password" error={errors.confirmPassword?.message}>
           <input className="input" type="password" placeholder="Repeat password" {...register('confirmPassword')} />
         </Field>
-        <button type="submit" className="btn-primary w-full h-10" disabled={mutation.isPending}>
+        <button type="submit" className="btn-primary w-full h-10" disabled={mutation.isPending || googleMutation.isPending}>
           {mutation.isPending ? <Spinner className="w-4 h-4" /> : 'Create Account'}
         </button>
       </form>
+
+      <div className="mt-6 mb-4 flex items-center justify-center">
+        <div className="w-full h-px bg-gray-200"></div>
+        <span className="px-4 text-sm text-gray-500 bg-surface">OR</span>
+        <div className="w-full h-px bg-gray-200"></div>
+      </div>
+      
+      <div className="flex justify-center">
+        <GoogleLogin
+          onSuccess={credentialResponse => {
+            if (credentialResponse.credential) {
+              googleMutation.mutate({ credential: credentialResponse.credential })
+            }
+          }}
+          onError={() => toast.error('Google Sign-In failed')}
+        />
+      </div>
+
       <p className="text-center text-sm text-gray-500 mt-5">
         Already have an account? <Link to="/login" className="text-primary-600 font-semibold hover:underline">Sign in</Link>
       </p>

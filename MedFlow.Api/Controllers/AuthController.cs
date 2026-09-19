@@ -5,6 +5,7 @@ using MedFlow.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using MedFlow.Core.Entities;
+using Google.Apis.Auth;
 
 namespace MedFlow.Api.Controllers;
 
@@ -78,5 +79,54 @@ public class AuthController : ControllerBase
         var token = user.GenerateToken(_config);
         return Ok(new AuthResponse(token, Guid.NewGuid().ToString(), DateTime.UtcNow.AddHours(1),
             new UserDto(user.Id, user.Email!, user.FirstName, user.LastName, user.Specialty)));
+    }
+
+    [HttpPost("google-login")]
+    public async Task<ActionResult<AuthResponse>> GoogleLogin([FromBody] GoogleLoginRequest req)
+    {
+        try
+        {
+            var settings = new GoogleJsonWebSignature.ValidationSettings
+            {
+                Audience = new[] { _config["Authentication:Google:ClientId"] }
+            };
+            var payload = await GoogleJsonWebSignature.ValidateAsync(req.Credential, settings);
+
+            var user = await _userManager.FindByEmailAsync(payload.Email);
+            if (user == null)
+            {
+                user = new ApplicationUser
+                {
+                    UserName = payload.Email,
+                    Email = payload.Email,
+                    FirstName = payload.GivenName ?? "Unknown",
+                    LastName = payload.FamilyName ?? "Unknown",
+                    Specialty = "General Practice" // Default for Google Sign-In
+                };
+
+                var result = await _userManager.CreateAsync(user); // No password for Google Sign-In users
+                if (!result.Succeeded)
+                    return BadRequest(new { errors = result.Errors.Select(e => e.Description) });
+
+                // Create linked Doctor record
+                var doctor = new Doctor
+                {
+                    UserId = user.Id,
+                    FirstName = user.FirstName,
+                    LastName = user.LastName,
+                    Specialty = user.Specialty
+                };
+                _db.Doctors.Add(doctor);
+                await _db.SaveChangesAsync();
+            }
+
+            var token = user.GenerateToken(_config);
+            return Ok(new AuthResponse(token, Guid.NewGuid().ToString(), DateTime.UtcNow.AddHours(1),
+                new UserDto(user.Id, user.Email!, user.FirstName, user.LastName, user.Specialty)));
+        }
+        catch (InvalidJwtException)
+        {
+            return Unauthorized(new { error = "Invalid Google token." });
+        }
     }
 }
