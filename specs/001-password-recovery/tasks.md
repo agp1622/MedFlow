@@ -76,6 +76,8 @@ description: "Task list for Password Recovery Page and Functionality"
 - [X] T017 [P] Verify no secrets are committed (`appsettings.json` placeholders only) and ensure `.gitignore` covers `appsettings.Development.json` if it holds credentials
 - [X] T018 Build backend (`dotnet build`) and frontend (`npm run build` in `medflow-client`) and fix any errors
 - [ ] T019 Run the quickstart.md scenarios 1–3 end to end and record results
+  - **Blocked in this environment**: requires Docker (for the SQL Server container) and a real Gmail App Password, neither available in the sandbox this was implemented in. `dotnet build` and `npm run build` both pass (T018), but the API was not booted end-to-end here.
+  - **To complete manually**: start Docker + `docker-compose up` (or your SQL Server), set `Email__SenderEmail` / `Email__AppPassword` as environment variables or `dotnet user-secrets` (never in a committed `appsettings.*.json`), run `dotnet run` in `MedFlow.Api` and `npm run dev` in `medflow-client`, then walk Scenarios 1–3 in `quickstart.md`.
 
 ---
 
