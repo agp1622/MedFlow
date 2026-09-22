@@ -157,6 +157,10 @@ public class AuthController : ControllerBase
             }
             else if (await _userManager.HasPasswordAsync(user))
             {
+                // Rotate the security stamp so any previously issued, unused reset link (which was
+                // derived from the old stamp) becomes invalid as soon as a new one is issued, not
+                // only once a token is actually consumed (FR-008 / spec.md Edge Cases).
+                await _userManager.UpdateSecurityStampAsync(user);
                 var token = await _userManager.GeneratePasswordResetTokenAsync(user);
                 var link = $"{frontendUrl}/reset-password?token={WebUtility.UrlEncode(token)}&email={WebUtility.UrlEncode(user.Email)}";
                 await _emailSender.SendAsync(user.Email!, "Reset your MedFlow password",
