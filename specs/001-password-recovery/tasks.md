@@ -75,9 +75,17 @@ description: "Task list for Password Recovery Page and Functionality"
 
 - [X] T017 [P] Verify no secrets are committed (`appsettings.json` placeholders only) and ensure `.gitignore` covers `appsettings.Development.json` if it holds credentials
 - [X] T018 Build backend (`dotnet build`) and frontend (`npm run build` in `medflow-client`) and fix any errors
-- [ ] T019 Run the quickstart.md scenarios 1–3 end to end and record results
-  - **Blocked in this environment**: requires Docker (for the SQL Server container) and a real Gmail App Password, neither available in the sandbox this was implemented in. `dotnet build` and `npm run build` both pass (T018), but the API was not booted end-to-end here.
-  - **To complete manually**: start Docker + `docker-compose up` (or your SQL Server), set `Email__SenderEmail` / `Email__AppPassword` as environment variables or `dotnet user-secrets` (never in a committed `appsettings.*.json`), run `dotnet run` in `MedFlow.Api` and `npm run dev` in `medflow-client`, then walk Scenarios 1–3 in `quickstart.md`.
+- [X] T019 Run the quickstart.md scenarios 1–3 end to end and record results
+  - **Verified against a real API + SQL Server** (`docker-compose up db` + `dotnet run`, dummy SMTP settings since no Gmail App Password is available in this environment):
+    - Uniform `200` response for both a registered and an unregistered email; `400` for a malformed email.
+    - Reset-password: mismatched confirmation → `400`; policy-violating password → `400` with the policy errors; garbage/invalid token → the generic invalid-link `400`; valid token → `200` success.
+    - Old password rejected after reset; new password logs in successfully.
+    - Reusing an already-used token → invalid-link `400` (single-use enforced, FR-007).
+    - Rate limiting: exceeding the per-IP threshold on `forgot-password` → `429` (FR-012).
+    - Lockout: after 5 failed logins the account locks; a password reset immediately clears the lockout and login succeeds without waiting for it to expire (FR-013).
+    - Google-only account (inserted directly in the DB for this test, since simulating a real Google Sign-In JWT isn't practical here): `forgot-password` gets the identical generic response and, confirmed via server logs, takes the "send Google guidance, skip token generation" branch — no reset token/link is produced for that account (FR-005, SC-005).
+  - **Bug found and fixed during this verification**: requesting a second reset link did NOT invalidate the first unused one (Identity's token provider only invalidates on *use*, not on *issue*), contradicting FR-008 and the spec.md edge case. Fixed by rotating the security stamp on each new token issuance — see commit `f33f8fb`. Re-verified after the fix: the old link is rejected as soon as a newer one is requested.
+  - **Not verified (needs your credentials/manual step)**: actual Gmail delivery and the exact rendered email content — the SMTP send call was exercised (reached and executed) but pointed at dummy/no-op SMTP settings in this sandbox, so no real email left the box. To confirm real delivery, set `Email__SenderEmail` / `Email__AppPassword` (Gmail App Password) as environment variables or `dotnet user-secrets` — never in a committed `appsettings.*.json` — and repeat Scenario 1 step 3 and Scenario 3 step 3–4 watching a real inbox.
 
 ---
 
