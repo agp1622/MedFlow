@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
+import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import {
   LayoutDashboard, Users, CalendarDays, Pill, CreditCard, LogOut, Plus
 } from 'lucide-react'
@@ -59,9 +60,12 @@ export function AppLayout() {
               <p className="text-[#4A6280] text-xs truncate">{user?.specialty}</p>
             </div>
           </div>
-          <button onClick={handleLogout} className="flex items-center gap-2 text-[#4A6280] hover:text-red-400 text-xs transition-colors w-full px-1 py-1">
-            <LogOut size={13} /> Sign out
-          </button>
+          <div className="flex items-center justify-between">
+            <button onClick={handleLogout} className="flex items-center gap-2 text-[#4A6280] hover:text-red-400 text-xs transition-colors px-1 py-1">
+              <LogOut size={13} /> Sign out
+            </button>
+            <ThemeToggle />
+          </div>
         </div>
       </aside>
 
