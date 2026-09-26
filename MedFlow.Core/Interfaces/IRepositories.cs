@@ -59,6 +59,12 @@ public interface IMedicalNoteRepository : IRepository<MedicalNote>
     Task<IEnumerable<MedicalNoteDto>> GetByPatientAsync(int patientId, string doctorId);
 }
 
+public interface IPatientAttachmentRepository : IRepository<PatientAttachment>
+{
+    Task<IEnumerable<PatientAttachmentDto>> GetByPatientAsync(int patientId, string doctorId);
+    Task<PatientAttachment?> GetWithOwnerCheckAsync(int id, string doctorId);
+}
+
 public interface IDashboardRepository
 {
     Task<DashboardStatsDto> GetStatsAsync(string doctorId);

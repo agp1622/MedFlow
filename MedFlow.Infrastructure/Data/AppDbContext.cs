@@ -17,6 +17,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<VitalSign> VitalSigns => Set<VitalSign>();
     public DbSet<MedicalNote> MedicalNotes => Set<MedicalNote>();
+    public DbSet<PatientAttachment> PatientAttachments => Set<PatientAttachment>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -29,6 +30,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<Invoice>().HasQueryFilter(i => !i.IsDeleted);
         builder.Entity<VitalSign>().HasQueryFilter(v => !v.IsDeleted);
         builder.Entity<MedicalNote>().HasQueryFilter(n => !n.IsDeleted);
+        builder.Entity<PatientAttachment>().HasQueryFilter(a => !a.IsDeleted);
 
         // Patient
         builder.Entity<Patient>(e =>
@@ -116,6 +118,18 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.Property(v => v.Temperature).HasPrecision(4, 1);
             e.HasOne(v => v.Patient).WithMany(p => p.VitalSigns)
                 .HasForeignKey(v => v.PatientId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // PatientAttachment
+        builder.Entity<PatientAttachment>(e =>
+        {
+            e.HasIndex(a => new { a.PatientId, a.DoctorId });
+            e.Property(a => a.FileName).HasMaxLength(500);
+            e.Property(a => a.StoredFileName).HasMaxLength(500);
+            e.Property(a => a.ContentType).HasMaxLength(200);
+            e.Property(a => a.Category).HasMaxLength(100);
+            e.HasOne(a => a.Patient).WithMany(p => p.Attachments)
+                .HasForeignKey(a => a.PatientId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 

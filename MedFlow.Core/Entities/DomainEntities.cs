@@ -94,3 +94,16 @@ public class MedicalNote : BaseEntity
     public string? VisitType { get; set; }
     public DateTime NoteDate { get; set; } = DateTime.UtcNow;
 }
+
+public class PatientAttachment : BaseEntity
+{
+    public int PatientId { get; set; }
+    public Patient? Patient { get; set; }
+    public string DoctorId { get; set; } = string.Empty;
+    public string FileName { get; set; } = string.Empty;
+    public string StoredFileName { get; set; } = string.Empty;
+    public string ContentType { get; set; } = string.Empty;
+    public long FileSize { get; set; }
+    public string? Category { get; set; }
+    public string? Description { get; set; }
+}

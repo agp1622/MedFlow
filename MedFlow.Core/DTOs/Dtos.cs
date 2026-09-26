@@ -138,6 +138,13 @@ public record MedicalNoteDto(
 
 public record CreateMedicalNoteRequest(int PatientId, string Content, string? VisitType);
 
+// ── PatientAttachment ────────────────────────────────────────────────────────
+public record PatientAttachmentDto(
+    int Id, int PatientId, string FileName, string ContentType,
+    long FileSize, string? Category, string? Description,
+    DateTime CreatedAt
+);
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 public record DashboardStatsDto(
     int TotalPatients, int ActivePatients,

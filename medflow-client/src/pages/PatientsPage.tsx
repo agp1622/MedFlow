@@ -14,6 +14,7 @@ import { fmt, bloodTypeDisplay, displayEnum } from '@/utils/format'
 import { ArrowLeft, Trash2, Plus } from 'lucide-react'
 import type { CreatePatientRequest, Gender, BloodType } from '@/types'
 import toast from 'react-hot-toast'
+import { AttachmentsTab } from '@/components/attachments/AttachmentsTab'
 
 // ── Patient List ──────────────────────────────────────────────────────────────
 export function PatientsPage() {
@@ -84,7 +85,7 @@ export function PatientsPage() {
 }
 
 // ── Patient Detail ────────────────────────────────────────────────────────────
-const TABS = ['Overview', 'Appointments', 'Prescriptions', 'Invoices', 'Notes'] as const
+const TABS = ['Overview', 'Appointments', 'Prescriptions', 'Invoices', 'Notes', 'Attachments'] as const
 type Tab = typeof TABS[number]
 
 export function PatientDetailPage() {
@@ -146,6 +147,7 @@ export function PatientDetailPage() {
         {tab === 'Prescriptions' && <RxTab patientId={patientId} />}
         {tab === 'Invoices'      && <InvTab patientId={patientId} />}
         {tab === 'Notes'         && <NotesTab patientId={patientId} />}
+        {tab === 'Attachments'   && <AttachmentsTab patientId={patientId} />}
       </div>
     </div>
   )

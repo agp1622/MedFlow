@@ -8,6 +8,7 @@ import type {
   InvoiceDto, CreateInvoiceRequest, UpdateInvoiceRequest,
   VitalSignDto, CreateVitalSignRequest,
   MedicalNoteDto, CreateMedicalNoteRequest,
+  PatientAttachmentDto,
   DashboardStatsDto, AppointmentStatus
 } from '@/types'
 
@@ -75,4 +76,45 @@ export const notesApi = {
   getByPatient: (patientId: number) => api.get<MedicalNoteDto[]>(`/medicalnotes/patient/${patientId}`).then(r => r.data),
   create:       (data: CreateMedicalNoteRequest) => api.post<MedicalNoteDto>('/medicalnotes', data).then(r => r.data),
   delete:       (id: number)        => api.delete(`/medicalnotes/${id}`),
+}
+
+// ── Attachments ───────────────────────────────────────────────────────────────
+export const attachmentsApi = {
+  getByPatient: (patientId: number) =>
+    api.get<PatientAttachmentDto[]>(`/attachments/patient/${patientId}`).then(r => r.data),
+
+  upload: (data: { file: File; patientId: number; category?: string; description?: string },
+           onProgress?: (pct: number) => void) => {
+    const formData = new FormData()
+    formData.append('file', data.file)
+    formData.append('patientId', data.patientId.toString())
+    if (data.category) formData.append('category', data.category)
+    if (data.description) formData.append('description', data.description)
+    return api.post<PatientAttachmentDto>('/attachments', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (e) => {
+        if (onProgress && e.total) onProgress(Math.round((e.loaded * 100) / e.total))
+      },
+    }).then(r => r.data)
+  },
+
+  getPreviewUrl: (id: number) => {
+    const token = localStorage.getItem('medflow_token')
+    return `/api/attachments/${id}/preview?access_token=${token}`
+  },
+  getDownloadUrl: (id: number) => `/api/attachments/${id}/download`,
+
+  download: async (id: number, fileName: string) => {
+    const response = await api.get(`/attachments/${id}/download`, { responseType: 'blob' })
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  },
+
+  delete: (id: number) => api.delete(`/attachments/${id}`),
 }

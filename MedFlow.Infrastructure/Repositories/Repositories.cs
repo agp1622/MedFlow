@@ -360,3 +360,22 @@ public class DashboardRepository : IDashboardRepository
             todaySchedule, recentPatients);
     }
 }
+
+// ── PatientAttachment Repository ──────────────────────────────────────────────
+public class PatientAttachmentRepository : Repository<PatientAttachment>, IPatientAttachmentRepository
+{
+    public PatientAttachmentRepository(AppDbContext db) : base(db) { }
+
+    public async Task<IEnumerable<PatientAttachmentDto>> GetByPatientAsync(int patientId, string doctorId) =>
+        await _db.PatientAttachments
+            .Where(a => a.PatientId == patientId && a.DoctorId == doctorId)
+            .OrderByDescending(a => a.CreatedAt)
+            .Select(a => new PatientAttachmentDto(
+                a.Id, a.PatientId, a.FileName, a.ContentType,
+                a.FileSize, a.Category, a.Description, a.CreatedAt))
+            .ToListAsync();
+
+    public async Task<PatientAttachment?> GetWithOwnerCheckAsync(int id, string doctorId) =>
+        await _db.PatientAttachments
+            .FirstOrDefaultAsync(a => a.Id == id && a.DoctorId == doctorId);
+}

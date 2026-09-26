@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi } from '@/api/services'
+import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi } from '@/api/services'
 import type { QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, UpdateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, UpdatePrescriptionRequest, CreateInvoiceRequest, UpdateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest } from '@/types'
 import toast from 'react-hot-toast'
 
@@ -18,6 +18,7 @@ export const QK = {
   invoicesByPatient: (pid: number) => ['invoices', 'patient', pid],
   vitals: (pid: number) => ['vitals', pid],
   notes: (pid: number) => ['notes', pid],
+  attachments: (pid: number) => ['attachments', pid],
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -173,5 +174,34 @@ export const useDeleteNote = () => {
   return useMutation({
     mutationFn: ({ id, patientId }: { id: number; patientId: number }) => notesApi.delete(id),
     onSuccess: (_, vars) => { qc.invalidateQueries({ queryKey: QK.notes(vars.patientId) }); toast.success('Note deleted') },
+  })
+}
+
+// ── Attachments ───────────────────────────────────────────────────────────────
+export const usePatientAttachments = (patientId: number) =>
+  useQuery({ queryKey: QK.attachments(patientId), queryFn: () => attachmentsApi.getByPatient(patientId), enabled: patientId > 0 })
+
+export const useUploadAttachment = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { file: File; patientId: number; category?: string; description?: string }) =>
+      attachmentsApi.upload(data),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: QK.attachments(vars.patientId) })
+      toast.success('File uploaded')
+    },
+    onError: () => toast.error('Failed to upload file'),
+  })
+}
+
+export const useDeleteAttachment = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, patientId }: { id: number; patientId: number }) => attachmentsApi.delete(id),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: QK.attachments(vars.patientId) })
+      toast.success('Attachment deleted')
+    },
+    onError: () => toast.error('Failed to delete attachment'),
   })
 }

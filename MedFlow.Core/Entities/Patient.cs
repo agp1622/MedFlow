@@ -36,6 +36,7 @@ public class Patient : BaseEntity
     public ICollection<Invoice> Invoices { get; set; } = new List<Invoice>();
     public ICollection<VitalSign> VitalSigns { get; set; } = new List<VitalSign>();
     public ICollection<MedicalNote> MedicalNotes { get; set; } = new List<MedicalNote>();
+    public ICollection<PatientAttachment> Attachments { get; set; } = new List<PatientAttachment>();
 
     private int CalculateAge()
     {

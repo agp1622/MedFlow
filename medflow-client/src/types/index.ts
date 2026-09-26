@@ -130,6 +130,12 @@ export interface CreateMedicalNoteRequest {
   patientId: number; content: string; visitType?: string
 }
 
+// ── PatientAttachment ─────────────────────────────────────────────────────────
+export interface PatientAttachmentDto {
+  id: number; patientId: number; fileName: string; contentType: string
+  fileSize: number; category?: string; description?: string; createdAt: string
+}
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export interface DashboardStatsDto {
   totalPatients: number; activePatients: number

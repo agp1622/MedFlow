@@ -12,6 +12,20 @@
         "/consoleloggerparameters:NoSummary"
       ],
       "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "run-api",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "${workspaceFolder}/MedFlow.Api/MedFlow.Api.csproj",
+        "--no-launch-profile",
+        "--urls",
+        "http://localhost:5080"
+      ],
+      "problemMatcher": []
     }
   ]
 }
