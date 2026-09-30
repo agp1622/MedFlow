@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { useMutation } from '@tanstack/react-query'
 import { authApi } from '@/api/services'
 import { useAuthStore } from '@/store/authStore'
-import { Spinner } from '@/components/ui'
+import { Spinner, PasswordInput } from '@/components/ui'
 import toast from 'react-hot-toast'
 import { GoogleLogin } from '@react-oauth/google'
 
@@ -40,7 +40,7 @@ export function LoginPage() {
           <input className="input" type="email" placeholder="doctor@clinic.com" {...register('email')} />
         </Field>
         <Field label="Password" error={errors.password?.message}>
-          <input className="input" type="password" placeholder="••••••••" {...register('password')} />
+          <PasswordInput placeholder="••••••••" registration={register('password')} />
         </Field>
         <button type="submit" className="btn-primary w-full h-10" disabled={mutation.isPending || googleMutation.isPending}>
           {mutation.isPending ? <Spinner className="w-4 h-4" /> : 'Sign In'}
@@ -117,10 +117,10 @@ export function RegisterPage() {
           <input className="input" placeholder="e.g. Cardiology" {...register('specialty')} />
         </Field>
         <Field label="Password" error={errors.password?.message}>
-          <input className="input" type="password" placeholder="Min 8 chars, 1 uppercase" {...register('password')} />
+          <PasswordInput placeholder="Min 8 chars, 1 uppercase" registration={register('password')} />
         </Field>
         <Field label="Confirm password" error={errors.confirmPassword?.message}>
-          <input className="input" type="password" placeholder="Repeat password" {...register('confirmPassword')} />
+          <PasswordInput placeholder="Repeat password" registration={register('confirmPassword')} />
         </Field>
         <button type="submit" className="btn-primary w-full h-10" disabled={mutation.isPending || googleMutation.isPending}>
           {mutation.isPending ? <Spinner className="w-4 h-4" /> : 'Create Account'}

@@ -1,5 +1,6 @@
 import { avatarColor, initials, statusClass, displayEnum } from '@/utils/format'
 import { Loader2 } from 'lucide-react'
+export { PasswordInput } from './PasswordInput'
 
 // ── Badge ─────────────────────────────────────────────────────────────────────
 export function Badge({ status }: { status: string }) {
