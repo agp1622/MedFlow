@@ -28,5 +28,4 @@ Thumbs.db
 
 .fake
 package-lock.json
-MedFlow.Api/appsettings.json
-MedFlow.Api/appsettings.json
+MedFlow.Api/appsettings*.json

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi } from '@/api/services'
+import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi } from '@/api/services'
 import type { QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, UpdateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, UpdatePrescriptionRequest, CreateInvoiceRequest, UpdateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest } from '@/types'
 import toast from 'react-hot-toast'
 
@@ -172,7 +172,7 @@ export const useCreateNote = () => {
 export const useDeleteNote = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, patientId }: { id: number; patientId: number }) => notesApi.delete(id),
+    mutationFn: ({ id }: { id: number; patientId: number }) => notesApi.delete(id),
     onSuccess: (_, vars) => { qc.invalidateQueries({ queryKey: QK.notes(vars.patientId) }); toast.success('Note deleted') },
   })
 }
