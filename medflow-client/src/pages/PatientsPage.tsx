@@ -7,11 +7,13 @@ import {
   usePatients, usePatient, useCreatePatient, useDeletePatient,
   usePatientAppointments, usePatientPrescriptions, usePatientInvoices,
   usePatientVitals, usePatientNotes, useCreateNote, useDeleteNote,
+  useSetNoteSharing, useInvitePatient, useRevokePortalAccess,
 } from '@/hooks/queries'
 import { PageHeader } from '@/components/layout/AppLayout'
 import { Avatar, Badge, SearchInput, PageSpinner, EmptyState, Pagination, Spinner } from '@/components/ui'
 import { fmt, bloodTypeDisplay, displayEnum } from '@/utils/format'
 import { ArrowLeft, Trash2, Plus } from 'lucide-react'
+import { ShareToggle } from '@/components/sharing/ShareToggle'
 import { AttachmentsTab } from '@/components/attachments/AttachmentsTab'
 import type { CreatePatientRequest } from '@/types'
 
@@ -93,6 +95,8 @@ export function PatientDetailPage() {
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('Overview')
   const { data: patient, isLoading } = usePatient(patientId)
+  const invite = useInvitePatient()
+  const revoke = useRevokePortalAccess()
 
   if (isLoading) return <PageSpinner />
   if (!patient) return <div className="p-8 text-gray-500">Patient not found</div>
@@ -127,7 +131,16 @@ export function PatientDetailPage() {
               </div>
             ))}
           </div>
-          <Badge status={patient.status} />
+          <div className="flex flex-col items-end gap-2">
+            <Badge status={patient.status} />
+            <PortalAccess
+              status={patient.portalStatus ?? 'NotInvited'}
+              hasEmail={!!patient.email?.trim()}
+              busy={invite.isPending || revoke.isPending}
+              onInvite={() => invite.mutate(patientId)}
+              onRevoke={() => { if (confirm('Revoke this patient\'s portal access?')) revoke.mutate(patientId) }}
+            />
+          </div>
         </div>
 
         {/* Tabs */}
@@ -244,10 +257,35 @@ function InvTab({ patientId }: { patientId: number }) {
   )
 }
 
+function PortalAccess({ status, hasEmail, busy, onInvite, onRevoke }: {
+  status: 'NotInvited' | 'Invited' | 'Active'; hasEmail: boolean; busy: boolean
+  onInvite: () => void; onRevoke: () => void
+}) {
+  const label = { NotInvited: 'No portal access', Invited: 'Invitation pending', Active: 'Portal active' }[status]
+  return (
+    <div className="flex flex-col items-end gap-1.5 text-right">
+      <span className={`text-xs font-medium ${status === 'Active' ? 'text-emerald-600' : 'text-gray-500'}`}>{label}</span>
+      {status !== 'Active' && (
+        <button className="btn-secondary text-xs" onClick={onInvite} disabled={busy || !hasEmail}
+          title={hasEmail ? undefined : 'Add an email address to this patient first'}>
+          {busy ? <Spinner className="w-3.5 h-3.5" /> : status === 'Invited' ? 'Resend invitation' : 'Invite to portal'}
+        </button>
+      )}
+      {status !== 'NotInvited' && (
+        <button className="text-xs text-red-500 hover:underline disabled:opacity-50" onClick={onRevoke} disabled={busy}>
+          {status === 'Active' ? 'Revoke access' : 'Cancel invitation'}
+        </button>
+      )}
+      {!hasEmail && status === 'NotInvited' && <span className="text-[11px] text-gray-400">An email is required</span>}
+    </div>
+  )
+}
+
 function NotesTab({ patientId }: { patientId: number }) {
   const { data, isLoading } = usePatientNotes(patientId)
   const createNote = useCreateNote()
   const deleteNote = useDeleteNote()
+  const setSharing = useSetNoteSharing()
   const [content, setContent] = useState('')
   const [visitType, setVisitType] = useState('')
 
@@ -276,6 +314,10 @@ function NotesTab({ patientId }: { patientId: number }) {
               <div>
                 <p className="text-xs text-gray-400">{fmt.dateTime(note.noteDate)} · {note.visitType ?? 'General'}</p>
                 <p className="text-sm text-gray-700 mt-1 leading-relaxed">{note.content}</p>
+                <div className="mt-2">
+                  <ShareToggle shared={!!note.sharedWithPatient} disabled={setSharing.isPending}
+                    onChange={shared => setSharing.mutate({ id: note.id, patientId, shared })} />
+                </div>
               </div>
               <button className="btn-ghost p-1.5 flex-shrink-0" onClick={() => deleteNote.mutate({ id: note.id, patientId })}>
                 <Trash2 size={13} className="text-gray-400" />

@@ -1,3 +1,4 @@
+using MedFlow.Core;
 using MedFlow.Api.Extensions;
 using MedFlow.Core.DTOs;
 using MedFlow.Core.Entities;
@@ -11,7 +12,7 @@ namespace MedFlow.Api.Controllers;
 // ── Prescriptions ─────────────────────────────────────────────────────────────
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = Roles.Doctor)]
 public class PrescriptionsController : ControllerBase
 {
     private readonly IPrescriptionRepository _rx;
@@ -73,7 +74,7 @@ public class PrescriptionsController : ControllerBase
 // ── Invoices ──────────────────────────────────────────────────────────────────
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = Roles.Doctor)]
 public class InvoicesController : ControllerBase
 {
     private readonly IInvoiceRepository _invoices;
@@ -149,7 +150,7 @@ public class InvoicesController : ControllerBase
 // ── VitalSigns ────────────────────────────────────────────────────────────────
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = Roles.Doctor)]
 public class VitalSignsController : ControllerBase
 {
     private readonly IVitalSignRepository _vitals;
@@ -200,7 +201,7 @@ public class VitalSignsController : ControllerBase
 // ── MedicalNotes ──────────────────────────────────────────────────────────────
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = Roles.Doctor)]
 public class MedicalNotesController : ControllerBase
 {
     private readonly IMedicalNoteRepository _notes;
@@ -226,6 +227,17 @@ public class MedicalNotesController : ControllerBase
             created.Content, created.VisitType, created.NoteDate));
     }
 
+    [HttpPut("{id:int}/sharing")]
+    public async Task<ActionResult<MedicalNoteDto>> SetSharing(int id, [FromBody] SetSharingRequest req)
+    {
+        var note = await _notes.GetWithOwnerCheckAsync(id, User.GetUserId());
+        if (note == null) return NotFound();
+        note.SharedWithPatient = req.Shared;
+        await _notes.UpdateAsync(note);
+        return Ok(new MedicalNoteDto(note.Id, note.PatientId, "You",
+            note.Content, note.VisitType, note.NoteDate, note.SharedWithPatient));
+    }
+
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
@@ -238,7 +250,7 @@ public class MedicalNotesController : ControllerBase
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = Roles.Doctor)]
 public class DashboardController : ControllerBase
 {
     private readonly IDashboardRepository _dashboard;

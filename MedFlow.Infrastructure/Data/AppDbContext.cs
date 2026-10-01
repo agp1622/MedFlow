@@ -18,6 +18,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<VitalSign> VitalSigns => Set<VitalSign>();
     public DbSet<MedicalNote> MedicalNotes => Set<MedicalNote>();
     public DbSet<PatientAttachment> PatientAttachments => Set<PatientAttachment>();
+    public DbSet<PortalInvitation> PortalInvitations => Set<PortalInvitation>();
+    public DbSet<PortalAccessLog> PortalAccessLogs => Set<PortalAccessLog>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -37,6 +39,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         {
             e.HasIndex(p => p.Email);
             e.HasIndex(p => new { p.DoctorId, p.Status });
+            e.HasIndex(p => p.PortalUserId).IsUnique().HasFilter("[PortalUserId] IS NOT NULL");
+            e.Property(p => p.PortalUserId).HasMaxLength(450);
             e.Property(p => p.BloodType).HasConversion<string>();
             e.Property(p => p.Gender).HasConversion<string>();
             e.Property(p => p.Status).HasConversion<string>();
@@ -100,6 +104,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         // MedicalNote
         builder.Entity<MedicalNote>(e =>
         {
+            e.Property(n => n.SharedWithPatient).HasDefaultValue(false);
             e.HasIndex(n => new { n.PatientId, n.DoctorId });
             e.HasOne(n => n.Patient).WithMany(p => p.MedicalNotes)
                 .HasForeignKey(n => n.PatientId).OnDelete(DeleteBehavior.Restrict);
@@ -128,8 +133,26 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.Property(a => a.StoredFileName).HasMaxLength(500);
             e.Property(a => a.ContentType).HasMaxLength(200);
             e.Property(a => a.Category).HasMaxLength(100);
+            e.Property(a => a.SharedWithPatient).HasDefaultValue(false);
             e.HasOne(a => a.Patient).WithMany(p => p.Attachments)
                 .HasForeignKey(a => a.PatientId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // PortalInvitation (no navigation to Patient: Patient has a soft-delete query filter)
+        builder.Entity<PortalInvitation>(e =>
+        {
+            e.HasIndex(i => i.TokenHash);
+            e.HasIndex(i => i.PatientId);
+            e.Property(i => i.Email).HasMaxLength(256);
+            e.Property(i => i.TokenHash).HasMaxLength(64);
+        });
+
+        // PortalAccessLog
+        builder.Entity<PortalAccessLog>(e =>
+        {
+            e.HasIndex(l => new { l.PatientId, l.OccurredAt });
+            e.Property(l => l.ResourceType).HasMaxLength(50);
+            e.Property(l => l.Action).HasMaxLength(50);
         });
     }
 

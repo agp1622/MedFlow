@@ -10,6 +10,9 @@ import type {
   VitalSignDto, CreateVitalSignRequest,
   MedicalNoteDto, CreateMedicalNoteRequest,
   PatientAttachmentDto,
+  AcceptInvitationRequest, InvitationResult,
+  PortalProfileDto, PortalAppointmentDto, PortalPrescriptionDto, PortalInvoiceDto,
+  PortalAttachmentDto, PortalNoteDto,
   DashboardStatsDto, AppointmentStatus
 } from '@/types'
 
@@ -20,6 +23,7 @@ export const authApi = {
   register: (data: RegisterRequest) => api.post<AuthResponse>('/auth/register', data).then(r => r.data),
   forgotPassword: (data: ForgotPasswordRequest) => api.post<{ message: string }>('/auth/forgot-password', data).then(r => r.data),
   resetPassword:  (data: ResetPasswordRequest)  => api.post<{ message: string }>('/auth/reset-password', data).then(r => r.data),
+  acceptInvitation: (data: AcceptInvitationRequest) => api.post<AuthResponse>('/auth/accept-invitation', data).then(r => r.data),
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -34,6 +38,8 @@ export const patientsApi = {
   create:   (data: CreatePatientRequest)         => api.post<PatientDto>('/patients', data).then(r => r.data),
   update:   (id: number, data: UpdatePatientRequest) => api.put<PatientDto>(`/patients/${id}`, data).then(r => r.data),
   delete:   (id: number)      => api.delete(`/patients/${id}`),
+  invite:   (id: number)      => api.post<InvitationResult>(`/patients/${id}/portal-invitation`).then(r => r.data),
+  revokePortalAccess: (id: number) => api.delete(`/patients/${id}/portal-access`),
 }
 
 // ── Appointments ──────────────────────────────────────────────────────────────
@@ -79,6 +85,7 @@ export const notesApi = {
   getByPatient: (patientId: number) => api.get<MedicalNoteDto[]>(`/medicalnotes/patient/${patientId}`).then(r => r.data),
   create:       (data: CreateMedicalNoteRequest) => api.post<MedicalNoteDto>('/medicalnotes', data).then(r => r.data),
   delete:       (id: number)        => api.delete(`/medicalnotes/${id}`),
+  setSharing:   (id: number, shared: boolean) => api.put<MedicalNoteDto>(`/medicalnotes/${id}/sharing`, { shared }).then(r => r.data),
 }
 
 // ── Attachments ───────────────────────────────────────────────────────────────
@@ -120,4 +127,28 @@ export const attachmentsApi = {
   },
 
   delete: (id: number) => api.delete(`/attachments/${id}`),
+  setSharing: (id: number, shared: boolean) =>
+    api.put<PatientAttachmentDto>(`/attachments/${id}/sharing`, { shared }).then(r => r.data),
+}
+
+// ── Patient portal (patient role only) ────────────────────────────────────────
+export const portalApi = {
+  me:            () => api.get<PortalProfileDto>('/portal/me').then(r => r.data),
+  appointments:  () => api.get<PortalAppointmentDto[]>('/portal/appointments').then(r => r.data),
+  prescriptions: () => api.get<PortalPrescriptionDto[]>('/portal/prescriptions').then(r => r.data),
+  invoices:      () => api.get<PortalInvoiceDto[]>('/portal/invoices').then(r => r.data),
+  attachments:   () => api.get<PortalAttachmentDto[]>('/portal/attachments').then(r => r.data),
+  notes:         () => api.get<PortalNoteDto[]>('/portal/notes').then(r => r.data),
+  // Header-authenticated blob download: no token ever goes into a URL
+  downloadAttachment: async (id: number, fileName: string) => {
+    const response = await api.get(`/portal/attachments/${id}/download`, { responseType: 'blob' })
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  },
 }

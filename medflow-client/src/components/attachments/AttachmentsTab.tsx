@@ -1,11 +1,12 @@
 import { useState, useRef, useCallback } from 'react'
-import { usePatientAttachments, useUploadAttachment, useDeleteAttachment } from '@/hooks/queries'
+import { usePatientAttachments, useUploadAttachment, useDeleteAttachment, useSetAttachmentSharing } from '@/hooks/queries'
+import { ShareToggle } from '@/components/sharing/ShareToggle'
 import { attachmentsApi } from '@/api/services'
 import { PageSpinner, EmptyState, Spinner } from '@/components/ui'
 import { fmt } from '@/utils/format'
 import {
   Upload, X, Trash2, Download, Eye, FileText, Image, Film, File,
-  CloudUpload, FolderOpen,
+  CloudUpload,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import type { PatientAttachmentDto } from '@/types'
@@ -77,6 +78,7 @@ export function AttachmentsTab({ patientId }: { patientId: number }) {
   const { data, isLoading } = usePatientAttachments(patientId)
   const uploadMutation = useUploadAttachment()
   const deleteMutation = useDeleteAttachment()
+  const sharingMutation = useSetAttachmentSharing()
 
   const [dragging, setDragging] = useState(false)
   const [showUpload, setShowUpload] = useState(false)
@@ -307,7 +309,14 @@ export function AttachmentsTab({ patientId }: { patientId: number }) {
                 {file.description && (
                   <p className="text-xs text-gray-500 mt-1 line-clamp-1">{file.description}</p>
                 )}
-                <p className="text-[10px] text-gray-300 mt-2">{fmt.relative(file.createdAt)}</p>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <p className="text-[10px] text-gray-300">{fmt.relative(file.createdAt)}</p>
+                  <ShareToggle
+                    shared={!!file.sharedWithPatient}
+                    disabled={sharingMutation.isPending}
+                    onChange={shared => sharingMutation.mutate({ id: file.id, patientId, shared })}
+                  />
+                </div>
 
                 {/* Actions */}
                 <div className="flex items-center gap-1 mt-2.5 pt-2.5 border-t border-gray-100">

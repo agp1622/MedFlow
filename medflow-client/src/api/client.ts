@@ -17,7 +17,9 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    // A 401 from the auth endpoints means bad credentials, not an expired session: let the caller show its message
+    const isAuthCall = String(err.config?.url ?? '').startsWith('/auth/')
+    if (err.response?.status === 401 && !isAuthCall) {
       localStorage.removeItem('medflow_token')
       localStorage.removeItem('medflow_user')
       window.location.href = '/login'

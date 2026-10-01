@@ -112,6 +112,15 @@ builder.Services.AddRateLimiter(options =>
                 Window = TimeSpan.FromMinutes(15),
                 QueueLimit = 0
             }));
+    options.AddPolicy("accept-invitation", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = builder.Configuration.GetValue("RateLimiting:AcceptInvitationPermitLimit", 10),
+                Window = TimeSpan.FromMinutes(15),
+                QueueLimit = 0
+            }));
     options.OnRejected = async (context, token) =>
     {
         context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
@@ -144,3 +153,6 @@ app.UseMiddleware<ErrorHandlingMiddleware>();
 app.MapControllers();
 
 app.Run();
+
+// Exposed so integration tests can use WebApplicationFactory<Program>
+public partial class Program { }
