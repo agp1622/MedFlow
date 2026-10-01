@@ -11,7 +11,7 @@ import {
 import { PageHeader } from '@/components/layout/AppLayout'
 import { Avatar, Badge, StatCard, PageSpinner, EmptyState, SearchInput, Pagination, Spinner } from '@/components/ui'
 import { Modal } from './PatientsPage'
-import { fmt, displayEnum } from '@/utils/format'
+import { fmt } from '@/utils/format'
 import { Trash2, CheckCircle } from 'lucide-react'
 import type { CreatePrescriptionRequest, CreateInvoiceRequest } from '@/types'
 

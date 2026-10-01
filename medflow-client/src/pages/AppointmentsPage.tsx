@@ -11,7 +11,7 @@ import { Avatar, Badge, PageSpinner, EmptyState, SearchInput, Pagination, Spinne
 import { Modal } from './PatientsPage'
 import { fmt, displayEnum } from '@/utils/format'
 import { Trash2, CheckCircle, XCircle } from 'lucide-react'
-import type { CreateAppointmentRequest, AppointmentStatus } from '@/types'
+import type { CreateAppointmentRequest } from '@/types'
 
 export function AppointmentsPage() {
   const navigate = useNavigate()

@@ -9,6 +9,10 @@ public record GoogleLoginRequest(string Credential);
 public record AuthResponse(string Token, string RefreshToken, DateTime Expires, UserDto User);
 public record UserDto(string Id, string Email, string FirstName, string LastName, string Specialty);
 
+// ── Auth (Password Recovery) ─────────────────────────────────────────────────
+public record ForgotPasswordRequest(string Email);
+public record ResetPasswordRequest(string Email, string Token, string NewPassword, string ConfirmPassword);
+
 // ── Pagination ────────────────────────────────────────────────────────────────
 public record PagedResult<T>(IEnumerable<T> Items, int TotalCount, int Page, int PageSize)
 {
