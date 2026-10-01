@@ -12,6 +12,7 @@ import { PageHeader } from '@/components/layout/AppLayout'
 import { Avatar, Badge, SearchInput, PageSpinner, EmptyState, Pagination, Spinner } from '@/components/ui'
 import { fmt, bloodTypeDisplay, displayEnum } from '@/utils/format'
 import { ArrowLeft, Trash2, Plus } from 'lucide-react'
+import { AttachmentsTab } from '@/components/attachments/AttachmentsTab'
 import type { CreatePatientRequest } from '@/types'
 
 // ── Patient List ──────────────────────────────────────────────────────────────

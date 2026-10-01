@@ -7,6 +7,7 @@ import {
   Upload, X, Trash2, Download, Eye, FileText, Image, Film, File,
   CloudUpload, FolderOpen,
 } from 'lucide-react'
+import toast from 'react-hot-toast'
 import type { PatientAttachmentDto } from '@/types'
 
 const CATEGORIES = ['Test Result', 'Photo', 'Video', 'Document', 'Other'] as const
@@ -22,6 +23,14 @@ const ALLOWED_TYPES = new Set([
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ])
+
+function filterFiles(files: File[]): File[] {
+  const ok = files.filter(f => ALLOWED_TYPES.has(f.type) && f.size <= MAX_SIZE)
+  const rejected = files.filter(f => !ok.includes(f))
+  if (rejected.length > 0)
+    toast.error(`Skipped ${rejected.map(f => f.name).join(', ')}: unsupported type or over 50 MB`)
+  return ok
+}
 
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 B'
@@ -93,7 +102,7 @@ export function AttachmentsTab({ patientId }: { patientId: number }) {
     e.preventDefault()
     e.stopPropagation()
     setDragging(false)
-    const files = Array.from(e.dataTransfer.files).filter(f => ALLOWED_TYPES.has(f.type) && f.size <= MAX_SIZE)
+    const files = filterFiles(Array.from(e.dataTransfer.files))
     if (files.length > 0) {
       setSelectedFiles(files)
       setShowUpload(true)
@@ -101,7 +110,7 @@ export function AttachmentsTab({ patientId }: { patientId: number }) {
   }, [])
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []).filter(f => ALLOWED_TYPES.has(f.type) && f.size <= MAX_SIZE)
+    const files = filterFiles(Array.from(e.target.files || []))
     if (files.length > 0) {
       setSelectedFiles(files)
       setShowUpload(true)

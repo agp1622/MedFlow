@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi } from '@/api/services'
+import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi } from '@/api/services'
 import type { QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, UpdateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, UpdatePrescriptionRequest, CreateInvoiceRequest, UpdateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest } from '@/types'
 import toast from 'react-hot-toast'
 
@@ -190,7 +190,10 @@ export const useUploadAttachment = () => {
       qc.invalidateQueries({ queryKey: QK.attachments(vars.patientId) })
       toast.success('File uploaded')
     },
-    onError: () => toast.error('Failed to upload file'),
+    onError: (err: any) => {
+      const d = err?.response?.data
+      toast.error(typeof d === 'string' && d ? d : d?.message || d?.title || 'Failed to upload file')
+    },
   })
 }
 
