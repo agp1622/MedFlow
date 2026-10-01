@@ -1,3 +1,4 @@
+using MedFlow.Core;
 using MedFlow.Api.Extensions;
 using MedFlow.Core.DTOs;
 using MedFlow.Core.Entities;
@@ -10,12 +11,17 @@ namespace MedFlow.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = Roles.Doctor)]
 public class PatientsController : ControllerBase
 {
     private readonly IPatientRepository _patients;
+    private readonly IPortalInvitationRepository _invitations;
 
-    public PatientsController(IPatientRepository patients) => _patients = patients;
+    public PatientsController(IPatientRepository patients, IPortalInvitationRepository invitations)
+    {
+        _patients = patients;
+        _invitations = invitations;
+    }
 
     [HttpGet]
     public async Task<ActionResult<PagedResult<PatientSummaryDto>>> GetAll([FromQuery] QueryParams q)
@@ -34,7 +40,7 @@ public class PatientsController : ControllerBase
         var lastVisit = await _patients.GetLastVisitAsync(id);
         var nextAppt = await _patients.GetNextAppointmentAsync(id);
 
-        return Ok(MapToDto(patient, lastVisit, nextAppt));
+        return Ok(MapToDto(patient, lastVisit, nextAppt, await _invitations.GetPortalStatusAsync(patient)));
     }
 
     [HttpPost]
@@ -92,7 +98,7 @@ public class PatientsController : ControllerBase
         patient.InsurancePolicyNumber = req.InsurancePolicyNumber;
 
         await _patients.UpdateAsync(patient);
-        return Ok(MapToDto(patient, null, null));
+        return Ok(MapToDto(patient, null, null, await _invitations.GetPortalStatusAsync(patient)));
     }
 
     [HttpDelete("{id:int}")]
@@ -105,12 +111,12 @@ public class PatientsController : ControllerBase
         return NoContent();
     }
 
-    private static PatientDto MapToDto(Patient p, DateTime? lastVisit, DateTime? nextAppt) => new(
+    private static PatientDto MapToDto(Patient p, DateTime? lastVisit, DateTime? nextAppt, string portalStatus = "NotInvited") => new(
         p.Id, p.FirstName, p.LastName, p.FullName,
         p.DateOfBirth, p.Age, p.Gender.ToString(), p.BloodType.ToString(),
         p.Status.ToString(), p.Email, p.Phone,
         p.Address, p.City, p.State, p.ZipCode,
         p.PrimaryCondition, p.Allergies, p.Notes,
         p.InsuranceProvider, p.InsurancePolicyNumber,
-        lastVisit, nextAppt, p.CreatedAt, p.UpdatedAt);
+        lastVisit, nextAppt, p.CreatedAt, p.UpdatedAt, portalStatus);
 }

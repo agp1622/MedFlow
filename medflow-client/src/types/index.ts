@@ -15,7 +15,13 @@ export interface AuthResponse {
 }
 export interface UserDto {
   id: string; email: string; firstName: string; lastName: string; specialty: string
+  role?: UserRole
 }
+export type UserRole = 'Doctor' | 'Patient'
+export interface AcceptInvitationRequest {
+  token: string; email: string; password: string; confirmPassword: string
+}
+export interface InvitationResult { message: string; expiresAt: string }
 
 // ── Pagination ────────────────────────────────────────────────────────────────
 export interface PagedResult<T> {
@@ -46,7 +52,9 @@ export interface PatientDto {
   insuranceProvider?: string; insurancePolicyNumber?: string
   lastVisit?: string; nextAppointment?: string
   createdAt: string; updatedAt: string
+  portalStatus?: PortalStatus
 }
+export type PortalStatus = 'NotInvited' | 'Invited' | 'Active'
 export interface PatientSummaryDto {
   id: number; fullName: string; age: number; gender: string; bloodType: string
   status: PatientStatus; email: string; phone: string
@@ -129,6 +137,7 @@ export interface CreateVitalSignRequest {
 export interface MedicalNoteDto {
   id: number; patientId: number; doctorName: string
   content: string; visitType?: string; noteDate: string
+  sharedWithPatient?: boolean
 }
 export interface CreateMedicalNoteRequest {
   patientId: number; content: string; visitType?: string
@@ -138,6 +147,7 @@ export interface CreateMedicalNoteRequest {
 export interface PatientAttachmentDto {
   id: number; patientId: number; fileName: string; contentType: string
   fileSize: number; category?: string; description?: string; createdAt: string
+  sharedWithPatient?: boolean
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -148,4 +158,26 @@ export interface DashboardStatsDto {
   pendingInvoicesAmount: number; overdueInvoices: number
   todaySchedule: AppointmentDto[]
   recentPatients: PatientSummaryDto[]
+}
+
+// ── Patient portal ────────────────────────────────────────────────────────────
+export interface PortalProfileDto { firstName: string; lastName: string; doctorName: string }
+export interface PortalAppointmentDto {
+  id: number; scheduledAt: string; durationMinutes: number; type: string; status: string
+  reason?: string; location?: string
+}
+export interface PortalPrescriptionDto {
+  id: number; drugName: string; dosage: string; frequency: string; instructions?: string
+  issuedDate: string; expiryDate: string; refillsRemaining: number; status: string
+}
+export interface PortalInvoiceDto {
+  id: number; invoiceNumber: string; serviceDescription: string; amount: number; paidAmount?: number
+  status: string; invoiceDate: string; dueDate?: string; paidDate?: string
+}
+export interface PortalAttachmentDto {
+  id: number; fileName: string; contentType: string; fileSize: number
+  category?: string; description?: string; createdAt: string
+}
+export interface PortalNoteDto {
+  id: number; doctorName: string; visitType?: string; content: string; noteDate: string
 }

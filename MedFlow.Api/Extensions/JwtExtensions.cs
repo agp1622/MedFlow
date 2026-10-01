@@ -8,14 +8,14 @@ namespace MedFlow.Api.Extensions;
 
 public static class JwtExtensions
 {
-    public static string GenerateToken(this ApplicationUser user, IConfiguration config)
+    public static string GenerateToken(this ApplicationUser user, IConfiguration config, IEnumerable<string> roles)
     {
         var jwtSettings = config.GetSection("Jwt");
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Key"]!));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
         var expiry = DateTime.UtcNow.AddMinutes(int.Parse(jwtSettings["ExpiryMinutes"] ?? "60"));
 
-        var claims = new[]
+        var claims = new List<Claim>
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id),
             new Claim(ClaimTypes.Email, user.Email ?? ""),
@@ -24,6 +24,7 @@ public static class JwtExtensions
             new Claim("specialty", user.Specialty),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
+        claims.AddRange(roles.Select(r => new Claim(ClaimTypes.Role, r)));
 
         var token = new JwtSecurityToken(
             issuer: jwtSettings["Issuer"],

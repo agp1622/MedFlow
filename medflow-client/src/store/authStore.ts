@@ -9,8 +9,18 @@ interface AuthState {
   logout: () => void
 }
 
-const storedUser = localStorage.getItem('medflow_user')
-const storedToken = localStorage.getItem('medflow_token')
+// A session saved before roles existed has no role, and the API now rejects such tokens (403),
+// so drop it and make the user sign in again.
+const parsedUser: UserDto | null = (() => {
+  try { return JSON.parse(localStorage.getItem('medflow_user') ?? 'null') } catch { return null }
+})()
+const hasValidSession = !!parsedUser?.role && !!localStorage.getItem('medflow_token')
+if (!hasValidSession) {
+  localStorage.removeItem('medflow_user')
+  localStorage.removeItem('medflow_token')
+}
+const storedUser = hasValidSession ? JSON.stringify(parsedUser) : null
+const storedToken = hasValidSession ? localStorage.getItem('medflow_token') : null
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: storedUser ? JSON.parse(storedUser) : null,

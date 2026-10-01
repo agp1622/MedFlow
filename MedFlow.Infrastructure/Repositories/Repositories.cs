@@ -3,6 +3,7 @@ using MedFlow.Core.Entities;
 using MedFlow.Core.Enums;
 using MedFlow.Core.Interfaces;
 using MedFlow.Infrastructure.Data;
+using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 
 namespace MedFlow.Infrastructure.Repositories;
@@ -313,8 +314,11 @@ public class MedicalNoteRepository : Repository<MedicalNote>, IMedicalNoteReposi
             .OrderByDescending(n => n.NoteDate)
             .Select(n => new MedicalNoteDto(n.Id, n.PatientId,
                 n.Doctor != null ? n.Doctor.FullName : "Unknown",
-                n.Content, n.VisitType, n.NoteDate))
+                n.Content, n.VisitType, n.NoteDate, n.SharedWithPatient))
             .ToListAsync();
+
+    public async Task<MedicalNote?> GetWithOwnerCheckAsync(int id, string doctorId) =>
+        await _db.MedicalNotes.FirstOrDefaultAsync(n => n.Id == id && n.DoctorId == doctorId);
 }
 
 // ── Dashboard Repository ──────────────────────────────────────────────────────
@@ -372,10 +376,165 @@ public class PatientAttachmentRepository : Repository<PatientAttachment>, IPatie
             .OrderByDescending(a => a.CreatedAt)
             .Select(a => new PatientAttachmentDto(
                 a.Id, a.PatientId, a.FileName, a.ContentType,
-                a.FileSize, a.Category, a.Description, a.CreatedAt))
+                a.FileSize, a.Category, a.Description, a.CreatedAt, a.SharedWithPatient))
             .ToListAsync();
+
+    public async Task SetSharingAsync(PatientAttachment attachment, bool shared)
+    {
+        attachment.SharedWithPatient = shared;
+        await _db.SaveChangesAsync();
+    }
 
     public async Task<PatientAttachment?> GetWithOwnerCheckAsync(int id, string doctorId) =>
         await _db.PatientAttachments
             .FirstOrDefaultAsync(a => a.Id == id && a.DoctorId == doctorId);
+}
+
+
+// ── Portal Repository (patient-facing, read-only) ─────────────────────────────
+public class PortalRepository : IPortalRepository
+{
+    private readonly AppDbContext _db;
+    public PortalRepository(AppDbContext db) { _db = db; }
+
+    public async Task<Patient?> GetPatientByUserIdAsync(string userId) =>
+        await _db.Patients.FirstOrDefaultAsync(p => p.PortalUserId == userId);
+
+    public async Task<PortalProfileDto?> GetProfileAsync(Patient patient)
+    {
+        var doctor = await _db.Doctors.FirstOrDefaultAsync(d => d.UserId == patient.DoctorId);
+        return new PortalProfileDto(patient.FirstName, patient.LastName, doctor?.FullName ?? "Your doctor");
+    }
+
+    public async Task<IEnumerable<PortalAppointmentDto>> GetAppointmentsAsync(int patientId)
+    {
+        var now = DateTime.UtcNow;
+        return await _db.Appointments
+            .Where(a => a.PatientId == patientId && a.ScheduledAt >= now && a.Status != AppointmentStatus.Cancelled)
+            .OrderBy(a => a.ScheduledAt)
+            .Select(a => new PortalAppointmentDto(a.Id, a.ScheduledAt, a.DurationMinutes,
+                a.Type.ToString(), a.Status.ToString(), a.Reason, a.Location))
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<PortalPrescriptionDto>> GetPrescriptionsAsync(int patientId) =>
+        await _db.Prescriptions
+            .Where(p => p.PatientId == patientId)
+            .OrderByDescending(p => p.IssuedDate)
+            .Select(p => new PortalPrescriptionDto(p.Id, p.DrugName, p.Dosage, p.Frequency, p.Instructions,
+                p.IssuedDate, p.ExpiryDate, p.RefillsRemaining, p.Status.ToString()))
+            .ToListAsync();
+
+    public async Task<IEnumerable<PortalInvoiceDto>> GetInvoicesAsync(int patientId) =>
+        await _db.Invoices
+            .Where(i => i.PatientId == patientId)
+            .OrderByDescending(i => i.InvoiceDate)
+            .Select(i => new PortalInvoiceDto(i.Id, i.InvoiceNumber, i.ServiceDescription, i.Amount, i.PaidAmount,
+                i.Status.ToString(), i.InvoiceDate, i.DueDate, i.PaidDate))
+            .ToListAsync();
+
+    public async Task<IEnumerable<PortalAttachmentDto>> GetSharedAttachmentsAsync(int patientId) =>
+        await _db.PatientAttachments
+            .Where(a => a.PatientId == patientId && a.SharedWithPatient)
+            .OrderByDescending(a => a.CreatedAt)
+            .Select(a => new PortalAttachmentDto(a.Id, a.FileName, a.ContentType, a.FileSize,
+                a.Category, a.Description, a.CreatedAt))
+            .ToListAsync();
+
+    public async Task<PatientAttachment?> GetSharedAttachmentAsync(int id, int patientId) =>
+        await _db.PatientAttachments
+            .FirstOrDefaultAsync(a => a.Id == id && a.PatientId == patientId && a.SharedWithPatient);
+
+    public async Task<IEnumerable<PortalNoteDto>> GetSharedNotesAsync(int patientId) =>
+        await _db.MedicalNotes
+            .Where(n => n.PatientId == patientId && n.SharedWithPatient)
+            .OrderByDescending(n => n.NoteDate)
+            .Select(n => new PortalNoteDto(n.Id,
+                n.Doctor != null ? "Dr. " + n.Doctor.FirstName + " " + n.Doctor.LastName : "Your doctor",
+                n.VisitType, n.Content, n.NoteDate))
+            .ToListAsync();
+
+    public async Task LogAccessAsync(int patientId, string resourceType, IEnumerable<int> resourceIds, string action)
+    {
+        foreach (var id in resourceIds)
+            _db.PortalAccessLogs.Add(new PortalAccessLog
+            {
+                PatientId = patientId, ResourceType = resourceType, ResourceId = id,
+                Action = action, OccurredAt = DateTime.UtcNow
+            });
+        await _db.SaveChangesAsync();
+    }
+}
+
+// ── Portal Invitation Repository ──────────────────────────────────────────────
+public class PortalInvitationRepository : IPortalInvitationRepository
+{
+    private static readonly TimeSpan Lifetime = TimeSpan.FromDays(7);
+    private readonly AppDbContext _db;
+    public PortalInvitationRepository(AppDbContext db) { _db = db; }
+
+    private static string Hash(string token) =>
+        Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token)));
+
+    public async Task<(string Token, DateTime ExpiresAt)> CreateAsync(Patient patient)
+    {
+        var now = DateTime.UtcNow;
+        // Supersede earlier pending invitations
+        var pending = await _db.PortalInvitations
+            .Where(i => i.PatientId == patient.Id && i.UsedAt == null).ToListAsync();
+        foreach (var p in pending) p.UsedAt = now;
+
+        var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+        var invitation = new PortalInvitation
+        {
+            PatientId = patient.Id,
+            Email = patient.Email,
+            TokenHash = Hash(token),
+            ExpiresAt = now.Add(Lifetime)
+        };
+        _db.PortalInvitations.Add(invitation);
+        await _db.SaveChangesAsync();
+        return (token, invitation.ExpiresAt);
+    }
+
+    public async Task<(PortalInvitation Invitation, Patient Patient)?> FindValidAsync(string token, string email)
+    {
+        if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(email)) return null;
+        var hash = Hash(token);
+        var invitation = await _db.PortalInvitations.FirstOrDefaultAsync(i => i.TokenHash == hash);
+        if (invitation == null || invitation.UsedAt != null || invitation.ExpiresAt < DateTime.UtcNow) return null;
+
+        var patient = await _db.Patients.FirstOrDefaultAsync(p => p.Id == invitation.PatientId);
+        if (patient == null || patient.Status != PatientStatus.Active) return null;
+        // Email must match the invitation and still be the patient's email on file
+        if (!string.Equals(invitation.Email, email, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(patient.Email, invitation.Email, StringComparison.OrdinalIgnoreCase)) return null;
+        return (invitation, patient);
+    }
+
+    public async Task MarkUsedAsync(PortalInvitation invitation, Patient patient, string userId)
+    {
+        invitation.UsedAt = DateTime.UtcNow;
+        patient.PortalUserId = userId;
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task RevokeAsync(Patient patient)
+    {
+        var now = DateTime.UtcNow;
+        var pending = await _db.PortalInvitations
+            .Where(i => i.PatientId == patient.Id && i.UsedAt == null).ToListAsync();
+        foreach (var p in pending) p.UsedAt = now;
+        patient.PortalUserId = null;
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task<string> GetPortalStatusAsync(Patient patient)
+    {
+        if (patient.PortalUserId != null) return "Active";
+        var now = DateTime.UtcNow;
+        var invited = await _db.PortalInvitations
+            .AnyAsync(i => i.PatientId == patient.Id && i.UsedAt == null && i.ExpiresAt >= now);
+        return invited ? "Invited" : "NotInvited";
+    }
 }

@@ -29,6 +29,9 @@ public class Patient : BaseEntity
     public string? InsurancePolicyNumber { get; set; }
 
     // Navigation
+    // Linked portal (patient-role) account, if the patient has accepted an invitation
+    public string? PortalUserId { get; set; }
+
     public string DoctorId { get; set; } = string.Empty;
     public Doctor? Doctor { get; set; }
     public ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();

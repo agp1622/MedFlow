@@ -7,7 +7,7 @@ public record RegisterRequest(string Email, string Password, string FirstName, s
 public record LoginRequest(string Email, string Password);
 public record GoogleLoginRequest(string Credential);
 public record AuthResponse(string Token, string RefreshToken, DateTime Expires, UserDto User);
-public record UserDto(string Id, string Email, string FirstName, string LastName, string Specialty);
+public record UserDto(string Id, string Email, string FirstName, string LastName, string Specialty, string Role = "Doctor");
 
 // ── Auth (Password Recovery) ─────────────────────────────────────────────────
 public record ForgotPasswordRequest(string Email);
@@ -32,7 +32,8 @@ public record PatientDto(
     string? PrimaryCondition, string? Allergies, string? Notes,
     string? InsuranceProvider, string? InsurancePolicyNumber,
     DateTime? LastVisit, DateTime? NextAppointment,
-    DateTime CreatedAt, DateTime UpdatedAt
+    DateTime CreatedAt, DateTime UpdatedAt,
+    string PortalStatus = "NotInvited"
 );
 
 public record PatientSummaryDto(
@@ -137,7 +138,8 @@ public record CreateVitalSignRequest(
 // ── MedicalNote ───────────────────────────────────────────────────────────────
 public record MedicalNoteDto(
     int Id, int PatientId, string DoctorName,
-    string Content, string? VisitType, DateTime NoteDate
+    string Content, string? VisitType, DateTime NoteDate,
+    bool SharedWithPatient = false
 );
 
 public record CreateMedicalNoteRequest(int PatientId, string Content, string? VisitType);
@@ -146,7 +148,7 @@ public record CreateMedicalNoteRequest(int PatientId, string Content, string? Vi
 public record PatientAttachmentDto(
     int Id, int PatientId, string FileName, string ContentType,
     long FileSize, string? Category, string? Description,
-    DateTime CreatedAt
+    DateTime CreatedAt, bool SharedWithPatient = false
 );
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -158,3 +160,23 @@ public record DashboardStatsDto(
     IEnumerable<AppointmentDto> TodaySchedule,
     IEnumerable<PatientSummaryDto> RecentPatients
 );
+
+// ── Patient portal ────────────────────────────────────────────────────────────
+public record AcceptInvitationRequest(string Token, string Email, string Password, string ConfirmPassword);
+public record InvitationResultDto(string Message, DateTime ExpiresAt);
+public record SetSharingRequest(bool Shared);
+
+public record PortalProfileDto(string FirstName, string LastName, string DoctorName);
+public record PortalAppointmentDto(
+    int Id, DateTime ScheduledAt, int DurationMinutes, string Type, string Status,
+    string? Reason, string? Location);
+public record PortalPrescriptionDto(
+    int Id, string DrugName, string Dosage, string Frequency, string? Instructions,
+    DateOnly IssuedDate, DateOnly ExpiryDate, int RefillsRemaining, string Status);
+public record PortalInvoiceDto(
+    int Id, string InvoiceNumber, string ServiceDescription, decimal Amount, decimal? PaidAmount,
+    string Status, DateTime InvoiceDate, DateTime? DueDate, DateTime? PaidDate);
+public record PortalAttachmentDto(
+    int Id, string FileName, string ContentType, long FileSize,
+    string? Category, string? Description, DateTime CreatedAt);
+public record PortalNoteDto(int Id, string DoctorName, string? VisitType, string Content, DateTime NoteDate);

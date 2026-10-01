@@ -1,3 +1,4 @@
+using MedFlow.Core;
 using MedFlow.Api.Extensions;
 using MedFlow.Core.DTOs;
 using MedFlow.Core.Entities;
@@ -10,7 +11,7 @@ namespace MedFlow.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = Roles.Doctor)]
 public class AppointmentsController : ControllerBase
 {
     private readonly IAppointmentRepository _appointments;

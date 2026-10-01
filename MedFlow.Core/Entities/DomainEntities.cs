@@ -93,6 +93,7 @@ public class MedicalNote : BaseEntity
     public string Content { get; set; } = string.Empty;
     public string? VisitType { get; set; }
     public DateTime NoteDate { get; set; } = DateTime.UtcNow;
+    public bool SharedWithPatient { get; set; }
 }
 
 public class PatientAttachment : BaseEntity
@@ -106,4 +107,23 @@ public class PatientAttachment : BaseEntity
     public long FileSize { get; set; }
     public string? Category { get; set; }
     public string? Description { get; set; }
+    public bool SharedWithPatient { get; set; }
+}
+
+public class PortalInvitation : BaseEntity
+{
+    public int PatientId { get; set; }
+    public string Email { get; set; } = string.Empty;
+    public string TokenHash { get; set; } = string.Empty; // SHA-256 of the emailed token
+    public DateTime ExpiresAt { get; set; }
+    public DateTime? UsedAt { get; set; }                 // set on acceptance or when superseded/revoked
+}
+
+public class PortalAccessLog : BaseEntity
+{
+    public int PatientId { get; set; }
+    public string ResourceType { get; set; } = string.Empty; // Attachment | Note
+    public int ResourceId { get; set; }
+    public string Action { get; set; } = string.Empty;       // View | Download
+    public DateTime OccurredAt { get; set; } = DateTime.UtcNow;
 }

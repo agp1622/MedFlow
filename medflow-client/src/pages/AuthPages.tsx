@@ -17,28 +17,61 @@ const loginSchema = z.object({
 })
 type LoginForm = z.infer<typeof loginSchema>
 
+type Audience = 'doctor' | 'patient'
+
 export function LoginPage() {
   const navigate = useNavigate()
   const login = useAuthStore(s => s.login)
+  const [audience, setAudience] = useState<Audience>('doctor')
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({ resolver: zodResolver(loginSchema) })
+  const isPatient = audience === 'patient'
 
   const mutation = useMutation({
     mutationFn: authApi.login,
-    onSuccess: (data) => { login(data.token, data.user); navigate('/') },
+    onSuccess: (data) => {
+      // Each tab only signs in its own kind of account
+      if ((data.user.role === 'Patient') !== isPatient) {
+        toast.error(isPatient
+          ? 'This is a doctor account. Please use the "I\'m a doctor" tab.'
+          : 'This is a patient account. Please use the "I\'m a patient" tab.')
+        setAudience(isPatient ? 'doctor' : 'patient')
+        return
+      }
+      login(data.token, data.user)
+      navigate('/')
+    },
     onError: () => toast.error('Invalid email or password'),
   })
 
   const googleMutation = useMutation({
     mutationFn: authApi.googleLogin,
     onSuccess: (data) => { login(data.token, data.user); navigate('/') },
-    onError: () => toast.error('Google sign in failed'),
+    onError: (err: any) => {
+      const data = err?.response?.data
+      if (data?.code === 'patient_account') setAudience('patient')
+      toast.error(data?.error ?? 'Google sign in failed')
+    },
   })
 
   return (
-    <AuthShell title="Welcome back" subtitle="Sign in to your MedFlow account">
+    <AuthShell
+      title={isPatient ? 'Patient portal' : 'Welcome back'}
+      subtitle={isPatient ? 'Sign in to see your records' : 'Sign in to your MedFlow account'}>
+      <div role="tablist" aria-label="Account type" className="grid grid-cols-2 gap-1 p-1 mb-6 rounded-xl bg-gray-100">
+        {(['doctor', 'patient'] as const).map(a => (
+          <button key={a} type="button" role="tab" aria-selected={audience === a}
+            onClick={() => setAudience(a)}
+            className={`py-2 rounded-lg text-sm font-semibold transition-all ${
+              audience === a ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}>
+            {a === 'doctor' ? "I'm a doctor" : "I'm a patient"}
+          </button>
+        ))}
+      </div>
+
       <form onSubmit={handleSubmit(d => mutation.mutate(d))} className="space-y-4">
         <Field label="Email" error={errors.email?.message}>
-          <input className="input" type="email" placeholder="doctor@clinic.com" {...register('email')} />
+          <input className="input" type="email" placeholder={isPatient ? 'you@example.com' : 'doctor@clinic.com'} {...register('email')} />
         </Field>
         <Field label="Password" error={errors.password?.message}>
           <PasswordInput placeholder="••••••••" registration={register('password')} />
@@ -51,26 +84,34 @@ export function LoginPage() {
         </button>
       </form>
 
-      <div className="mt-6 mb-4 flex items-center justify-center">
-        <div className="w-full h-px bg-gray-200"></div>
-        <span className="px-4 text-sm text-gray-500 bg-surface">OR</span>
-        <div className="w-full h-px bg-gray-200"></div>
-      </div>
-      
-      <div className="flex justify-center">
-        <GoogleLogin
-          onSuccess={credentialResponse => {
-            if (credentialResponse.credential) {
-              googleMutation.mutate({ credential: credentialResponse.credential })
-            }
-          }}
-          onError={() => toast.error('Google Sign-In failed')}
-        />
-      </div>
+      {isPatient ? (
+        <p className="text-center text-sm text-gray-500 mt-5">
+          Your doctor's office emails you an invitation to create your account. Didn't get one? Please contact them.
+        </p>
+      ) : (
+        <>
+          <div className="mt-6 mb-4 flex items-center justify-center">
+            <div className="w-full h-px bg-gray-200"></div>
+            <span className="px-4 text-sm text-gray-500 bg-surface">OR</span>
+            <div className="w-full h-px bg-gray-200"></div>
+          </div>
 
-      <p className="text-center text-sm text-gray-500 mt-5">
-        No account? <Link to="/register" className="text-primary-600 font-semibold hover:underline">Register</Link>
-      </p>
+          <div className="flex justify-center">
+            <GoogleLogin
+              onSuccess={credentialResponse => {
+                if (credentialResponse.credential) {
+                  googleMutation.mutate({ credential: credentialResponse.credential })
+                }
+              }}
+              onError={() => toast.error('Google Sign-In failed')}
+            />
+          </div>
+
+          <p className="text-center text-sm text-gray-500 mt-5">
+            No account? <Link to="/register" className="text-primary-600 font-semibold hover:underline">Register</Link>
+          </p>
+        </>
+      )}
     </AuthShell>
   )
 }
@@ -245,6 +286,54 @@ export function ResetPasswordPage() {
           </Field>
           <button type="submit" className="btn-primary w-full h-10" disabled={mutation.isPending}>
             {mutation.isPending ? <Spinner className="w-4 h-4" /> : 'Reset password'}
+          </button>
+        </form>
+      )}
+    </AuthShell>
+  )
+}
+
+// ── Accept portal invitation ──────────────────────────────────────────────────
+export function AcceptInvitePage() {
+  const [params] = useSearchParams()
+  const navigate = useNavigate()
+  const login = useAuthStore(s => s.login)
+  const token = params.get('token') ?? ''
+  const email = params.get('email') ?? ''
+  const [linkError, setLinkError] = useState<string | null>(null)
+  const { register, handleSubmit, formState: { errors } } = useForm<ResetForm>({ resolver: zodResolver(resetSchema) })
+
+  const mutation = useMutation({
+    mutationFn: (d: ResetForm) => authApi.acceptInvitation({ token, email, password: d.newPassword, confirmPassword: d.confirmPassword }),
+    onSuccess: (data) => { login(data.token, data.user); navigate('/portal') },
+    onError: (err: any) => {
+      const data = err?.response?.data
+      if (data?.error) setLinkError(data.error)
+      else toast.error(data?.errors?.[0] ?? 'Could not set up your account. Please try again.')
+    },
+  })
+
+  const invalid = !token || !email || linkError
+
+  return (
+    <AuthShell title="Welcome to MedFlow" subtitle="Create a password to open your patient portal">
+      {invalid ? (
+        <div className="space-y-4 text-center">
+          <p className="text-sm text-gray-700">{linkError ?? 'This invitation is invalid or has expired.'}</p>
+          <p className="text-sm text-gray-500">Please ask your doctor's office to send you a new invitation.</p>
+          <Link to="/login" className="btn-primary w-full h-10 inline-flex items-center justify-center">Go to sign in</Link>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit(d => mutation.mutate(d))} className="space-y-4">
+          <p className="text-sm text-gray-600">Setting up an account for <strong>{email}</strong></p>
+          <Field label="Password" error={errors.newPassword?.message}>
+            <PasswordInput placeholder="Min 8 chars, 1 uppercase, 1 digit" registration={register('newPassword')} />
+          </Field>
+          <Field label="Confirm password" error={errors.confirmPassword?.message}>
+            <PasswordInput placeholder="Repeat password" registration={register('confirmPassword')} />
+          </Field>
+          <button type="submit" className="btn-primary w-full h-10" disabled={mutation.isPending}>
+            {mutation.isPending ? <Spinner className="w-4 h-4" /> : 'Create account'}
           </button>
         </form>
       )}

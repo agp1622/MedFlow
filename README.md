@@ -117,6 +117,30 @@ dotnet ef database update \
 
 All endpoints require `Authorization: Bearer <token>` except `/api/auth/*`.
 
+### Roles and the patient portal
+
+Accounts have one of two roles, carried as a role claim in the JWT:
+
+- **Doctor**: everything above. All endpoints except `/api/auth/*` and `/api/portal/*` require this role.
+- **Patient**: read-only access to their own records through `/api/portal/*` only. The patient is always taken from the token, never from a request parameter.
+
+| Method | Route | Role | Description |
+|--------|-------|------|-------------|
+| POST | `/api/patients/{id}/portal-invitation` | Doctor | Email a portal invitation (7-day, single-use link) |
+| DELETE | `/api/patients/{id}/portal-access` | Doctor | Revoke portal access / cancel invitation |
+| PUT | `/api/attachments/{id}/sharing` | Doctor | Share or unshare an attachment with the patient |
+| PUT | `/api/medicalnotes/{id}/sharing` | Doctor | Share or unshare a note with the patient |
+| POST | `/api/auth/accept-invitation` | Anonymous | Patient sets a password and signs in |
+| GET | `/api/portal/me`, `appointments`, `prescriptions`, `invoices`, `attachments`, `notes` | Patient | Own data; attachments and notes only if shared |
+| GET | `/api/portal/attachments/{id}/download` | Patient | Download a shared attachment |
+
+Attachments and notes are **not shared by default**. Patients cannot use Google sign-in.
+In Development, a fresh database is seeded with a demo patient (`patient.demo@medflow.local`,
+password from `SeedUser:PatientPassword`, default `MedFlowPatient2026!`) that has an appointment,
+a prescription and an invoice. The seeder only runs when there are no users yet.
+
+Access-control tests: `dotnet test MedFlow.Api.Tests`.
+
 ---
 
 ## Azure Deployment
@@ -181,3 +205,4 @@ Azure DevOps Pipeline
 | **Vitals** | Record and track patient vital signs with BMI calc |
 | **Notes** | Clinical notes per patient with visit type |
 | **Dashboard** | Live stats, today's schedule, recent patients |
+| **Patient portal** | Invite patients, role-based access, read-only view of appointments, prescriptions, invoices, plus documents and notes the doctor chooses to share |

@@ -1,3 +1,4 @@
+using MedFlow.Core;
 using MedFlow.Api.Extensions;
 using MedFlow.Core.DTOs;
 using MedFlow.Core.Entities;
@@ -9,7 +10,7 @@ namespace MedFlow.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = Roles.Doctor)]
 public class AttachmentsController : ControllerBase
 {
     private readonly IPatientAttachmentRepository _attachments;
@@ -117,6 +118,17 @@ public class AttachmentsController : ControllerBase
         var bytes = await System.IO.File.ReadAllBytesAsync(filePath);
         // Inline content disposition for in-browser preview
         return File(bytes, attachment.ContentType);
+    }
+
+    [HttpPut("{id:int}/sharing")]
+    public async Task<ActionResult<PatientAttachmentDto>> SetSharing(int id, [FromBody] SetSharingRequest req)
+    {
+        var attachment = await _attachments.GetWithOwnerCheckAsync(id, User.GetUserId());
+        if (attachment == null) return NotFound();
+        await _attachments.SetSharingAsync(attachment, req.Shared);
+        return Ok(new PatientAttachmentDto(attachment.Id, attachment.PatientId, attachment.FileName,
+            attachment.ContentType, attachment.FileSize, attachment.Category, attachment.Description,
+            attachment.CreatedAt, attachment.SharedWithPatient));
     }
 
     [HttpDelete("{id:int}")]

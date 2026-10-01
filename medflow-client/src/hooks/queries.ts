@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi } from '@/api/services'
-import type { QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, UpdateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, UpdatePrescriptionRequest, CreateInvoiceRequest, UpdateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest } from '@/types'
+import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi } from '@/api/services'
+import type { QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest } from '@/types'
 import toast from 'react-hot-toast'
 
 // Keys
@@ -19,6 +19,7 @@ export const QK = {
   vitals: (pid: number) => ['vitals', pid],
   notes: (pid: number) => ['notes', pid],
   attachments: (pid: number) => ['attachments', pid],
+  portal: (section: string) => ['portal', section],
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -200,7 +201,7 @@ export const useUploadAttachment = () => {
 export const useDeleteAttachment = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, patientId }: { id: number; patientId: number }) => attachmentsApi.delete(id),
+    mutationFn: ({ id }: { id: number; patientId: number }) => attachmentsApi.delete(id),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: QK.attachments(vars.patientId) })
       toast.success('Attachment deleted')
@@ -208,3 +209,68 @@ export const useDeleteAttachment = () => {
     onError: () => toast.error('Failed to delete attachment'),
   })
 }
+
+// ── Attachment / note sharing (doctor) ────────────────────────────────────────
+export const useSetAttachmentSharing = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, shared }: { id: number; patientId: number; shared: boolean }) =>
+      attachmentsApi.setSharing(id, shared),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: QK.attachments(vars.patientId) })
+      toast.success(vars.shared ? 'Shared with patient' : 'No longer shared')
+    },
+    onError: () => toast.error('Failed to update sharing'),
+  })
+}
+
+export const useSetNoteSharing = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, shared }: { id: number; patientId: number; shared: boolean }) =>
+      notesApi.setSharing(id, shared),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: QK.notes(vars.patientId) })
+      toast.success(vars.shared ? 'Shared with patient' : 'No longer shared')
+    },
+    onError: () => toast.error('Failed to update sharing'),
+  })
+}
+
+// ── Portal invitations (doctor) ───────────────────────────────────────────────
+const apiError = (err: any, fallback: string) => {
+  const d = err?.response?.data
+  return d?.errors?.[0] || d?.error || fallback
+}
+
+export const useInvitePatient = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (patientId: number) => patientsApi.invite(patientId),
+    onSuccess: (_, patientId) => {
+      qc.invalidateQueries({ queryKey: QK.patient(patientId) })
+      toast.success('Invitation sent')
+    },
+    onError: (err) => toast.error(apiError(err, 'Failed to send invitation')),
+  })
+}
+
+export const useRevokePortalAccess = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (patientId: number) => patientsApi.revokePortalAccess(patientId),
+    onSuccess: (_, patientId) => {
+      qc.invalidateQueries({ queryKey: QK.patient(patientId) })
+      toast.success('Portal access revoked')
+    },
+    onError: () => toast.error('Failed to revoke access'),
+  })
+}
+
+// ── Patient portal (patient) ──────────────────────────────────────────────────
+export const usePortalMe = () => useQuery({ queryKey: QK.portal('me'), queryFn: portalApi.me })
+export const usePortalAppointments = () => useQuery({ queryKey: QK.portal('appointments'), queryFn: portalApi.appointments })
+export const usePortalPrescriptions = () => useQuery({ queryKey: QK.portal('prescriptions'), queryFn: portalApi.prescriptions })
+export const usePortalInvoices = () => useQuery({ queryKey: QK.portal('invoices'), queryFn: portalApi.invoices })
+export const usePortalAttachments = () => useQuery({ queryKey: QK.portal('attachments'), queryFn: portalApi.attachments })
+export const usePortalNotes = () => useQuery({ queryKey: QK.portal('notes'), queryFn: portalApi.notes })

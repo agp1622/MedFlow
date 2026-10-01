@@ -1,4 +1,5 @@
 using MedFlow.Api.Extensions;
+using MedFlow.Core;
 using MedFlow.Core.DTOs;
 using MedFlow.Infrastructure.Data;
 using MedFlow.Infrastructure.Identity;
@@ -8,6 +9,7 @@ using MedFlow.Core.Entities;
 using Google.Apis.Auth;
 using MedFlow.Core.Interfaces;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 using System.Net;
 
 namespace MedFlow.Api.Controllers;
@@ -17,6 +19,8 @@ namespace MedFlow.Api.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly RoleManager<IdentityRole> _roleManager;
+    private readonly IPortalInvitationRepository _invitations;
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly IConfiguration _config;
     private readonly AppDbContext _db;
@@ -24,16 +28,35 @@ public class AuthController : ControllerBase
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(UserManager<ApplicationUser> userManager,
+        RoleManager<IdentityRole> roleManager, IPortalInvitationRepository invitations,
         SignInManager<ApplicationUser> signInManager,
         IConfiguration config, AppDbContext db,
         IEmailSender emailSender, ILogger<AuthController> logger)
     {
         _userManager = userManager;
+        _roleManager = roleManager;
+        _invitations = invitations;
         _signInManager = signInManager;
         _config = config;
         _db = db;
         _emailSender = emailSender;
         _logger = logger;
+    }
+
+    private async Task AddToRoleAsync(ApplicationUser user, string role)
+    {
+        if (!await _roleManager.RoleExistsAsync(role))
+            await _roleManager.CreateAsync(new IdentityRole(role));
+        await _userManager.AddToRoleAsync(user, role);
+    }
+
+    private async Task<AuthResponse> BuildAuthResponseAsync(ApplicationUser user)
+    {
+        var roles = await _userManager.GetRolesAsync(user);
+        var token = user.GenerateToken(_config, roles);
+        return new AuthResponse(token, Guid.NewGuid().ToString(), DateTime.UtcNow.AddHours(1),
+            new UserDto(user.Id, user.Email!, user.FirstName, user.LastName, user.Specialty,
+                roles.FirstOrDefault() ?? string.Empty));
     }
 
     [HttpPost("register")]
@@ -65,10 +88,9 @@ public class AuthController : ControllerBase
         };
         _db.Doctors.Add(doctor);
         await _db.SaveChangesAsync();
+        await AddToRoleAsync(user, Roles.Doctor);
 
-        var token = user.GenerateToken(_config);
-        return Ok(new AuthResponse(token, Guid.NewGuid().ToString(), DateTime.UtcNow.AddHours(1),
-            new UserDto(user.Id, user.Email!, user.FirstName, user.LastName, user.Specialty)));
+        return Ok(await BuildAuthResponseAsync(user));
     }
 
     [HttpPost("login")]
@@ -84,9 +106,7 @@ public class AuthController : ControllerBase
             return Unauthorized(new { error = "Invalid credentials." });
         }
 
-        var token = user.GenerateToken(_config);
-        return Ok(new AuthResponse(token, Guid.NewGuid().ToString(), DateTime.UtcNow.AddHours(1),
-            new UserDto(user.Id, user.Email!, user.FirstName, user.LastName, user.Specialty)));
+        return Ok(await BuildAuthResponseAsync(user));
     }
 
     [HttpPost("google-login")]
@@ -101,6 +121,15 @@ public class AuthController : ControllerBase
             var payload = await GoogleJsonWebSignature.ValidateAsync(req.Credential, settings);
 
             var user = await _userManager.FindByEmailAsync(payload.Email);
+            // Portal (patient) accounts sign in with email/password only. The Google token has already
+            // been verified, so the caller owns this address and a specific message leaks nothing.
+            if (user != null && await _userManager.IsInRoleAsync(user, Roles.Patient))
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    code = "patient_account",
+                    error = "Patient accounts sign in with email and password. Use the Patient tab and the credentials you set from your invitation."
+                });
+
             if (user == null)
             {
                 user = new ApplicationUser
@@ -126,16 +155,64 @@ public class AuthController : ControllerBase
                 };
                 _db.Doctors.Add(doctor);
                 await _db.SaveChangesAsync();
+                await AddToRoleAsync(user, Roles.Doctor);
             }
 
-            var token = user.GenerateToken(_config);
-            return Ok(new AuthResponse(token, Guid.NewGuid().ToString(), DateTime.UtcNow.AddHours(1),
-                new UserDto(user.Id, user.Email!, user.FirstName, user.LastName, user.Specialty)));
+            return Ok(await BuildAuthResponseAsync(user));
         }
         catch (InvalidJwtException)
         {
             return Unauthorized(new { error = "Invalid Google token." });
         }
+    }
+
+    [HttpPost("accept-invitation")]
+    [EnableRateLimiting("accept-invitation")]
+    public async Task<IActionResult> AcceptInvitation([FromBody] AcceptInvitationRequest req)
+    {
+        const string invalid = "This invitation is invalid or has expired.";
+
+        if (req.Password != req.ConfirmPassword)
+            return BadRequest(new { errors = new[] { "Passwords do not match." } });
+
+        var found = await _invitations.FindValidAsync(req.Token, req.Email);
+        if (found == null) return BadRequest(new { error = invalid });
+        var (invitation, patient) = found.Value;
+
+        var user = await _userManager.FindByEmailAsync(patient.Email);
+        if (user == null)
+        {
+            user = new ApplicationUser
+            {
+                UserName = patient.Email,
+                Email = patient.Email,
+                EmailConfirmed = true, // the invitation proved control of this address
+                FirstName = patient.FirstName,
+                LastName = patient.LastName,
+                Specialty = string.Empty
+            };
+            var created = await _userManager.CreateAsync(user, req.Password);
+            if (!created.Succeeded)
+                return BadRequest(new { errors = created.Errors.Select(e => e.Description) });
+            await AddToRoleAsync(user, Roles.Patient);
+        }
+        else
+        {
+            // Re-invitation after revoked access: reuse the old patient account.
+            // Any other kind of account (e.g. a doctor) must never be taken over.
+            if (!await _userManager.IsInRoleAsync(user, Roles.Patient) ||
+                await _db.Patients.AnyAsync(p => p.PortalUserId == user.Id))
+                return BadRequest(new { error = invalid });
+
+            var resetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
+            var reset = await _userManager.ResetPasswordAsync(user, resetToken, req.Password);
+            if (!reset.Succeeded)
+                return BadRequest(new { errors = reset.Errors.Select(e => e.Description) });
+        }
+
+        await _invitations.MarkUsedAsync(invitation, patient, user.Id);
+        _logger.LogInformation("Portal invitation accepted for patient {PatientId}", patient.Id);
+        return Ok(await BuildAuthResponseAsync(user));
     }
 
     [HttpPost("forgot-password")]

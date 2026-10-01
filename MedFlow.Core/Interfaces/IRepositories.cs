@@ -57,15 +57,42 @@ public interface IVitalSignRepository : IRepository<VitalSign>
 public interface IMedicalNoteRepository : IRepository<MedicalNote>
 {
     Task<IEnumerable<MedicalNoteDto>> GetByPatientAsync(int patientId, string doctorId);
+    Task<MedicalNote?> GetWithOwnerCheckAsync(int id, string doctorId);
 }
 
 public interface IPatientAttachmentRepository : IRepository<PatientAttachment>
 {
     Task<IEnumerable<PatientAttachmentDto>> GetByPatientAsync(int patientId, string doctorId);
     Task<PatientAttachment?> GetWithOwnerCheckAsync(int id, string doctorId);
+    Task SetSharingAsync(PatientAttachment attachment, bool shared);
 }
 
 public interface IDashboardRepository
 {
     Task<DashboardStatsDto> GetStatsAsync(string doctorId);
+}
+
+public interface IPortalRepository
+{
+    /// <summary>Resolves the patient linked to a portal user (null if none).</summary>
+    Task<Patient?> GetPatientByUserIdAsync(string userId);
+    Task<PortalProfileDto?> GetProfileAsync(Patient patient);
+    Task<IEnumerable<PortalAppointmentDto>> GetAppointmentsAsync(int patientId);
+    Task<IEnumerable<PortalPrescriptionDto>> GetPrescriptionsAsync(int patientId);
+    Task<IEnumerable<PortalInvoiceDto>> GetInvoicesAsync(int patientId);
+    Task<IEnumerable<PortalAttachmentDto>> GetSharedAttachmentsAsync(int patientId);
+    Task<PatientAttachment?> GetSharedAttachmentAsync(int id, int patientId);
+    Task<IEnumerable<PortalNoteDto>> GetSharedNotesAsync(int patientId);
+    Task LogAccessAsync(int patientId, string resourceType, IEnumerable<int> resourceIds, string action);
+}
+
+public interface IPortalInvitationRepository
+{
+    /// <summary>Creates a new invitation (superseding earlier pending ones) and returns the raw token.</summary>
+    Task<(string Token, DateTime ExpiresAt)> CreateAsync(Patient patient);
+    /// <summary>Returns the patient for a valid (unused, unexpired, email-matching, active) invitation.</summary>
+    Task<(PortalInvitation Invitation, Patient Patient)?> FindValidAsync(string token, string email);
+    Task MarkUsedAsync(PortalInvitation invitation, Patient patient, string userId);
+    Task RevokeAsync(Patient patient);
+    Task<string> GetPortalStatusAsync(Patient patient);
 }
