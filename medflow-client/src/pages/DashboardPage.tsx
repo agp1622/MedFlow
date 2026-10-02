@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { useDashboard } from '@/hooks/queries'
+import { useDashboard, useUnreadMessages } from '@/hooks/queries'
 import { useAuthStore } from '@/store/authStore'
 import { PageHeader } from '@/components/layout/AppLayout'
 import { StatCard, Avatar, Badge, PageSpinner } from '@/components/ui'
@@ -7,6 +7,7 @@ import { fmt } from '@/utils/format'
 
 export function DashboardPage() {
   const { data, isLoading } = useDashboard()
+  const unreadMessages = useUnreadMessages('Doctor').data ?? 0
   const user = useAuthStore(s => s.user)
   const navigate = useNavigate()
   const today = fmt.date(new Date().toISOString())
@@ -21,6 +22,16 @@ export function DashboardPage() {
           <p className="text-gray-500 text-sm">
             Good {getTimeOfDay()}, <span className="font-semibold text-gray-800">Dr. {user?.lastName}</span>. Here's your overview.
           </p>
+
+          {unreadMessages > 0 && (
+            <button onClick={() => navigate('/messages')}
+              className="card w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50">
+              <span className="text-sm font-semibold text-gray-800">
+                ✉️ You have {unreadMessages} unread {unreadMessages === 1 ? 'message' : 'messages'}
+              </span>
+              <span className="text-xs text-primary-600 font-semibold">Open messages</span>
+            </button>
+          )}
 
           {/* Stats row */}
           <div className="flex gap-4 flex-wrap">

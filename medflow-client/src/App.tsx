@@ -4,6 +4,8 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { LoginPage, RegisterPage, ForgotPasswordPage, ResetPasswordPage, AcceptInvitePage } from '@/pages/AuthPages'
 import { PortalLayout } from '@/components/layout/PortalLayout'
 import { PortalPage } from '@/pages/PortalPage'
+import { PortalMessagesPage } from '@/pages/PortalMessagesPage'
+import { MessagesPage } from '@/pages/MessagesPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { PatientsPage, PatientDetailPage } from '@/pages/PatientsPage'
 import { AppointmentsPage } from '@/pages/AppointmentsPage'
@@ -43,6 +45,7 @@ export default function App() {
 
       <Route path="portal" element={<PatientRoute><PortalLayout /></PatientRoute>}>
         <Route index element={<PortalPage />} />
+        <Route path="messages" element={<PortalMessagesPage />} />
       </Route>
 
       <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
@@ -52,6 +55,7 @@ export default function App() {
         <Route path="appointments" element={<AppointmentsPage />} />
         <Route path="prescriptions" element={<PrescriptionsPage />} />
         <Route path="billing" element={<BillingPage />} />
+        <Route path="messages" element={<MessagesPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -139,6 +139,26 @@ In Development, a fresh database is seeded with a demo patient (`patient.demo@me
 password from `SeedUser:PatientPassword`, default `MedFlowPatient2026!`) that has an appointment,
 a prescription and an invoice. The seeder only runs when there are no users yet.
 
+### Secure messaging
+
+Each patient has one message thread with their doctor (text plus up to 5 files per message, using
+the same file types and 50 MB limit as other attachments; text up to 4,000 characters). Messages
+cannot be edited or deleted. Unread counts are shown on both dashboards and refresh every 30 seconds.
+Files sent in messages are only downloadable through the message routes and never appear in the
+patient chart or the "shared with patient" list.
+
+| Method | Route | Role | Description |
+|--------|-------|------|-------------|
+| GET, POST | `/api/portal/messages` | Patient | Read the thread / send a message (multipart: `body`, `files`) |
+| POST | `/api/portal/messages/read` | Patient | Mark the doctor's messages as read |
+| GET | `/api/portal/messages/unread-count` | Patient | Unread total |
+| GET | `/api/portal/messages/attachments/{id}/download` | Patient | Download a message file |
+| GET | `/api/messages/threads` | Doctor | Threads of own patients, most recent first |
+| GET, POST | `/api/messages/patient/{patientId}` | Doctor | Read the thread / reply (multipart) |
+| POST | `/api/messages/patient/{patientId}/read` | Doctor | Mark the patient's messages as read |
+| GET | `/api/messages/unread-count` | Doctor | Unread total across all patients |
+| GET | `/api/messages/attachments/{id}/download` | Doctor | Download a message file |
+
 Access-control tests: `dotnet test MedFlow.Api.Tests`.
 
 ---
@@ -206,3 +226,4 @@ Azure DevOps Pipeline
 | **Notes** | Clinical notes per patient with visit type |
 | **Dashboard** | Live stats, today's schedule, recent patients |
 | **Patient portal** | Invite patients, role-based access, read-only view of appointments, prescriptions, invoices, plus documents and notes the doctor chooses to share |
+| **Secure messaging** | Patient ↔ doctor threads with attachments and unread counts |

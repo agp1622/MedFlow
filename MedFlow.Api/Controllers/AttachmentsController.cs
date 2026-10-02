@@ -1,5 +1,6 @@
 using MedFlow.Core;
 using MedFlow.Api.Extensions;
+using MedFlow.Api.Services;
 using MedFlow.Core.DTOs;
 using MedFlow.Core.Entities;
 using MedFlow.Core.Interfaces;
@@ -14,28 +15,12 @@ namespace MedFlow.Api.Controllers;
 public class AttachmentsController : ControllerBase
 {
     private readonly IPatientAttachmentRepository _attachments;
-    private readonly IWebHostEnvironment _env;
+    private readonly AttachmentStorage _storage;
 
-    private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        // Images
-        "image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/svg+xml",
-        // Videos
-        "video/mp4", "video/webm", "video/quicktime", "video/x-msvideo",
-        // Documents
-        "application/pdf",
-        "application/msword",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "application/vnd.ms-excel",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    };
-
-    private const long MaxFileSize = 50 * 1024 * 1024; // 50 MB
-
-    public AttachmentsController(IPatientAttachmentRepository attachments, IWebHostEnvironment env)
+    public AttachmentsController(IPatientAttachmentRepository attachments, AttachmentStorage storage)
     {
         _attachments = attachments;
-        _env = env;
+        _storage = storage;
     }
 
     [HttpGet("patient/{patientId:int}")]
@@ -50,32 +35,20 @@ public class AttachmentsController : ControllerBase
         [FromForm] string? category,
         [FromForm] string? description)
     {
-        if (file == null || file.Length == 0)
-            return BadRequest("No file uploaded.");
-
-        if (file.Length > MaxFileSize)
-            return BadRequest("File exceeds the 50 MB size limit.");
-
-        if (!AllowedContentTypes.Contains(file.ContentType))
-            return BadRequest($"File type '{file.ContentType}' is not allowed.");
+        var error = _storage.Validate(file);
+        if (error != null) return BadRequest(error);
 
         var doctorId = User.GetUserId();
-        var storedFileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
-        var uploadDir = Path.Combine(_env.ContentRootPath, "wwwroot", "uploads", "attachments", patientId.ToString());
-        Directory.CreateDirectory(uploadDir);
-
-        var filePath = Path.Combine(uploadDir, storedFileName);
-        await using var stream = new FileStream(filePath, FileMode.Create);
-        await file.CopyToAsync(stream);
+        var stored = await _storage.SaveAsync(file, patientId);
 
         var attachment = new PatientAttachment
         {
             PatientId = patientId,
             DoctorId = doctorId,
-            FileName = file.FileName,
-            StoredFileName = storedFileName,
-            ContentType = file.ContentType,
-            FileSize = file.Length,
+            FileName = stored.FileName,
+            StoredFileName = stored.StoredFileName,
+            ContentType = stored.ContentType,
+            FileSize = stored.FileSize,
             Category = category,
             Description = description
         };
@@ -93,8 +66,7 @@ public class AttachmentsController : ControllerBase
         var attachment = await _attachments.GetWithOwnerCheckAsync(id, User.GetUserId());
         if (attachment == null) return NotFound();
 
-        var filePath = Path.Combine(_env.ContentRootPath, "wwwroot", "uploads", "attachments",
-            attachment.PatientId.ToString(), attachment.StoredFileName);
+        var filePath = _storage.PathFor(attachment.PatientId, attachment.StoredFileName);
 
         if (!System.IO.File.Exists(filePath))
             return NotFound("File not found on disk.");
@@ -109,8 +81,7 @@ public class AttachmentsController : ControllerBase
         var attachment = await _attachments.GetWithOwnerCheckAsync(id, User.GetUserId());
         if (attachment == null) return NotFound();
 
-        var filePath = Path.Combine(_env.ContentRootPath, "wwwroot", "uploads", "attachments",
-            attachment.PatientId.ToString(), attachment.StoredFileName);
+        var filePath = _storage.PathFor(attachment.PatientId, attachment.StoredFileName);
 
         if (!System.IO.File.Exists(filePath))
             return NotFound("File not found on disk.");
@@ -138,11 +109,7 @@ public class AttachmentsController : ControllerBase
         if (attachment == null) return NotFound();
 
         // Delete file from disk
-        var filePath = Path.Combine(_env.ContentRootPath, "wwwroot", "uploads", "attachments",
-            attachment.PatientId.ToString(), attachment.StoredFileName);
-
-        if (System.IO.File.Exists(filePath))
-            System.IO.File.Delete(filePath);
+        _storage.Delete(attachment.PatientId, attachment.StoredFileName);
 
         // Soft-delete DB record
         await _attachments.DeleteAsync(id);

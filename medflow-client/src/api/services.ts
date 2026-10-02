@@ -13,6 +13,7 @@ import type {
   AcceptInvitationRequest, InvitationResult,
   PortalProfileDto, PortalAppointmentDto, PortalPrescriptionDto, PortalInvoiceDto,
   PortalAttachmentDto, PortalNoteDto,
+  MessageDto, MessageThreadSummaryDto, UnreadCountDto,
   DashboardStatsDto, AppointmentStatus
 } from '@/types'
 
@@ -131,6 +132,40 @@ export const attachmentsApi = {
     api.put<PatientAttachmentDto>(`/attachments/${id}/sharing`, { shared }).then(r => r.data),
 }
 
+// ── Secure messaging helpers ──────────────────────────────────────────────────
+const messageForm = (body: string, files: File[]) => {
+  const form = new FormData()
+  form.append('body', body)
+  files.forEach(f => form.append('files', f))
+  return form
+}
+const multipart = { headers: { 'Content-Type': 'multipart/form-data' } }
+
+// Header-authenticated blob download: no token ever goes into a URL
+const downloadBlob = async (url: string, fileName: string) => {
+  const response = await api.get(url, { responseType: 'blob' })
+  const objectUrl = window.URL.createObjectURL(new Blob([response.data]))
+  const link = document.createElement('a')
+  link.href = objectUrl
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(objectUrl)
+}
+
+// ── Messaging (doctor) ────────────────────────────────────────────────────────
+export const messagesApi = {
+  threads:     () => api.get<MessageThreadSummaryDto[]>('/messages/threads').then(r => r.data),
+  thread:      (patientId: number) => api.get<MessageDto[]>(`/messages/patient/${patientId}`).then(r => r.data),
+  send:        (patientId: number, body: string, files: File[] = []) =>
+    api.post<MessageDto>(`/messages/patient/${patientId}`, messageForm(body, files), multipart).then(r => r.data),
+  markRead:    (patientId: number) => api.post(`/messages/patient/${patientId}/read`),
+  unreadCount: () => api.get<UnreadCountDto>('/messages/unread-count').then(r => r.data),
+  downloadAttachment: (id: number, fileName: string) =>
+    downloadBlob(`/messages/attachments/${id}/download`, fileName),
+}
+
 // ── Patient portal (patient role only) ────────────────────────────────────────
 export const portalApi = {
   me:            () => api.get<PortalProfileDto>('/portal/me').then(r => r.data),
@@ -139,6 +174,13 @@ export const portalApi = {
   invoices:      () => api.get<PortalInvoiceDto[]>('/portal/invoices').then(r => r.data),
   attachments:   () => api.get<PortalAttachmentDto[]>('/portal/attachments').then(r => r.data),
   notes:         () => api.get<PortalNoteDto[]>('/portal/notes').then(r => r.data),
+  messages:      () => api.get<MessageDto[]>('/portal/messages').then(r => r.data),
+  sendMessage:   (body: string, files: File[] = []) =>
+    api.post<MessageDto>('/portal/messages', messageForm(body, files), multipart).then(r => r.data),
+  markMessagesRead:     () => api.post('/portal/messages/read'),
+  messagesUnreadCount:  () => api.get<UnreadCountDto>('/portal/messages/unread-count').then(r => r.data),
+  downloadMessageAttachment: (id: number, fileName: string) =>
+    downloadBlob(`/portal/messages/attachments/${id}/download`, fileName),
   // Header-authenticated blob download: no token ever goes into a URL
   downloadAttachment: async (id: number, fileName: string) => {
     const response = await api.get(`/portal/attachments/${id}/download`, { responseType: 'blob' })

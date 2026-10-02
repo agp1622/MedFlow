@@ -372,7 +372,7 @@ public class PatientAttachmentRepository : Repository<PatientAttachment>, IPatie
 
     public async Task<IEnumerable<PatientAttachmentDto>> GetByPatientAsync(int patientId, string doctorId) =>
         await _db.PatientAttachments
-            .Where(a => a.PatientId == patientId && a.DoctorId == doctorId)
+            .Where(a => a.PatientId == patientId && a.DoctorId == doctorId && a.MessageId == null)
             .OrderByDescending(a => a.CreatedAt)
             .Select(a => new PatientAttachmentDto(
                 a.Id, a.PatientId, a.FileName, a.ContentType,
@@ -387,7 +387,7 @@ public class PatientAttachmentRepository : Repository<PatientAttachment>, IPatie
 
     public async Task<PatientAttachment?> GetWithOwnerCheckAsync(int id, string doctorId) =>
         await _db.PatientAttachments
-            .FirstOrDefaultAsync(a => a.Id == id && a.DoctorId == doctorId);
+            .FirstOrDefaultAsync(a => a.Id == id && a.DoctorId == doctorId && a.MessageId == null);
 }
 
 
@@ -435,7 +435,7 @@ public class PortalRepository : IPortalRepository
 
     public async Task<IEnumerable<PortalAttachmentDto>> GetSharedAttachmentsAsync(int patientId) =>
         await _db.PatientAttachments
-            .Where(a => a.PatientId == patientId && a.SharedWithPatient)
+            .Where(a => a.PatientId == patientId && a.SharedWithPatient && a.MessageId == null)
             .OrderByDescending(a => a.CreatedAt)
             .Select(a => new PortalAttachmentDto(a.Id, a.FileName, a.ContentType, a.FileSize,
                 a.Category, a.Description, a.CreatedAt))
@@ -443,7 +443,7 @@ public class PortalRepository : IPortalRepository
 
     public async Task<PatientAttachment?> GetSharedAttachmentAsync(int id, int patientId) =>
         await _db.PatientAttachments
-            .FirstOrDefaultAsync(a => a.Id == id && a.PatientId == patientId && a.SharedWithPatient);
+            .FirstOrDefaultAsync(a => a.Id == id && a.PatientId == patientId && a.SharedWithPatient && a.MessageId == null);
 
     public async Task<IEnumerable<PortalNoteDto>> GetSharedNotesAsync(int patientId) =>
         await _db.MedicalNotes
@@ -454,13 +454,13 @@ public class PortalRepository : IPortalRepository
                 n.VisitType, n.Content, n.NoteDate))
             .ToListAsync();
 
-    public async Task LogAccessAsync(int patientId, string resourceType, IEnumerable<int> resourceIds, string action)
+    public async Task LogAccessAsync(int patientId, string resourceType, IEnumerable<int> resourceIds, string action, string? actorUserId = null)
     {
         foreach (var id in resourceIds)
             _db.PortalAccessLogs.Add(new PortalAccessLog
             {
                 PatientId = patientId, ResourceType = resourceType, ResourceId = id,
-                Action = action, OccurredAt = DateTime.UtcNow
+                Action = action, ActorUserId = actorUserId, OccurredAt = DateTime.UtcNow
             });
         await _db.SaveChangesAsync();
     }
@@ -537,4 +537,137 @@ public class PortalInvitationRepository : IPortalInvitationRepository
             .AnyAsync(i => i.PatientId == patient.Id && i.UsedAt == null && i.ExpiresAt >= now);
         return invited ? "Invited" : "NotInvited";
     }
+}
+
+// ── Message Repository ────────────────────────────────────────────────────────
+public class MessageRepository : IMessageRepository
+{
+    private readonly AppDbContext _db;
+    public MessageRepository(AppDbContext db) { _db = db; }
+
+    public async Task<Patient?> GetPatientForDoctorAsync(int patientId, string doctorId) =>
+        await _db.Patients.FirstOrDefaultAsync(p => p.Id == patientId && p.DoctorId == doctorId);
+
+    public async Task<IReadOnlyList<MessageDto>> GetMessagesAsync(int patientId, MessageSenderRole viewerRole)
+    {
+        var messages = await _db.Messages
+            .Where(m => _db.MessageThreads.Any(t => t.Id == m.ThreadId && t.PatientId == patientId))
+            .OrderBy(m => m.SentAt).ThenBy(m => m.Id)
+            .ToListAsync();
+        if (messages.Count == 0) return Array.Empty<MessageDto>();
+
+        var ids = messages.Select(m => (int?)m.Id).ToList();
+        var files = (await _db.PatientAttachments
+                .Where(a => a.MessageId != null && ids.Contains(a.MessageId))
+                .OrderBy(a => a.Id).ToListAsync())
+            .ToLookup(a => a.MessageId!.Value);
+
+        return messages.Select(m => ToDto(m, viewerRole, files[m.Id])).ToList();
+    }
+
+    public async Task<MessageDto> SendAsync(Patient patient, MessageSenderRole role, string senderUserId,
+        string body, IReadOnlyList<NewMessageFile> files)
+    {
+        var now = DateTime.UtcNow;
+        var thread = await _db.MessageThreads.FirstOrDefaultAsync(t => t.PatientId == patient.Id);
+        if (thread == null)
+        {
+            thread = new MessageThread { PatientId = patient.Id, DoctorId = patient.DoctorId };
+            _db.MessageThreads.Add(thread);
+        }
+        thread.LastMessageAt = now;
+
+        var message = new Message
+        {
+            Thread = thread, SenderRole = role, SenderUserId = senderUserId, Body = body, SentAt = now
+        };
+        _db.Messages.Add(message);
+        await _db.SaveChangesAsync();
+
+        var attachments = files.Select(f => new PatientAttachment
+        {
+            PatientId = patient.Id, DoctorId = patient.DoctorId, MessageId = message.Id,
+            FileName = f.FileName, StoredFileName = f.StoredFileName,
+            ContentType = f.ContentType, FileSize = f.FileSize
+        }).ToList();
+        if (attachments.Count > 0)
+        {
+            _db.PatientAttachments.AddRange(attachments);
+            await _db.SaveChangesAsync();
+        }
+        return ToDto(message, role, attachments);
+    }
+
+    public async Task MarkReadAsync(int patientId, MessageSenderRole viewerRole)
+    {
+        var other = viewerRole == MessageSenderRole.Patient ? MessageSenderRole.Doctor : MessageSenderRole.Patient;
+        var unread = await _db.Messages
+            .Where(m => m.SenderRole == other && m.ReadAt == null &&
+                        _db.MessageThreads.Any(t => t.Id == m.ThreadId && t.PatientId == patientId))
+            .ToListAsync();
+        if (unread.Count == 0) return;
+        var now = DateTime.UtcNow;
+        foreach (var m in unread) m.ReadAt = now;
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task<int> GetUnreadCountForPatientAsync(int patientId) =>
+        await _db.Messages.CountAsync(m => m.SenderRole == MessageSenderRole.Doctor && m.ReadAt == null &&
+            _db.MessageThreads.Any(t => t.Id == m.ThreadId && t.PatientId == patientId));
+
+    public async Task<int> GetUnreadCountForDoctorAsync(string doctorId) =>
+        await _db.Messages.CountAsync(m => m.SenderRole == MessageSenderRole.Patient && m.ReadAt == null &&
+            _db.MessageThreads.Any(t => t.Id == m.ThreadId && t.DoctorId == doctorId));
+
+    public async Task<IReadOnlyList<MessageThreadSummaryDto>> GetThreadsForDoctorAsync(string doctorId)
+    {
+        var threads = await _db.MessageThreads
+            .Where(t => t.DoctorId == doctorId)
+            .OrderByDescending(t => t.LastMessageAt)
+            .ToListAsync();
+        if (threads.Count == 0) return Array.Empty<MessageThreadSummaryDto>();
+
+        var patientIds = threads.Select(t => t.PatientId).ToList();
+        var names = await _db.Patients
+            .Where(p => patientIds.Contains(p.Id) && p.DoctorId == doctorId)
+            .Select(p => new { p.Id, p.FirstName, p.LastName })
+            .ToDictionaryAsync(p => p.Id, p => p.FirstName + " " + p.LastName);
+
+        var threadIds = threads.Select(t => t.Id).ToList();
+        var unread = await _db.Messages
+            .Where(m => threadIds.Contains(m.ThreadId) && m.SenderRole == MessageSenderRole.Patient && m.ReadAt == null)
+            .GroupBy(m => m.ThreadId).Select(g => new { g.Key, Count = g.Count() })
+            .ToDictionaryAsync(g => g.Key, g => g.Count);
+        var lastBodies = await _db.Messages
+            .Where(m => threadIds.Contains(m.ThreadId))
+            .GroupBy(m => m.ThreadId)
+            .Select(g => g.OrderByDescending(m => m.SentAt).ThenByDescending(m => m.Id)
+                .Select(m => new { m.ThreadId, m.Body }).First())
+            .ToDictionaryAsync(x => x.ThreadId, x => x.Body);
+
+        // Threads whose patient was deleted are not listed
+        return threads.Where(t => names.ContainsKey(t.PatientId))
+            .Select(t =>
+            {
+                var body = lastBodies.GetValueOrDefault(t.Id, string.Empty);
+                var preview = body.Length > 100 ? body[..100] + "…" : body;
+                return new MessageThreadSummaryDto(t.PatientId, names[t.PatientId], t.LastMessageAt,
+                    preview, unread.GetValueOrDefault(t.Id));
+            }).ToList();
+    }
+
+    public async Task<PatientAttachment?> GetAttachmentForPatientAsync(int attachmentId, int patientId) =>
+        await _db.PatientAttachments.FirstOrDefaultAsync(a => a.Id == attachmentId && a.PatientId == patientId &&
+            a.MessageId != null &&
+            _db.Messages.Any(m => m.Id == a.MessageId &&
+                _db.MessageThreads.Any(t => t.Id == m.ThreadId && t.PatientId == patientId)));
+
+    public async Task<PatientAttachment?> GetAttachmentForDoctorAsync(int attachmentId, string doctorId) =>
+        await _db.PatientAttachments.FirstOrDefaultAsync(a => a.Id == attachmentId && a.MessageId != null &&
+            _db.Messages.Any(m => m.Id == a.MessageId &&
+                _db.MessageThreads.Any(t => t.Id == m.ThreadId && t.DoctorId == doctorId)));
+
+    private static MessageDto ToDto(Message m, MessageSenderRole viewer, IEnumerable<PatientAttachment> files) =>
+        new(m.Id, m.SenderRole.ToString(), m.Body, m.SentAt, m.ReadAt, m.SenderRole == viewer,
+            files.Select(f => new MessageAttachmentDto(f.Id, f.FileName, f.ContentType, f.FileSize)).ToList());
 }

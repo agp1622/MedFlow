@@ -1,7 +1,8 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   usePortalMe, usePortalAppointments, usePortalPrescriptions, usePortalInvoices,
-  usePortalAttachments, usePortalNotes,
+  usePortalAttachments, usePortalNotes, useUnreadMessages,
 } from '@/hooks/queries'
 import { portalApi } from '@/api/services'
 import { Badge, EmptyState, PageSpinner, Spinner } from '@/components/ui'
@@ -44,6 +45,7 @@ export function PortalPage() {
   const invoices = usePortalInvoices()
   const attachments = usePortalAttachments()
   const notes = usePortalNotes()
+  const unreadMessages = useUnreadMessages('Patient').data ?? 0
   const [downloading, setDownloading] = useState<number | null>(null)
 
   const download = async (id: number, fileName: string) => {
@@ -71,6 +73,15 @@ export function PortalPage() {
         <h1 className="text-2xl font-bold text-gray-900">Hello, {me.data?.firstName}</h1>
         <p className="text-sm text-gray-500 mt-1">Your records from {me.data?.doctorName}</p>
       </div>
+
+      {unreadMessages > 0 && (
+        <Link to="/portal/messages" className="card flex items-center justify-between px-5 py-3 hover:bg-gray-50">
+          <span className="text-sm font-semibold text-gray-800">
+            ✉️ You have {unreadMessages} unread {unreadMessages === 1 ? 'message' : 'messages'} from your doctor
+          </span>
+          <span className="text-xs text-primary-600 font-semibold">Open messages</span>
+        </Link>
+      )}
 
       <Section icon={<CalendarDays size={18} className="text-primary-600" />} title="Upcoming appointments"
         query={appointments} empty="No upcoming appointments">

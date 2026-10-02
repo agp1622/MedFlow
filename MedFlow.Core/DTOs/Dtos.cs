@@ -180,3 +180,14 @@ public record PortalAttachmentDto(
     int Id, string FileName, string ContentType, long FileSize,
     string? Category, string? Description, DateTime CreatedAt);
 public record PortalNoteDto(int Id, string DoctorName, string? VisitType, string Content, DateTime NoteDate);
+
+// ── Secure messaging ──────────────────────────────────────────────────────────
+public record MessageAttachmentDto(int Id, string FileName, string ContentType, long FileSize);
+public record MessageDto(
+    int Id, string SenderRole, string Body, DateTime SentAt, DateTime? ReadAt, bool IsMine,
+    IEnumerable<MessageAttachmentDto> Attachments);
+public record MessageThreadSummaryDto(
+    int PatientId, string PatientName, DateTime LastMessageAt, string LastMessagePreview, int UnreadCount);
+public record UnreadCountDto(int UnreadCount);
+/// <summary>A file already written to disk that should be linked to a new message.</summary>
+public record NewMessageFile(string FileName, string StoredFileName, string ContentType, long FileSize);

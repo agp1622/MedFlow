@@ -108,6 +108,7 @@ public class PatientAttachment : BaseEntity
     public string? Category { get; set; }
     public string? Description { get; set; }
     public bool SharedWithPatient { get; set; }
+    public int? MessageId { get; set; }                  // set when the file belongs to a message
 }
 
 public class PortalInvitation : BaseEntity
@@ -122,8 +123,29 @@ public class PortalInvitation : BaseEntity
 public class PortalAccessLog : BaseEntity
 {
     public int PatientId { get; set; }
-    public string ResourceType { get; set; } = string.Empty; // Attachment | Note
+    public string ResourceType { get; set; } = string.Empty; // Attachment | Note | Message | MessageAttachment
     public int ResourceId { get; set; }
     public string Action { get; set; } = string.Empty;       // View | Download
+    public string? ActorUserId { get; set; }
     public DateTime OccurredAt { get; set; } = DateTime.UtcNow;
+}
+
+public class MessageThread : BaseEntity
+{
+    public int PatientId { get; set; }                    // one thread per patient
+    public string DoctorId { get; set; } = string.Empty;  // the patient's doctor (Doctor.UserId)
+    public DateTime LastMessageAt { get; set; } = DateTime.UtcNow;
+
+    public ICollection<Message> Messages { get; set; } = new List<Message>();
+}
+
+public class Message : BaseEntity
+{
+    public int ThreadId { get; set; }
+    public MessageThread? Thread { get; set; }
+    public MessageSenderRole SenderRole { get; set; }
+    public string SenderUserId { get; set; } = string.Empty;
+    public string Body { get; set; } = string.Empty;
+    public DateTime SentAt { get; set; } = DateTime.UtcNow;
+    public DateTime? ReadAt { get; set; }                 // null = unread by the recipient (the other party)
 }

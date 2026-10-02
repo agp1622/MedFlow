@@ -23,6 +23,8 @@ builder.Host.UseSerilog();
 
 // Infrastructure (EF, Identity, Repos)
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddScoped<MedFlow.Api.Services.AttachmentStorage>();
+builder.Services.AddScoped<MedFlow.Api.Services.MessageService>();
 
 // JWT Auth
 var jwtSettings = builder.Configuration.GetSection("Jwt");

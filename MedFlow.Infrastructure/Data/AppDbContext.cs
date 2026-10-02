@@ -20,6 +20,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<PatientAttachment> PatientAttachments => Set<PatientAttachment>();
     public DbSet<PortalInvitation> PortalInvitations => Set<PortalInvitation>();
     public DbSet<PortalAccessLog> PortalAccessLogs => Set<PortalAccessLog>();
+    public DbSet<MessageThread> MessageThreads => Set<MessageThread>();
+    public DbSet<Message> Messages => Set<Message>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -33,6 +35,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<VitalSign>().HasQueryFilter(v => !v.IsDeleted);
         builder.Entity<MedicalNote>().HasQueryFilter(n => !n.IsDeleted);
         builder.Entity<PatientAttachment>().HasQueryFilter(a => !a.IsDeleted);
+        builder.Entity<MessageThread>().HasQueryFilter(t => !t.IsDeleted);
+        builder.Entity<Message>().HasQueryFilter(m => !m.IsDeleted);
 
         // Patient
         builder.Entity<Patient>(e =>
@@ -134,6 +138,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.Property(a => a.ContentType).HasMaxLength(200);
             e.Property(a => a.Category).HasMaxLength(100);
             e.Property(a => a.SharedWithPatient).HasDefaultValue(false);
+            e.HasIndex(a => a.MessageId);
             e.HasOne(a => a.Patient).WithMany(p => p.Attachments)
                 .HasForeignKey(a => a.PatientId).OnDelete(DeleteBehavior.Restrict);
         });
@@ -153,6 +158,27 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.HasIndex(l => new { l.PatientId, l.OccurredAt });
             e.Property(l => l.ResourceType).HasMaxLength(50);
             e.Property(l => l.Action).HasMaxLength(50);
+            e.Property(l => l.ActorUserId).HasMaxLength(450);
+        });
+
+        // MessageThread: no navigation to Patient (Patient has a soft-delete query filter)
+        builder.Entity<MessageThread>(e =>
+        {
+            e.HasIndex(t => t.PatientId).IsUnique();
+            e.HasIndex(t => new { t.DoctorId, t.LastMessageAt });
+            e.Property(t => t.DoctorId).HasMaxLength(450);
+        });
+
+        // Message
+        builder.Entity<Message>(e =>
+        {
+            e.HasIndex(m => new { m.ThreadId, m.SentAt });
+            e.HasIndex(m => new { m.ThreadId, m.SenderRole, m.ReadAt });
+            e.Property(m => m.SenderRole).HasConversion<string>().HasMaxLength(20);
+            e.Property(m => m.SenderUserId).HasMaxLength(450);
+            e.Property(m => m.Body).HasMaxLength(4000);
+            e.HasOne(m => m.Thread).WithMany(t => t.Messages)
+                .HasForeignKey(m => m.ThreadId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 

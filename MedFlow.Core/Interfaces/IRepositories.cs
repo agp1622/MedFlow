@@ -1,5 +1,6 @@
 using MedFlow.Core.DTOs;
 using MedFlow.Core.Entities;
+using MedFlow.Core.Enums;
 
 namespace MedFlow.Core.Interfaces;
 
@@ -83,7 +84,7 @@ public interface IPortalRepository
     Task<IEnumerable<PortalAttachmentDto>> GetSharedAttachmentsAsync(int patientId);
     Task<PatientAttachment?> GetSharedAttachmentAsync(int id, int patientId);
     Task<IEnumerable<PortalNoteDto>> GetSharedNotesAsync(int patientId);
-    Task LogAccessAsync(int patientId, string resourceType, IEnumerable<int> resourceIds, string action);
+    Task LogAccessAsync(int patientId, string resourceType, IEnumerable<int> resourceIds, string action, string? actorUserId = null);
 }
 
 public interface IPortalInvitationRepository
@@ -95,4 +96,24 @@ public interface IPortalInvitationRepository
     Task MarkUsedAsync(PortalInvitation invitation, Patient patient, string userId);
     Task RevokeAsync(Patient patient);
     Task<string> GetPortalStatusAsync(Patient patient);
+}
+
+public interface IMessageRepository
+{
+    /// <summary>The patient if (and only if) they belong to this doctor.</summary>
+    Task<Patient?> GetPatientForDoctorAsync(int patientId, string doctorId);
+    /// <summary>Messages of the patient's thread, oldest first (empty if no thread yet).</summary>
+    Task<IReadOnlyList<MessageDto>> GetMessagesAsync(int patientId, MessageSenderRole viewerRole);
+    /// <summary>Appends a message (creating the thread if needed) and links any already-stored files.</summary>
+    Task<MessageDto> SendAsync(Patient patient, MessageSenderRole role, string senderUserId,
+        string body, IReadOnlyList<NewMessageFile> files);
+    /// <summary>Marks the other party's unread messages in the patient's thread as read.</summary>
+    Task MarkReadAsync(int patientId, MessageSenderRole viewerRole);
+    Task<int> GetUnreadCountForPatientAsync(int patientId);
+    Task<int> GetUnreadCountForDoctorAsync(string doctorId);
+    Task<IReadOnlyList<MessageThreadSummaryDto>> GetThreadsForDoctorAsync(string doctorId);
+    /// <summary>A message file, only if it belongs to this patient's thread.</summary>
+    Task<PatientAttachment?> GetAttachmentForPatientAsync(int attachmentId, int patientId);
+    /// <summary>A message file, only if it belongs to a thread of this doctor.</summary>
+    Task<PatientAttachment?> GetAttachmentForDoctorAsync(int attachmentId, string doctorId);
 }

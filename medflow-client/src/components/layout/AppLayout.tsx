@@ -2,8 +2,9 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import {
-  LayoutDashboard, Users, CalendarDays, Pill, CreditCard, LogOut, Plus
+  LayoutDashboard, Users, CalendarDays, Pill, CreditCard, LogOut, Plus, MessageSquare
 } from 'lucide-react'
+import { useUnreadMessages } from '@/hooks/queries'
 
 const NAV = [
   { to: '/',              icon: LayoutDashboard, label: 'Dashboard' },
@@ -11,11 +12,13 @@ const NAV = [
   { to: '/appointments',  icon: CalendarDays,    label: 'Appointments' },
   { to: '/prescriptions', icon: Pill,            label: 'Prescriptions' },
   { to: '/billing',       icon: CreditCard,      label: 'Billing' },
+  { to: '/messages',      icon: MessageSquare,   label: 'Messages' },
 ]
 
 export function AppLayout() {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
+  const unread = useUnreadMessages('Doctor').data ?? 0
 
   const handleLogout = () => { logout(); navigate('/login') }
 
@@ -45,6 +48,10 @@ export function AppLayout() {
               }>
               <Icon size={16} />
               {label}
+              {to === '/messages' && unread > 0 && (
+                <span className="ml-auto bg-primary-500 text-white text-[11px] font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center"
+                  aria-label={`${unread} unread messages`}>{unread}</span>
+              )}
             </NavLink>
           ))}
         </nav>

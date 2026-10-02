@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi } from '@/api/services'
+import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi, messagesApi } from '@/api/services'
 import type { QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest } from '@/types'
 import toast from 'react-hot-toast'
 
@@ -20,6 +20,10 @@ export const QK = {
   notes: (pid: number) => ['notes', pid],
   attachments: (pid: number) => ['attachments', pid],
   portal: (section: string) => ['portal', section],
+  messages: ['messages'],
+  messageThread: (patientId: number) => ['messages', 'thread', patientId],
+  messageThreads: ['messages', 'threads'],
+  messageUnread: (role: 'Doctor' | 'Patient') => ['messages', 'unread', role],
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -274,3 +278,66 @@ export const usePortalPrescriptions = () => useQuery({ queryKey: QK.portal('pres
 export const usePortalInvoices = () => useQuery({ queryKey: QK.portal('invoices'), queryFn: portalApi.invoices })
 export const usePortalAttachments = () => useQuery({ queryKey: QK.portal('attachments'), queryFn: portalApi.attachments })
 export const usePortalNotes = () => useQuery({ queryKey: QK.portal('notes'), queryFn: portalApi.notes })
+
+// ── Secure messaging ──────────────────────────────────────────────────────────
+// Unread counts are polled; opening a thread marks it read, and a changed count refreshes the open thread.
+const UNREAD_POLL_MS = 30_000
+
+export const usePortalMessages = () =>
+  useQuery({ queryKey: QK.messageThread(0), queryFn: portalApi.messages })
+
+export const useSendPortalMessage = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ body, files }: { body: string; files: File[] }) => portalApi.sendMessage(body, files),
+    onSuccess: () => qc.invalidateQueries({ queryKey: QK.messages }),
+    onError: (err) => toast.error(apiError(err, 'Could not send your message')),
+  })
+}
+
+export const useMarkPortalMessagesRead = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: portalApi.markMessagesRead,
+    onSuccess: () => qc.invalidateQueries({ queryKey: QK.messageUnread('Patient') }),
+  })
+}
+
+export const useMessageThreads = () =>
+  useQuery({ queryKey: QK.messageThreads, queryFn: messagesApi.threads, refetchInterval: UNREAD_POLL_MS })
+
+export const useMessageThread = (patientId: number | null) =>
+  useQuery({
+    queryKey: QK.messageThread(patientId ?? -1),
+    queryFn: () => messagesApi.thread(patientId!),
+    enabled: patientId != null,
+  })
+
+export const useSendMessage = (patientId: number) => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ body, files }: { body: string; files: File[] }) => messagesApi.send(patientId, body, files),
+    onSuccess: () => qc.invalidateQueries({ queryKey: QK.messages }),
+    onError: (err) => toast.error(apiError(err, 'Could not send your message')),
+  })
+}
+
+export const useMarkMessagesRead = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (patientId: number) => messagesApi.markRead(patientId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: QK.messageUnread('Doctor') })
+      qc.invalidateQueries({ queryKey: QK.messageThreads })
+    },
+  })
+}
+
+export const useUnreadMessages = (role: 'Doctor' | 'Patient') =>
+  useQuery({
+    queryKey: QK.messageUnread(role),
+    queryFn: role === 'Doctor' ? messagesApi.unreadCount : portalApi.messagesUnreadCount,
+    select: d => d.unreadCount,
+    refetchInterval: UNREAD_POLL_MS,
+    refetchOnWindowFocus: true,
+  })

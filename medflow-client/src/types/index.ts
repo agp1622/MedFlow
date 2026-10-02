@@ -181,3 +181,14 @@ export interface PortalAttachmentDto {
 export interface PortalNoteDto {
   id: number; doctorName: string; visitType?: string; content: string; noteDate: string
 }
+
+// ── Secure messaging ──────────────────────────────────────────────────────────
+export interface MessageAttachmentDto { id: number; fileName: string; contentType: string; fileSize: number }
+export interface MessageDto {
+  id: number; senderRole: 'Patient' | 'Doctor'; body: string; sentAt: string
+  readAt?: string | null; isMine: boolean; attachments: MessageAttachmentDto[]
+}
+export interface MessageThreadSummaryDto {
+  patientId: number; patientName: string; lastMessageAt: string; lastMessagePreview: string; unreadCount: number
+}
+export interface UnreadCountDto { unreadCount: number }
