@@ -1,14 +1,16 @@
 import { Sun, Moon, Monitor } from 'lucide-react'
 import { useThemeStore, ThemeMode } from '@/store/themeStore'
 import { useState, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 
-const OPTIONS: { mode: ThemeMode; icon: typeof Sun; label: string }[] = [
-  { mode: 'light',  icon: Sun,     label: 'Light' },
-  { mode: 'dark',   icon: Moon,    label: 'Dark' },
-  { mode: 'system', icon: Monitor, label: 'System' },
+const OPTIONS: { mode: ThemeMode; icon: typeof Sun }[] = [
+  { mode: 'light',  icon: Sun },
+  { mode: 'dark',   icon: Moon },
+  { mode: 'system', icon: Monitor },
 ]
 
 export function ThemeToggle() {
+  const { t } = useTranslation()
   const { mode, setMode, resolvedTheme } = useThemeStore()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -31,7 +33,7 @@ export function ThemeToggle() {
       <button
         id="theme-toggle-button"
         onClick={() => setOpen(!open)}
-        aria-label="Toggle theme"
+        aria-label={t('theme.toggle')}
         className="
           group relative w-8 h-8 rounded-lg
           flex items-center justify-center
@@ -69,7 +71,7 @@ export function ThemeToggle() {
             animation: 'themeDropdownIn 150ms ease-out',
           }}
         >
-          {OPTIONS.map(({ mode: m, icon: Icon, label }) => {
+          {OPTIONS.map(({ mode: m, icon: Icon }) => {
             const isActive = mode === m
             return (
               <button
@@ -86,7 +88,7 @@ export function ThemeToggle() {
                 `}
               >
                 <Icon size={13} />
-                {label}
+                {t(`theme.${m}`)}
                 {isActive && (
                   <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary-400" />
                 )}
