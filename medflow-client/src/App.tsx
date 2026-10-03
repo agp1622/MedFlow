@@ -6,6 +6,7 @@ import { PortalLayout } from '@/components/layout/PortalLayout'
 import { PortalPage } from '@/pages/PortalPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { PatientsPage, PatientDetailPage } from '@/pages/PatientsPage'
+import { NoteTemplatesPage } from '@/pages/NoteTemplatesPage'
 import { AppointmentsPage } from '@/pages/AppointmentsPage'
 import { PrescriptionsPage, BillingPage } from '@/pages/BillingPrescriptionsPages'
 
@@ -51,6 +52,7 @@ export default function App() {
         <Route path="patients/:id" element={<PatientDetailPage />} />
         <Route path="appointments" element={<AppointmentsPage />} />
         <Route path="prescriptions" element={<PrescriptionsPage />} />
+        <Route path="templates" element={<NoteTemplatesPage />} />
         <Route path="billing" element={<BillingPage />} />
       </Route>
 

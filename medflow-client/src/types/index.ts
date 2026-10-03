@@ -143,6 +143,16 @@ export interface CreateMedicalNoteRequest {
   patientId: number; content: string; visitType?: string
 }
 
+// ── NoteTemplate ──────────────────────────────────────────────────────────────
+export interface NoteTemplateDto {
+  id: number; name: string; body: string; isBuiltIn: boolean; updatedAt?: string
+}
+export interface CreateNoteTemplateRequest { name: string; body: string }
+export type UpdateNoteTemplateRequest = CreateNoteTemplateRequest
+export interface CopyForwardDto {
+  noteId: number; content: string; visitType?: string; noteDate: string
+}
+
 // ── PatientAttachment ─────────────────────────────────────────────────────────
 export interface PatientAttachmentDto {
   id: number; patientId: number; fileName: string; contentType: string

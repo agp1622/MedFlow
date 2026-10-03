@@ -144,6 +144,12 @@ public record MedicalNoteDto(
 
 public record CreateMedicalNoteRequest(int PatientId, string Content, string? VisitType);
 
+// ── NoteTemplate ──────────────────────────────────────────────────────────────
+public record NoteTemplateDto(int Id, string Name, string Body, bool IsBuiltIn, DateTime? UpdatedAt);
+public record CreateNoteTemplateRequest(string Name, string Body);
+public record UpdateNoteTemplateRequest(string Name, string Body);
+public record CopyForwardDto(int NoteId, string Content, string? VisitType, DateTime NoteDate);
+
 // ── PatientAttachment ────────────────────────────────────────────────────────
 public record PatientAttachmentDto(
     int Id, int PatientId, string FileName, string ContentType,

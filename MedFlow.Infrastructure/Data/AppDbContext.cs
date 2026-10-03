@@ -17,6 +17,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<VitalSign> VitalSigns => Set<VitalSign>();
     public DbSet<MedicalNote> MedicalNotes => Set<MedicalNote>();
+    public DbSet<NoteTemplate> NoteTemplates => Set<NoteTemplate>();
     public DbSet<PatientAttachment> PatientAttachments => Set<PatientAttachment>();
     public DbSet<PortalInvitation> PortalInvitations => Set<PortalInvitation>();
     public DbSet<PortalAccessLog> PortalAccessLogs => Set<PortalAccessLog>();
@@ -33,6 +34,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<Invoice>().HasQueryFilter(i => !i.IsDeleted);
         builder.Entity<VitalSign>().HasQueryFilter(v => !v.IsDeleted);
         builder.Entity<MedicalNote>().HasQueryFilter(n => !n.IsDeleted);
+        builder.Entity<NoteTemplate>().HasQueryFilter(t => !t.IsDeleted);
         builder.Entity<PatientAttachment>().HasQueryFilter(a => !a.IsDeleted);
 
         // Patient
@@ -112,6 +114,15 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.HasOne(n => n.Doctor).WithMany()
                 .HasForeignKey(n => n.DoctorId).HasPrincipalKey(d => d.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // NoteTemplate
+        builder.Entity<NoteTemplate>(e =>
+        {
+            e.Property(t => t.DoctorId).HasMaxLength(450).IsRequired();
+            e.Property(t => t.Name).HasMaxLength(100).IsRequired();
+            e.Property(t => t.Body).HasMaxLength(5000).IsRequired();
+            e.HasIndex(t => t.DoctorId);
         });
 
         // VitalSign
