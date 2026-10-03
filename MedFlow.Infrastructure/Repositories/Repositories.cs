@@ -208,6 +208,23 @@ public class PrescriptionRepository : Repository<Prescription>, IPrescriptionRep
                 p.IssuedDate, p.ExpiryDate, p.RefillsRemaining, p.Status.ToString(), p.CreatedAt))
             .ToListAsync();
 
+    public async Task<PrescriptionDocumentData?> GetDocumentDataAsync(int id, string doctorId)
+    {
+        var rx = await _db.Prescriptions.AsNoTracking()
+            .Include(p => p.Patient).Include(p => p.Doctor)
+            .FirstOrDefaultAsync(p => p.Id == id && p.DoctorId == doctorId
+                && p.Patient != null && p.Patient.DoctorId == doctorId);
+        if (rx?.Patient == null || rx.Doctor == null) return null;
+        var pt = rx.Patient;
+        var cityLine = string.Join(" ", new[] { pt.City, pt.State, pt.ZipCode }.Where(s => !string.IsNullOrWhiteSpace(s)));
+        var address = string.Join(", ", new[] { pt.Address, cityLine }.Where(s => !string.IsNullOrWhiteSpace(s)));
+        return new PrescriptionDocumentData(
+            rx.Id, rx.PatientId, rx.Doctor.FullName, rx.Doctor.Specialty, rx.Doctor.LicenseNumber, rx.Doctor.Phone,
+            pt.FullName, pt.DateOfBirth, pt.Phone, address.Length > 0 ? address : null,
+            rx.DrugName, rx.Dosage, rx.Frequency, rx.Instructions,
+            rx.IssuedDate, rx.ExpiryDate, rx.RefillsRemaining, rx.Status);
+    }
+
     public async Task<int> GetExpiringCountAsync(string doctorId, int daysAhead = 30) =>
         await _db.Prescriptions
             .Where(p => p.DoctorId == doctorId && p.Status == PrescriptionStatus.Active

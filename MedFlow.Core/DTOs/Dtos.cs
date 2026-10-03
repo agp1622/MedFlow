@@ -89,6 +89,15 @@ public record PrescriptionDto(
     int RefillsRemaining, string Status, DateTime CreatedAt
 );
 
+/// <summary>Everything printed on a prescription PDF; deliberately excludes email, insurance, allergies and notes.</summary>
+public record PrescriptionDocumentData(
+    int PrescriptionId, int PatientId,
+    string DoctorName, string Specialty, string? LicenseNumber, string? DoctorPhone,
+    string PatientName, DateOnly PatientDateOfBirth, string? PatientPhone, string? PatientAddress,
+    string DrugName, string Dosage, string Frequency, string? Instructions,
+    DateOnly IssuedDate, DateOnly ExpiryDate, int RefillsRemaining, PrescriptionStatus Status
+);
+
 public record CreatePrescriptionRequest(
     int PatientId, string DrugName, string Dosage, string Frequency,
     string? Instructions, DateOnly IssuedDate, DateOnly ExpiryDate,

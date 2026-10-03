@@ -1,5 +1,6 @@
 using MedFlow.Core.Interfaces;
 using MedFlow.Infrastructure.Data;
+using MedFlow.Infrastructure.Documents;
 using MedFlow.Infrastructure.Email;
 using MedFlow.Infrastructure.Identity;
 using MedFlow.Infrastructure.Reminders;
@@ -41,6 +42,7 @@ public static class DependencyInjection
         services.AddScoped<IPatientRepository, PatientRepository>();
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
         services.AddScoped<IPrescriptionRepository, PrescriptionRepository>();
+        services.AddSingleton<IPrescriptionDocumentRenderer, PrescriptionPdfRenderer>();
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
         services.AddScoped<IVitalSignRepository, VitalSignRepository>();
         services.AddScoped<IMedicalNoteRepository, MedicalNoteRepository>();
