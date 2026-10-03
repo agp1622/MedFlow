@@ -63,13 +63,24 @@ These lists are doctor-facing and private to the owning doctor.
 - Entry id belongs to a different patient than the one in the URL: not found.
 - Deleted (removed) entries never reappear; deleting a patient hides its lists.
 - ICD-10 entered in lower case or with surrounding whitespace is normalised to upper case before validation.
-- Duplicate allergy substances for one patient are allowed to be rejected as duplicates (case-insensitive) to avoid conflicting entries.
+- Adding an allergy whose substance already exists for that patient (case-insensitive) is rejected as a conflict, to avoid contradictory entries.
+- Two people editing the same entry: last save wins; no merge is attempted.
+
+## Clarifications
+
+### Session 2026-10-03
+
+- Q: Should current medications be derived from issued prescriptions or kept as a separate list? → A: Separate doctor-maintained list; prescriptions are not read or changed (avoids silent overwrites).
+- Q: Is allergy severity required? → A: Yes, required (a missing severity on a safety-critical item is not acceptable).
+- Q: How are duplicate allergy substances handled? → A: Rejected as a conflict (case-insensitive), per patient.
+- Q: What happens to the legacy free-text Patient.Allergies? → A: Left untouched and shown read-only next to the structured list.
+- Q: How are concurrent edits handled? → A: Last write wins.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: The system MUST let the owning doctor list, add, edit and remove structured allergies (substance, reaction, severity: Mild, Moderate, Severe, LifeThreatening) for a patient.
+- **FR-001**: The system MUST let the owning doctor list, add, edit and remove structured allergies (substance, optional reaction, required severity: Mild, Moderate, Severe, LifeThreatening) for a patient.
 - **FR-002**: The system MUST let the owning doctor list, add, edit and remove problems (description, ICD-10 code, status Active or Resolved, optional onset date).
 - **FR-003**: The system MUST let the owning doctor list, add, edit and remove current medications (name, dosage, frequency, optional notes).
 - **FR-004**: ICD-10 codes MUST be validated for format (letter, two alphanumerics, optional dot and 1 to 4 alphanumerics) and normalised to upper case.
