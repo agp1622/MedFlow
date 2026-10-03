@@ -50,8 +50,8 @@ Refs #21
 
 ## Phase 7: Polish
 
-- [ ] T019 Run `dotnet build MedFlow.sln`, `dotnet test MedFlow.Api.Tests`, `npm run build` and `npm run lint` in medflow-client and fix failures
-- [ ] T020 Walk through [quickstart.md](quickstart.md) items and note which need a manual UI pass
+- [x] T019 Run `dotnet build MedFlow.sln`, `dotnet test MedFlow.Api.Tests`, `npm run build` and `npm run lint` in medflow-client and fix failures
+- [x] T020 Walk through [quickstart.md](quickstart.md) items and note which need a manual UI pass
 
 ## Dependencies
 
