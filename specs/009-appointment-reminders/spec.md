@@ -15,9 +15,9 @@
 - Q: Should the doctor be emailed when a patient cancels? → A: No; the doctor sees the status and response on the appointment (smallest scope).
 - Q: How many send attempts before giving up? → A: 3 attempts in total; later runs retry only Failed deliveries until the limit.
 - Q: Can a link be used more than once? → A: Yes until the appointment starts, but a Cancelled appointment can never be re-confirmed through a link (stricter option); Confirmed may later be cancelled.
-- Q: Where does the link point? → A: A public client page that shows minimal details and POSTs the explicit choice to a public token-based API; the token travels in the URL fragment-free query and is never logged.
+- Q: Where does the link point? → A: A public client page that shows minimal details and POSTs the explicit choice to a public token-based API; the token is a query parameter on the client page only, is sent to the API in a POST body, and is never logged.
 - Q: How often does the reminder job run? → A: Every 15 minutes, configurable.
-- Q: Public endpoints abuse protection? → A: Uniform responses plus the tokens being 256-bit random values; no extra rate limiter beyond what exists.
+- Q: Public endpoints abuse protection? → A: Uniform responses, 256-bit random tokens, and a per-IP rate limit on the public endpoints (same mechanism as existing invitation acceptance).
 
 ## User Scenarios & Testing *(mandatory)*
 
