@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { useNavigate } from 'react-router-dom'
 import {
   usePrescriptions, useCreatePrescription, useDeletePrescription,
-  useInvoices, useCreateInvoice, useMarkInvoicePaid,
+  useInvoices, useCreateInvoice, useMarkInvoicePaid, useExportClaimDraft,
   usePatients
 } from '@/hooks/queries'
 import { PageHeader } from '@/components/layout/AppLayout'
@@ -15,7 +15,7 @@ import { Avatar, Badge, StatCard, PageSpinner, EmptyState, SearchInput, Paginati
 import { Modal } from './PatientsPage'
 import { PrintPrescriptionButton } from '@/components/prescriptions/PrintPrescriptionButton'
 import { fmt } from '@/utils/format'
-import { Trash2, CheckCircle } from 'lucide-react'
+import { Trash2, CheckCircle, FileDown } from 'lucide-react'
 import type { CreatePrescriptionRequest, CreateInvoiceRequest } from '@/types'
 
 // ── Prescriptions Page ────────────────────────────────────────────────────────
@@ -94,6 +94,7 @@ export function BillingPage() {
   const [showModal, setShowModal] = useState(false)
   const { data, isLoading } = useInvoices({ page, pageSize: 20, search })
   const markPaid = useMarkInvoicePaid()
+  const exportClaim = useExportClaimDraft()
 
   const paid = data?.items.filter(i => i.status === 'Paid').reduce((s, i) => s + i.amount, 0) ?? 0
   const pending = data?.items.filter(i => i.status === 'Pending').reduce((s, i) => s + i.amount, 0) ?? 0
@@ -141,7 +142,17 @@ export function BillingPage() {
                     <td className="px-4 py-3 font-bold text-gray-900">{fmt.currency(inv.amount)}</td>
                     <td className="px-4 py-3 text-sm text-gray-500">{fmt.date(inv.dueDate)}</td>
                     <td className="px-4 py-3"><Badge status={inv.status} /></td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="inline-flex gap-1 mr-1">
+                        {(['json', 'csv'] as const).map(f => (
+                          <button key={f} className="btn-secondary p-1.5 gap-1 text-xs" disabled={exportClaim.isPending}
+                            onClick={() => exportClaim.mutate({ id: inv.id, format: f })}
+                            title={t('billing.claim.exportTitle', { format: f.toUpperCase() })}
+                            aria-label={t('billing.claim.exportTitle', { format: f.toUpperCase() })}>
+                            <FileDown size={14} /> {f.toUpperCase()}
+                          </button>
+                        ))}
+                      </span>
                       {inv.status !== 'Paid' && inv.status !== 'Cancelled' && (
                         <button className="btn-secondary p-1.5 gap-1 text-xs"
                           onClick={() => markPaid.mutate(inv.id)} title={t('billing.markPaid')}>

@@ -1,5 +1,7 @@
 using MedFlow.Core;
 using MedFlow.Api.Extensions;
+using MedFlow.Api.Localization;
+using MedFlow.Api.Services;
 using MedFlow.Core.DTOs;
 using MedFlow.Core.Entities;
 using MedFlow.Core.Enums;
@@ -107,6 +109,43 @@ public class InvoicesController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<PagedResult<InvoiceDto>>> GetAll([FromQuery] QueryParams q)
         => Ok(await _invoices.GetPagedAsync(User.GetUserId(), q));
+
+    /// <summary>
+    /// DRAFT claim worksheet under CMS-1500 (02/12) item numbers, as JSON (default) or CSV. It is not the official form,
+    /// not an X12 837 file and not validated by any payer. 404 (no body) when missing or not the caller's; audited on success.
+    /// </summary>
+    [HttpGet("{id:int}/claim-export")]
+    public async Task<IActionResult> ClaimExport(int id, [FromQuery] string? format = null)
+    {
+        var fmt = string.IsNullOrWhiteSpace(format) ? "json" : format.Trim().ToLowerInvariant();
+        if (fmt != "json" && fmt != "csv")
+            return BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = this.T("Error.BadRequest"),
+                Detail = this.T("Claim.UnsupportedFormat"),
+                Instance = Request.Path
+            });
+
+        var source = await _invoices.GetClaimSourceAsync(id, User.GetUserId());
+        if (source == null) return NotFound();
+
+        var draft = ClaimDraftBuilder.Build(source);
+        var dto = new ClaimDraftDto(
+            "DRAFT", this.T("Claim.Disclaimer"), DateTime.UtcNow, source.InvoiceNumber, source.InvoiceStatus,
+            draft.Items.Select(i => new ClaimItemDto(i.Item, i.Key, this.T($"Claim.Label.{i.Key}"), i.Value)).ToList(),
+            draft.Missing.Select(m => new ClaimMissingDto(m.Item, m.Key, this.T($"Claim.Label.{m.Key}"))).ToList());
+
+        if (!await this.AuditAsync(_audit, source.PatientId, AuditAction.View, AuditItemKind.Invoice, id)) return NotFound();
+
+        Response.Headers.CacheControl = "no-store";
+        var safeNumber = new string(source.InvoiceNumber.Where(c => char.IsLetterOrDigit(c) || c == '-').ToArray());
+        if (fmt == "csv")
+            return File(System.Text.Encoding.UTF8.GetBytes(ClaimCsvWriter.Write(dto)),
+                "text/csv; charset=utf-8", $"claim-draft-{safeNumber}.csv");
+        var json = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(dto, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web) { WriteIndented = true });
+        return File(json, "application/json", $"claim-draft-{safeNumber}.json");
+    }
 
     [HttpGet("patient/{patientId:int}")]
     public async Task<ActionResult<IEnumerable<InvoiceDto>>> GetByPatient(int patientId)

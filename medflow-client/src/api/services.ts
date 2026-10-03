@@ -23,6 +23,7 @@ import type {
   ReminderLookupDto, ReminderLogDto, ReminderAction,
   DashboardStatsDto, AppointmentStatus,
   AuditEventDto, AuditLogQuery,
+  ClaimExportFormat,
   ReportQuery, RevenueReport, VisitsReport, NoShowReport, ArAgingReport
 } from '@/types'
 
@@ -113,6 +114,9 @@ export const invoicesApi = {
   update:       (id: number, data: UpdateInvoiceRequest) => api.put(`/invoices/${id}`, data),
   markPaid:     (id: number)        => api.patch(`/invoices/${id}/mark-paid`),
   delete:       (id: number)        => api.delete(`/invoices/${id}`),
+  // Draft claim data (CMS-1500 item numbers); header-authenticated blob download, no token in the URL
+  downloadClaimDraft: (id: number, format: ClaimExportFormat = 'json') =>
+    api.get<Blob>(`/invoices/${id}/claim-export`, { params: { format }, responseType: 'blob' }).then(r => r.data),
 }
 
 // ── Vitals ────────────────────────────────────────────────────────────────────

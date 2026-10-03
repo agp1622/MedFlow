@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi, clinicalApi, labsApi, intakeApi, noteTemplatesApi, availabilityApi, auditApi, reportsApi } from '@/api/services'
-import type { ReportQuery, QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest, SaveAllergyRequest, SaveProblemRequest, SaveMedicationRequest, SaveLabOrderRequest, SaveLabResultRequest, IntakeStatus, CreateNoteTemplateRequest, AuditLogQuery } from '@/types'
+import type { ReportQuery, QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest, SaveAllergyRequest, SaveProblemRequest, SaveMedicationRequest, SaveLabOrderRequest, SaveLabResultRequest, IntakeStatus, CreateNoteTemplateRequest, AuditLogQuery, ClaimExportFormat } from '@/types'
 import toast from 'react-hot-toast'
 import i18n from '@/i18n'
 
@@ -184,6 +184,24 @@ export const useMarkInvoicePaid = () => {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['invoices'] }); toast.success(i18n.t('toasts.invoicePaid')) },
   })
 }
+
+// Downloads a DRAFT claim data worksheet (JSON or CSV); it is not a CMS-1500 form or an X12 837 file.
+export const useExportClaimDraft = () =>
+  useMutation({
+    mutationFn: async ({ id, format }: { id: number; format: ClaimExportFormat }) => {
+      const blob = await invoicesApi.downloadClaimDraft(id, format)
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `claim-draft-${id}.${format}`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 60_000)
+    },
+    onSuccess: () => toast(i18n.t('billing.claim.draftNotice'), { icon: 'ℹ️', duration: 7000 }),
+    onError: () => toast.error(i18n.t('toasts.claimExportFailed')),
+  })
 
 // ── Vitals ────────────────────────────────────────────────────────────────────
 export const usePatientVitals = (patientId: number) =>

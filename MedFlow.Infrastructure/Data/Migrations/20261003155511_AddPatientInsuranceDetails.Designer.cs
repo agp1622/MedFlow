@@ -4,6 +4,7 @@ using MedFlow.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace MedFlow.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261003155511_AddPatientInsuranceDetails")]
+    partial class AddPatientInsuranceDetails
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -570,103 +573,6 @@ namespace MedFlow.Infrastructure.Data.Migrations
                     b.HasIndex("DoctorId", "Status");
 
                     b.ToTable("Invoices");
-                });
-
-            modelBuilder.Entity("MedFlow.Core.Entities.LabOrder", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("DoctorId")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<DateOnly>("OrderedDate")
-                        .HasColumnType("date");
-
-                    b.Property<int>("PatientId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("TestName")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PatientId", "DoctorId");
-
-                    b.ToTable("LabOrders");
-                });
-
-            modelBuilder.Entity("MedFlow.Core.Entities.LabResult", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("AnalyteName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<int>("LabOrderId")
-                        .HasColumnType("int");
-
-                    b.Property<decimal?>("ReferenceHigh")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<decimal?>("ReferenceLow")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<string>("Unit")
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal>("Value")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("decimal(18,4)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LabOrderId");
-
-                    b.ToTable("LabResults");
                 });
 
             modelBuilder.Entity("MedFlow.Core.Entities.MedicalNote", b =>
@@ -1587,26 +1493,6 @@ namespace MedFlow.Infrastructure.Data.Migrations
                     b.Navigation("Patient");
                 });
 
-            modelBuilder.Entity("MedFlow.Core.Entities.LabOrder", b =>
-                {
-                    b.HasOne("MedFlow.Core.Entities.Patient", "Patient")
-                        .WithMany()
-                        .HasForeignKey("PatientId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Patient");
-                });
-
-            modelBuilder.Entity("MedFlow.Core.Entities.LabResult", b =>
-                {
-                    b.HasOne("MedFlow.Core.Entities.LabOrder", null)
-                        .WithMany("Results")
-                        .HasForeignKey("LabOrderId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("MedFlow.Core.Entities.MedicalNote", b =>
                 {
                     b.HasOne("MedFlow.Core.Entities.Doctor", "Doctor")
@@ -1770,11 +1656,6 @@ namespace MedFlow.Infrastructure.Data.Migrations
                     b.Navigation("Appointments");
 
                     b.Navigation("Patients");
-                });
-
-            modelBuilder.Entity("MedFlow.Core.Entities.LabOrder", b =>
-                {
-                    b.Navigation("Results");
                 });
 
             modelBuilder.Entity("MedFlow.Core.Entities.Patient", b =>

@@ -55,6 +55,8 @@ public interface IInvoiceRepository : IRepository<Invoice>
     Task<int> GetOverdueCountAsync(string doctorId);
     Task UpdateOverdueStatusesAsync();
     Task<string> GenerateInvoiceNumberAsync();
+    /// <summary>Data for a claim draft; null unless the invoice and its patient both belong to the doctor.</summary>
+    Task<ClaimSourceData?> GetClaimSourceAsync(int id, string doctorId);
 }
 
 public interface IVitalSignRepository : IRepository<VitalSign>

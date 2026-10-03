@@ -154,6 +154,20 @@ the appointment. The job runs inside the API process, so run a single API instan
 | POST | `/api/appointment-response/respond` | Anonymous (token) | `{ token, action: "Confirm" \| "Cancel" }` |
 | GET | `/api/appointments/{id}/reminders` | Doctor | Delivery log and patient response (own appointments only) |
 
+### Insurance and claim export draft
+
+Patients store insurance provider, policy number, group number, payer ID, and the subscriber's name, date of birth and
+relationship (Self, Spouse, Child, Other). From an invoice, a doctor can export a **draft** claim worksheet.
+
+| Method | Route | Role | Description |
+|--------|-------|------|-------------|
+| GET | `/api/invoices/{id}/claim-export?format=json\|csv` | Doctor | Draft CMS-1500 (02/12) item data for the doctor's own invoice; 404 otherwise; audited as a view of the invoice |
+
+What it is and is not: the export is a data worksheet that uses CMS-1500 item numbers and lists missing items. It is
+**not** the official CMS-1500 form, **not** an X12 837 file (no 837 generation or validation exists), and **not** validated
+by any payer or clearinghouse. MedFlow does not store CPT/HCPCS, ICD-10, provider NPI or federal tax ID, so those items are
+always reported as missing. The item numbering is a best-effort mapping.
+
 Access-control tests: `dotnet test MedFlow.Api.Tests`.
 
 ---

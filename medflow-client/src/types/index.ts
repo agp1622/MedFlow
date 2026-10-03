@@ -50,10 +50,13 @@ export interface PatientDto {
   address?: string; city?: string; state?: string; zipCode?: string
   primaryCondition?: string; allergies?: string; notes?: string
   insuranceProvider?: string; insurancePolicyNumber?: string
+  insuranceGroupNumber?: string; insurancePayerId?: string; insuranceSubscriberName?: string
+  insuranceSubscriberDateOfBirth?: string; insuranceSubscriberRelationship?: InsuranceRelationship
   lastVisit?: string; nextAppointment?: string
   createdAt: string; updatedAt: string
   portalStatus?: PortalStatus
 }
+export type InsuranceRelationship = 'Self' | 'Spouse' | 'Child' | 'Other'
 export type PortalStatus = 'NotInvited' | 'Invited' | 'Active'
 export interface PatientSummaryDto {
   id: number; fullName: string; age: number; gender: string; bloodType: string
@@ -67,6 +70,8 @@ export interface CreatePatientRequest {
   address?: string; city?: string; state?: string; zipCode?: string
   primaryCondition?: string; allergies?: string; notes?: string
   insuranceProvider?: string; insurancePolicyNumber?: string
+  insuranceGroupNumber?: string; insurancePayerId?: string; insuranceSubscriberName?: string
+  insuranceSubscriberDateOfBirth?: string; insuranceSubscriberRelationship?: InsuranceRelationship
 }
 export type UpdatePatientRequest = CreatePatientRequest & { status: PatientStatus }
 
@@ -306,3 +311,6 @@ export interface AuditEventDto {
 export interface AuditLogQuery {
   action?: AuditAction; actor?: string; from?: string; to?: string; page?: number; pageSize?: number
 }
+
+// ── Claim export (DRAFT CMS-1500 data worksheet; not a CMS-1500 form, not an X12 837 file) ──
+export type ClaimExportFormat = 'json' | 'csv'

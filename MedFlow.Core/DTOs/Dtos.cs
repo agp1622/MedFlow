@@ -34,7 +34,9 @@ public record PatientDto(
     string? InsuranceProvider, string? InsurancePolicyNumber,
     DateTime? LastVisit, DateTime? NextAppointment,
     DateTime CreatedAt, DateTime UpdatedAt,
-    string PortalStatus = "NotInvited"
+    string PortalStatus = "NotInvited",
+    string? InsuranceGroupNumber = null, string? InsurancePayerId = null, string? InsuranceSubscriberName = null,
+    DateOnly? InsuranceSubscriberDateOfBirth = null, string? InsuranceSubscriberRelationship = null
 );
 
 public record PatientSummaryDto(
@@ -49,7 +51,9 @@ public record CreatePatientRequest(
     string Email, string Phone,
     string? Address, string? City, string? State, string? ZipCode,
     string? PrimaryCondition, string? Allergies, string? Notes,
-    string? InsuranceProvider, string? InsurancePolicyNumber
+    string? InsuranceProvider, string? InsurancePolicyNumber,
+    string? InsuranceGroupNumber = null, string? InsurancePayerId = null, string? InsuranceSubscriberName = null,
+    DateOnly? InsuranceSubscriberDateOfBirth = null, InsuranceRelationship? InsuranceSubscriberRelationship = null
 );
 
 public record UpdatePatientRequest(
@@ -58,7 +62,9 @@ public record UpdatePatientRequest(
     string Email, string Phone,
     string? Address, string? City, string? State, string? ZipCode,
     string? PrimaryCondition, string? Allergies, string? Notes,
-    string? InsuranceProvider, string? InsurancePolicyNumber
+    string? InsuranceProvider, string? InsurancePolicyNumber,
+    string? InsuranceGroupNumber = null, string? InsurancePayerId = null, string? InsuranceSubscriberName = null,
+    DateOnly? InsuranceSubscriberDateOfBirth = null, InsuranceRelationship? InsuranceSubscriberRelationship = null
 );
 
 // ── Appointment ───────────────────────────────────────────────────────────────
@@ -118,6 +124,28 @@ public record InvoiceDto(
     string Status, DateTime InvoiceDate, DateTime? DueDate,
     DateTime? PaidDate, string? Notes, DateTime CreatedAt
 );
+
+/// <summary>Everything the claim draft is built from; null from the repository unless the invoice and its patient belong to the doctor.</summary>
+public record ClaimSourceData(
+    int InvoiceId, int PatientId, string InvoiceNumber, string InvoiceStatus, string ServiceDescription,
+    decimal Amount, DateTime InvoiceDate, DateTime? AppointmentDate,
+    string PatientFirstName, string PatientLastName, DateOnly PatientDateOfBirth, Gender PatientGender, string? PatientPhone,
+    string? Address, string? City, string? State, string? ZipCode,
+    string? InsuranceProvider, string? InsurancePolicyNumber, string? InsuranceGroupNumber, string? InsurancePayerId,
+    string? SubscriberName, DateOnly? SubscriberDateOfBirth, InsuranceRelationship? SubscriberRelationship,
+    string DoctorName, string? DoctorPhone);
+
+/// <summary>One CMS-1500 (02/12) item of the draft. Item is the form item number, "Carrier" or "-" (not a form item).</summary>
+public record ClaimItem(string Item, string Key, string? Value);
+public record ClaimMissing(string Item, string Key);
+public record ClaimDraft(IReadOnlyList<ClaimItem> Items, IReadOnlyList<ClaimMissing> Missing);
+
+public record ClaimItemDto(string Item, string Key, string Label, string? Value);
+public record ClaimMissingDto(string Item, string Key, string Label);
+/// <summary>Draft claim worksheet. Not an official CMS-1500 form, not an X12 837 file, not validated by any payer.</summary>
+public record ClaimDraftDto(
+    string Status, string Disclaimer, DateTime GeneratedAt, string InvoiceNumber, string InvoiceStatus,
+    IReadOnlyList<ClaimItemDto> Items, IReadOnlyList<ClaimMissingDto> Missing);
 
 public record CreateInvoiceRequest(
     int PatientId, int? AppointmentId,

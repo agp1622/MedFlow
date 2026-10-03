@@ -138,6 +138,7 @@ export const en: Optional<typeof es> = {
     patientCreateFailed: 'Failed to create patient',
     patientUpdated: 'Patient updated',
     patientUpdateFailed: 'Failed to update patient',
+    claimExportFailed: 'Could not export the claim draft',
     patientRemoved: 'Patient removed',
     patientRemoveFailed: 'Failed to remove patient',
     appointmentScheduled: 'Appointment scheduled',
@@ -304,6 +305,13 @@ export const en: Optional<typeof es> = {
       bloodType: 'Blood Type', email: 'Email', phone: 'Phone',
       insurance: 'Insurance', allergies: 'Allergies',
     },
+    insurance: {
+      title: 'Insurance', edit: 'Edit insurance', none: 'No insurance details on file.', save: 'Save',
+      provider: 'Insurance provider', policyNumber: 'Policy number', groupNumber: 'Group number', payerId: 'Payer ID',
+      subscriberName: 'Subscriber name', subscriberDob: 'Subscriber date of birth', relationship: 'Relationship to subscriber',
+      futureDob: 'The date of birth cannot be in the future.',
+      relationships: { Self: 'Self', Spouse: 'Spouse', Child: 'Child', Other: 'Other' },
+    },
     tabs: {
       overview: 'Overview', appointments: 'Appointments', prescriptions: 'Prescriptions', invoices: 'Invoices',
       notes: 'Notes', attachments: 'Attachments', audit: 'Audit log', vitals: 'Vitals', labs: 'Labs',
@@ -441,6 +449,10 @@ export const en: Optional<typeof es> = {
     emptyHint: 'Create your first invoice',
     markPaid: 'Mark as paid',
     paid: 'Paid',
+    claim: {
+      exportTitle: 'Export claim draft ({{format}})',
+      draftNotice: 'Draft only: CMS-1500 item data for review. It is not the official form, not an X12 837 file, and not validated by any payer. CPT/HCPCS, ICD-10, NPI and tax ID are missing.',
+    },
     amountPositive: 'Must be > 0',
     form: {
       service: 'Service description',
