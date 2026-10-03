@@ -16,11 +16,13 @@ public class PatientsController : ControllerBase
 {
     private readonly IPatientRepository _patients;
     private readonly IPortalInvitationRepository _invitations;
+    private readonly IAuditService _audit;
 
-    public PatientsController(IPatientRepository patients, IPortalInvitationRepository invitations)
+    public PatientsController(IPatientRepository patients, IPortalInvitationRepository invitations, IAuditService audit)
     {
         _patients = patients;
         _invitations = invitations;
+        _audit = audit;
     }
 
     [HttpGet]
@@ -36,6 +38,7 @@ public class PatientsController : ControllerBase
         var doctorId = User.GetUserId();
         var patient = await _patients.GetWithDetailsAsync(id, doctorId);
         if (patient == null) return NotFound();
+        if (!await this.AuditAsync(_audit, id, AuditAction.View, AuditItemKind.Patient, id)) return NotFound();
 
         var lastVisit = await _patients.GetLastVisitAsync(id);
         var nextAppt = await _patients.GetNextAppointmentAsync(id);
@@ -69,6 +72,8 @@ public class PatientsController : ControllerBase
         };
 
         var created = await _patients.AddAsync(patient);
+        // The patient does not exist before this point, so this one event is written right after creation
+        await this.AuditAsync(_audit, created.Id, AuditAction.Change, AuditItemKind.Patient, created.Id);
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, MapToDto(created, null, null));
     }
 
@@ -79,6 +84,7 @@ public class PatientsController : ControllerBase
         var patient = await _patients.GetWithDetailsAsync(id, doctorId);
         if (patient == null) return NotFound();
 
+        var before = AuditDiff.Snapshot(patient);
         patient.FirstName = req.FirstName;
         patient.LastName = req.LastName;
         patient.DateOfBirth = req.DateOfBirth;
@@ -97,6 +103,9 @@ public class PatientsController : ControllerBase
         patient.InsuranceProvider = req.InsuranceProvider;
         patient.InsurancePolicyNumber = req.InsurancePolicyNumber;
 
+        // Recording saves the in-memory edit together with the event; if it cannot be stored nothing is saved
+        if (!await this.AuditAsync(_audit, id, AuditAction.Change, AuditItemKind.Patient, id, AuditDiff.Changed(before, patient)))
+            return NotFound();
         await _patients.UpdateAsync(patient);
         return Ok(MapToDto(patient, null, null, await _invitations.GetPortalStatusAsync(patient)));
     }
@@ -107,6 +116,7 @@ public class PatientsController : ControllerBase
         var doctorId = User.GetUserId();
         var patient = await _patients.GetWithDetailsAsync(id, doctorId);
         if (patient == null) return NotFound();
+        if (!await this.AuditAsync(_audit, id, AuditAction.Change, AuditItemKind.Patient, id)) return NotFound();
         await _patients.DeleteAsync(id);
         return NoContent();
     }

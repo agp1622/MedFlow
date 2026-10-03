@@ -4,13 +4,13 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useNavigate } from 'react-router-dom'
 import {
-  useAppointments, useCreateAppointment, useUpdateAppointmentStatus, useDeleteAppointment, usePatients
+  useAppointments, useAppointmentReminders, useCreateAppointment, useUpdateAppointmentStatus, useDeleteAppointment, usePatients
 } from '@/hooks/queries'
 import { PageHeader } from '@/components/layout/AppLayout'
 import { Avatar, Badge, PageSpinner, EmptyState, SearchInput, Pagination, Spinner } from '@/components/ui'
 import { Modal } from './PatientsPage'
 import { fmt, displayEnum } from '@/utils/format'
-import { Trash2, CheckCircle, XCircle } from 'lucide-react'
+import { Trash2, CheckCircle, XCircle, Bell } from 'lucide-react'
 import type { CreateAppointmentRequest } from '@/types'
 
 export function AppointmentsPage() {
@@ -18,6 +18,7 @@ export function AppointmentsPage() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
+  const [remindersFor, setRemindersFor] = useState<number | null>(null)
   const { data, isLoading } = useAppointments({ page, pageSize: 20, search })
   const updateStatus = useUpdateAppointmentStatus()
   const deleteAppt = useDeleteAppointment()
@@ -72,6 +73,10 @@ export function AppointmentsPage() {
                             <XCircle size={14} />
                           </button>
                         )}
+                        <button className="btn-ghost p-1.5" title="Reminder log"
+                          onClick={() => setRemindersFor(a.id)}>
+                          <Bell size={14} className="text-gray-400" />
+                        </button>
                         <button className="btn-ghost p-1.5" title="Delete"
                           onClick={() => { if (confirm('Delete appointment?')) deleteAppt.mutate(a.id) }}>
                           <Trash2 size={14} className="text-gray-400" />
@@ -86,8 +91,38 @@ export function AppointmentsPage() {
           </div>
         </div>
       )}
+      {remindersFor !== null && <ReminderLogModal id={remindersFor} onClose={() => setRemindersFor(null)} />}
       {showModal && <NewAppointmentModal onClose={() => setShowModal(false)} />}
     </div>
+  )
+}
+
+// ── Reminder log ──────────────────────────────────────────────────────────────
+function ReminderLogModal({ id, onClose }: { id: number; onClose: () => void }) {
+  const { data, isLoading } = useAppointmentReminders(id)
+  return (
+    <Modal title="Reminder log" onClose={onClose}>
+      {isLoading || !data ? <PageSpinner /> : (
+        <div className="space-y-4">
+          <p className="text-sm text-gray-700">
+            Patient response: <strong>{data.response === 'None' ? 'No response yet' : data.response}</strong>
+            {data.respondedAt && <span className="text-gray-500"> ({fmt.date(data.respondedAt)} {fmt.time(data.respondedAt)})</span>}
+          </p>
+          {data.deliveries.length === 0 ? (
+            <p className="text-sm text-gray-500">No reminder has been attempted yet.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {data.deliveries.map((d, i) => (
+                <li key={i} className="py-2 text-sm flex justify-between gap-4">
+                  <span>{d.channel}: <strong>{d.outcome}</strong>{d.reason ? ` - ${d.reason}` : ''}</span>
+                  <span className="text-gray-500 whitespace-nowrap">{fmt.date(d.attemptedAt)} {fmt.time(d.attemptedAt)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </Modal>
   )
 }
 
