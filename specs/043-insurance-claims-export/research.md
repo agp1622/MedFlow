@@ -1,0 +1,12 @@
+# Research: Insurance Details and Claims Export
+
+- **Existing insurance data**: `Patient.InsuranceProvider` (200) and `InsurancePolicyNumber` (100) already exist, are set by patient create/update and by the 012 intake accept flow (direct mapping; only medications and past history go to Notes). Decision: reuse, add only missing fields. No data migration; no intake change.
+- **Format**: Decision: DRAFT JSON (default) and CSV of item-numbered data plus missing list. Rationale: honest about available data, no new dependency, usable for keying into a clearinghouse. Alternatives: PDFsharp form rendering (rejected: needs the official form layout and still lacks required codes; would imply a valid form); X12 837P (rejected: needs ISA/GS/ST envelope, loops 2000A-2400, NPI, taxonomy, CPT, ICD-10, submitter/receiver IDs, and validation against a TR3 implementation guide, none of which exist; claiming it would be false).
+- **Serialisation**: JSON via `System.Text.Json` camelCase (same as the API); CSV by hand (header + rows, RFC 4180 quoting, leading `= + - @ \t \r` neutralised with a leading apostrophe).
+- **Where the arrangement lives**: pure `ClaimDraftBuilder` in Core so it is unit-testable and has no ASP.NET/EF types. Labels and disclaimer are localized in the Api layer from the `Messages` catalog (keys stable, English identifiers).
+- **Scoping**: repository query requires `invoice.DoctorId == doctor` and `patient.DoctorId == doctor` and non-deleted (global query filter already hides soft-deleted rows; verify in implement). Mirrors `GetDocumentDataAsync` for prescriptions.
+- **Audit**: `this.AuditAsync(_audit, patientId, View, Invoice, invoiceId)` after building, before returning data; false => 404; audit failure throws => 500 (fail closed).
+- **Enum storage**: `InsuranceRelationship` stored as string, consistent with how existing enums are configured in `AppDbContext` (confirm in implement).
+- **Validation**: manual, localized (like the intake controller), producing `ValidationProblemDetails` 400 with the localized title; DataAnnotations messages would be English-only.
+- **Sex mapping (item 3)**: Male => M, Female => F; NonBinary and PreferNotToSay left blank and reported missing, because the form accepts only M/F.
+- **Self relationship**: when relationship is Self (or insured fields are empty and relationship is Self) insured name and DOB default to the patient's.
