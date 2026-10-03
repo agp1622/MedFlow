@@ -21,7 +21,7 @@ MedFlow has no clinic/organization layer yet: every appointment and invoice belo
 - Q: What is the row cap for the A/R detail list and CSV? → A: List is paginated (page size max 100); CSV export is capped at 5,000 rows; the CSV simply stops at the cap (no extra flag).
 - Q: Should viewing the A/R detail (patient names) write per-patient audit events? → A: No per-patient events, consistent with the existing invoice list endpoint; access is doctor-only and scoped to the caller. (Stricter alternative would require one audit row per patient per view.)
 - Q: Are overdue invoices determined by status or by due date? → A: By due date as of today (UTC), regardless of the Pending/Overdue status flag, because the status flag is not updated automatically.
-- Q: Which locale formats numbers and dates in CSV? → A: Locale-neutral: ISO dates (yyyy-MM-dd) and invariant decimals with two places, so the file is stable regardless of UI language; only column headers are localized by the UI request language (`lang` parameter, en or es).
+- Q: Which locale formats numbers and dates in CSV? → A: Locale-neutral: ISO dates (yyyy-MM-dd) and invariant decimals with two places, so the file is stable regardless of UI language; only column headers are localized from the request Accept-Language header (es default, en).
 
 ## User Scenarios & Testing *(mandatory)*
 

@@ -85,7 +85,7 @@ Common query (revenue, visits, no-shows): `from` (yyyy-MM-dd, default today-29),
 | GET | /api/reports/visits | `VisitsReport` |
 | GET | /api/reports/no-shows | `NoShowReport` |
 | GET | /api/reports/ar-aging?page=&pageSize= | `ArAgingReport` (pageSize max 100) |
-| GET | /api/reports/{revenue, visits, no-shows, ar-aging}/export?...&lang=en or es | `text/csv; charset=utf-8` attachment |
+| GET | /api/reports/{revenue, visits, no-shows, ar-aging}/export?... | `text/csv; charset=utf-8` attachment |
 
 Record shapes: see [data-model.md](data-model.md). CSV: localized header row, one row per series point (or per open invoice, max 5,000, for A/R); ISO dates; invariant decimals; text cells starting with `= + - @ TAB CR` get a leading `'`.
 
@@ -95,5 +95,5 @@ Record shapes: see [data-model.md](data-model.md). CSV: localized header row, on
 - Totals are computed from the same daily rows (no second query), so totals equal series sums.
 - A/R aging: one grouped query keyed by bucket index computed from due date (invoice date if no due date) relative to today UTC; open balance = Amount - PaidAmount where positive; Pending/Overdue only. Detail: paged `Select` to `ArInvoiceDto` ordered by oldest due first.
 - CSV: `CsvWriter` quotes fields with comma/quote/newline, doubles quotes, prefixes a single quote when the first char is `=`, `+`, `-`, `@`, tab or CR (applied to every text cell, including numbers that are negative, handled by writing numbers via invariant format separately: numeric cells are not prefixed). UTF-8 with BOM for Excel and Spanish characters. `Content-Disposition` attachment, `Cache-Control: no-store`.
-- Header localization via `lang` query (en|es, default en) — headers only.
+- Header localization follows the existing Accept-Language mechanism (Spanish default) — headers only.
 - Validation errors return 400 ProblemDetails/`{message}` consistent with existing controllers.

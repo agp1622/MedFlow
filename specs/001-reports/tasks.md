@@ -9,7 +9,7 @@ Tests are required by the repo build rules (access control, isolation, validatio
 - [X] T002 Add `IReportRepository` to MedFlow.Core/Interfaces/IRepositories.cs (GetRevenueAsync, GetVisitsAsync, GetNoShowsAsync, GetArAgingAsync, GetArExportRowsAsync with doctorId, range, period, paging)
 - [X] T003 Create `ReportRepository` skeleton and register in MedFlow.Infrastructure/DependencyInjection.cs; add shared day-to-period folding helper (ISO Monday weeks, month start) in MedFlow.Infrastructure/Repositories/ReportRepository.cs
 - [X] T004 [P] Create `CsvWriter` (quote/escape, formula-injection guard for `= + - @ TAB CR`, UTF-8 BOM, invariant numbers/ISO dates) in MedFlow.Api/Reports/CsvWriter.cs
-- [X] T005 Create `ReportsController` (Doctor-only, query validation: from<=to, <=366 days, period, page size <=100, `lang`) in MedFlow.Api/Controllers/ReportsController.cs
+- [X] T005 Create `ReportsController` (Doctor-only, query validation: from<=to, <=366 days, period, page size <=100) in MedFlow.Api/Controllers/ReportsController.cs
 
 ## Phase 2: User Story 1 - Revenue and visits (P1)
 
