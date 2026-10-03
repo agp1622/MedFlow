@@ -123,6 +123,25 @@ export const useCreatePrescription = () => {
   })
 }
 
+// Opens the prescription PDF in a new tab so it can be printed and signed by hand; downloads it if popups are blocked.
+export const usePrintPrescription = () =>
+  useMutation({
+    mutationFn: async (id: number) => {
+      const blob = await prescriptionsApi.downloadPdf(id)
+      const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }))
+      if (!window.open(url, '_blank')) {
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `prescription-${id}.pdf`
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+      }
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 60_000)
+    },
+    onError: () => toast.error(i18n.t('toasts.prescriptionPdfFailed')),
+  })
+
 export const useDeletePrescription = () => {
   const qc = useQueryClient()
   return useMutation({

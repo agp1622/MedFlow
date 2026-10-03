@@ -142,6 +142,7 @@ export const en: Optional<typeof es> = {
     prescriptionCreated: 'Prescription created',
     prescriptionCreateFailed: 'Failed to create prescription',
     prescriptionRemoved: 'Prescription removed',
+    prescriptionPdfFailed: 'Could not generate the prescription PDF',
     invoiceCreated: 'Invoice created',
     invoiceCreateFailed: 'Failed to create invoice',
     invoicePaid: 'Invoice marked as paid',
@@ -393,6 +394,7 @@ export const en: Optional<typeof es> = {
     },
     empty: 'No prescriptions',
     emptyHint: 'Create your first prescription',
+    print: 'Print prescription',
     confirmDelete: 'Delete prescription?',
     form: {
       drug: 'Drug name',

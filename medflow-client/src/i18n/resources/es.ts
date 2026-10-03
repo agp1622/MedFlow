@@ -138,6 +138,7 @@ export const es = {
     prescriptionCreated: 'Receta creada',
     prescriptionCreateFailed: 'No se pudo crear la receta',
     prescriptionRemoved: 'Receta eliminada',
+    prescriptionPdfFailed: 'No se pudo generar el PDF de la receta',
     invoiceCreated: 'Factura creada',
     invoiceCreateFailed: 'No se pudo crear la factura',
     invoicePaid: 'Factura marcada como pagada',
@@ -396,6 +397,7 @@ export const es = {
     },
     empty: 'No hay recetas',
     emptyHint: 'Cree su primera receta',
+    print: 'Imprimir receta',
     confirmDelete: '¿Eliminar la receta?',
     form: {
       drug: 'Medicamento',

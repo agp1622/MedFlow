@@ -83,6 +83,8 @@ export const prescriptionsApi = {
   create:       (data: CreatePrescriptionRequest) => api.post<PrescriptionDto>('/prescriptions', data).then(r => r.data),
   update:       (id: number, data: UpdatePrescriptionRequest) => api.put(`/prescriptions/${id}`, data),
   delete:       (id: number) => api.delete(`/prescriptions/${id}`),
+  // Header-authenticated blob download: no token ever goes into a URL
+  downloadPdf:  (id: number) => api.get<Blob>(`/prescriptions/${id}/pdf`, { responseType: 'blob' }).then(r => r.data),
 }
 
 // ── Invoices ──────────────────────────────────────────────────────────────────
