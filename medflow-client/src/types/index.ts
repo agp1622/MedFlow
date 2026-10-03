@@ -191,3 +191,13 @@ export interface PortalAttachmentDto {
 export interface PortalNoteDto {
   id: number; doctorName: string; visitType?: string; content: string; noteDate: string
 }
+
+// ── Audit log ─────────────────────────────────────────────────────────────────
+export type AuditAction = 'View' | 'Change'
+export interface AuditEventDto {
+  id: number; occurredAt: string; actorUserId: string; actorName: string; actorRole: string
+  action: AuditAction; itemKind: string; itemId: number | null; changedFields: string[]
+}
+export interface AuditLogQuery {
+  action?: AuditAction; actor?: string; from?: string; to?: string; page?: number; pageSize?: number
+}

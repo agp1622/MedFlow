@@ -16,7 +16,8 @@ namespace MedFlow.Api.Controllers;
 public class PrescriptionsController : ControllerBase
 {
     private readonly IPrescriptionRepository _rx;
-    public PrescriptionsController(IPrescriptionRepository rx) => _rx = rx;
+    private readonly IAuditService _audit;
+    public PrescriptionsController(IPrescriptionRepository rx, IAuditService audit) { _rx = rx; _audit = audit; }
 
     [HttpGet]
     public async Task<ActionResult<PagedResult<PrescriptionDto>>> GetAll([FromQuery] QueryParams q)
@@ -24,11 +25,15 @@ public class PrescriptionsController : ControllerBase
 
     [HttpGet("patient/{patientId:int}")]
     public async Task<ActionResult<IEnumerable<PrescriptionDto>>> GetByPatient(int patientId)
-        => Ok(await _rx.GetByPatientAsync(patientId, User.GetUserId()));
+    {
+        if (!await this.AuditAsync(_audit, patientId, AuditAction.View, AuditItemKind.Prescription, null)) return NotFound();
+        return Ok(await _rx.GetByPatientAsync(patientId, User.GetUserId()));
+    }
 
     [HttpPost]
     public async Task<ActionResult<PrescriptionDto>> Create([FromBody] CreatePrescriptionRequest req)
     {
+        if (!await this.AuditAsync(_audit, req.PatientId, AuditAction.Change, AuditItemKind.Prescription, null)) return NotFound();
         var rx = new Prescription
         {
             PatientId = req.PatientId,
@@ -51,6 +56,7 @@ public class PrescriptionsController : ControllerBase
     {
         var rx = await _rx.GetByIdAsync(id);
         if (rx == null) return NotFound();
+        var before = AuditDiff.Snapshot(rx);
         rx.DrugName = req.DrugName;
         rx.Dosage = req.Dosage;
         rx.Frequency = req.Frequency;
@@ -58,6 +64,7 @@ public class PrescriptionsController : ControllerBase
         rx.ExpiryDate = req.ExpiryDate;
         rx.RefillsRemaining = req.RefillsRemaining;
         rx.Status = req.Status;
+        if (!await this.AuditAsync(_audit, rx.PatientId, AuditAction.Change, AuditItemKind.Prescription, rx.Id, AuditDiff.Changed(before, rx))) return NotFound();
         await _rx.UpdateAsync(rx);
         return NoContent();
     }
@@ -65,7 +72,9 @@ public class PrescriptionsController : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
-        if (!await _rx.ExistsAsync(id)) return NotFound();
+        var rx = await _rx.GetByIdAsync(id);
+        if (rx == null) return NotFound();
+        if (!await this.AuditAsync(_audit, rx.PatientId, AuditAction.Change, AuditItemKind.Prescription, id)) return NotFound();
         await _rx.DeleteAsync(id);
         return NoContent();
     }
@@ -78,7 +87,8 @@ public class PrescriptionsController : ControllerBase
 public class InvoicesController : ControllerBase
 {
     private readonly IInvoiceRepository _invoices;
-    public InvoicesController(IInvoiceRepository invoices) => _invoices = invoices;
+    private readonly IAuditService _audit;
+    public InvoicesController(IInvoiceRepository invoices, IAuditService audit) { _invoices = invoices; _audit = audit; }
 
     [HttpGet]
     public async Task<ActionResult<PagedResult<InvoiceDto>>> GetAll([FromQuery] QueryParams q)
@@ -86,12 +96,16 @@ public class InvoicesController : ControllerBase
 
     [HttpGet("patient/{patientId:int}")]
     public async Task<ActionResult<IEnumerable<InvoiceDto>>> GetByPatient(int patientId)
-        => Ok(await _invoices.GetByPatientAsync(patientId, User.GetUserId()));
+    {
+        if (!await this.AuditAsync(_audit, patientId, AuditAction.View, AuditItemKind.Invoice, null)) return NotFound();
+        return Ok(await _invoices.GetByPatientAsync(patientId, User.GetUserId()));
+    }
 
     [HttpPost]
     public async Task<ActionResult<InvoiceDto>> Create([FromBody] CreateInvoiceRequest req)
     {
         var doctorId = User.GetUserId();
+        if (!await this.AuditAsync(_audit, req.PatientId, AuditAction.Change, AuditItemKind.Invoice, null)) return NotFound();
         var invoice = new Invoice
         {
             PatientId = req.PatientId,
@@ -114,6 +128,7 @@ public class InvoicesController : ControllerBase
     {
         var inv = await _invoices.GetByIdAsync(id);
         if (inv == null) return NotFound();
+        var before = AuditDiff.Snapshot(inv);
         inv.ServiceDescription = req.ServiceDescription;
         inv.Amount = req.Amount;
         inv.Status = req.Status;
@@ -122,6 +137,7 @@ public class InvoicesController : ControllerBase
         inv.Notes = req.Notes;
         if (req.Status == InvoiceStatus.Paid && inv.PaidDate == null)
             inv.PaidDate = DateTime.UtcNow;
+        if (!await this.AuditAsync(_audit, inv.PatientId, AuditAction.Change, AuditItemKind.Invoice, inv.Id, AuditDiff.Changed(before, inv))) return NotFound();
         await _invoices.UpdateAsync(inv);
         return NoContent();
     }
@@ -131,9 +147,11 @@ public class InvoicesController : ControllerBase
     {
         var inv = await _invoices.GetByIdAsync(id);
         if (inv == null) return NotFound();
+        var before = AuditDiff.Snapshot(inv);
         inv.Status = InvoiceStatus.Paid;
         inv.PaidDate = DateTime.UtcNow;
         inv.PaidAmount = inv.Amount;
+        if (!await this.AuditAsync(_audit, inv.PatientId, AuditAction.Change, AuditItemKind.Invoice, inv.Id, AuditDiff.Changed(before, inv))) return NotFound();
         await _invoices.UpdateAsync(inv);
         return NoContent();
     }
@@ -141,7 +159,9 @@ public class InvoicesController : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
-        if (!await _invoices.ExistsAsync(id)) return NotFound();
+        var inv = await _invoices.GetByIdAsync(id);
+        if (inv == null) return NotFound();
+        if (!await this.AuditAsync(_audit, inv.PatientId, AuditAction.Change, AuditItemKind.Invoice, id)) return NotFound();
         await _invoices.DeleteAsync(id);
         return NoContent();
     }
@@ -154,15 +174,20 @@ public class InvoicesController : ControllerBase
 public class VitalSignsController : ControllerBase
 {
     private readonly IVitalSignRepository _vitals;
-    public VitalSignsController(IVitalSignRepository vitals) => _vitals = vitals;
+    private readonly IAuditService _audit;
+    public VitalSignsController(IVitalSignRepository vitals, IAuditService audit) { _vitals = vitals; _audit = audit; }
 
     [HttpGet("patient/{patientId:int}")]
     public async Task<ActionResult<IEnumerable<VitalSignDto>>> GetByPatient(int patientId)
-        => Ok(await _vitals.GetByPatientAsync(patientId, User.GetUserId()));
+    {
+        if (!await this.AuditAsync(_audit, patientId, AuditAction.View, AuditItemKind.VitalSign, null)) return NotFound();
+        return Ok(await _vitals.GetByPatientAsync(patientId, User.GetUserId()));
+    }
 
     [HttpGet("patient/{patientId:int}/latest")]
     public async Task<ActionResult<VitalSignDto>> GetLatest(int patientId)
     {
+        if (!await this.AuditAsync(_audit, patientId, AuditAction.View, AuditItemKind.VitalSign, null)) return NotFound();
         var v = await _vitals.GetLatestByPatientAsync(patientId);
         if (v == null) return NotFound();
         return Ok(v);
@@ -171,6 +196,7 @@ public class VitalSignsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<VitalSignDto>> Create([FromBody] CreateVitalSignRequest req)
     {
+        if (!await this.AuditAsync(_audit, req.PatientId, AuditAction.Change, AuditItemKind.VitalSign, null)) return NotFound();
         var vital = new VitalSign
         {
             PatientId = req.PatientId,
@@ -205,11 +231,15 @@ public class VitalSignsController : ControllerBase
 public class MedicalNotesController : ControllerBase
 {
     private readonly IMedicalNoteRepository _notes;
-    public MedicalNotesController(IMedicalNoteRepository notes) => _notes = notes;
+    private readonly IAuditService _audit;
+    public MedicalNotesController(IMedicalNoteRepository notes, IAuditService audit) { _notes = notes; _audit = audit; }
 
     [HttpGet("patient/{patientId:int}")]
     public async Task<ActionResult<IEnumerable<MedicalNoteDto>>> GetByPatient(int patientId)
-        => Ok(await _notes.GetByPatientAsync(patientId, User.GetUserId()));
+    {
+        if (!await this.AuditAsync(_audit, patientId, AuditAction.View, AuditItemKind.Note, null)) return NotFound();
+        return Ok(await _notes.GetByPatientAsync(patientId, User.GetUserId()));
+    }
 
     // Copy-forward source: the caller's own latest note for the patient. 404 for none/unknown patient alike.
     [HttpGet("patient/{patientId:int}/latest")]
@@ -222,6 +252,7 @@ public class MedicalNotesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<MedicalNoteDto>> Create([FromBody] CreateMedicalNoteRequest req)
     {
+        if (!await this.AuditAsync(_audit, req.PatientId, AuditAction.Change, AuditItemKind.Note, null)) return NotFound();
         var note = new MedicalNote
         {
             PatientId = req.PatientId,
@@ -240,7 +271,9 @@ public class MedicalNotesController : ControllerBase
     {
         var note = await _notes.GetWithOwnerCheckAsync(id, User.GetUserId());
         if (note == null) return NotFound();
+        var before = AuditDiff.Snapshot(note);
         note.SharedWithPatient = req.Shared;
+        if (!await this.AuditAsync(_audit, note.PatientId, AuditAction.Change, AuditItemKind.Note, note.Id, AuditDiff.Changed(before, note))) return NotFound();
         await _notes.UpdateAsync(note);
         return Ok(new MedicalNoteDto(note.Id, note.PatientId, "You",
             note.Content, note.VisitType, note.NoteDate, note.SharedWithPatient));
@@ -249,7 +282,9 @@ public class MedicalNotesController : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
-        if (!await _notes.ExistsAsync(id)) return NotFound();
+        var note = await _notes.GetByIdAsync(id);
+        if (note == null) return NotFound();
+        if (!await this.AuditAsync(_audit, note.PatientId, AuditAction.Change, AuditItemKind.Note, id)) return NotFound();
         await _notes.DeleteAsync(id);
         return NoContent();
     }

@@ -186,3 +186,9 @@ public record PortalAttachmentDto(
     int Id, string FileName, string ContentType, long FileSize,
     string? Category, string? Description, DateTime CreatedAt);
 public record PortalNoteDto(int Id, string DoctorName, string? VisitType, string Content, DateTime NoteDate);
+
+// ── Audit log ─────────────────────────────────────────────────────────────────
+public record AuditEventDto(int Id, DateTime OccurredAt, string ActorUserId, string ActorName, string ActorRole,
+    string Action, string ItemKind, int? ItemId, string[] ChangedFields);
+public record AuditLogQuery(AuditAction? Action = null, string? Actor = null, DateTime? From = null,
+    DateTime? To = null, int Page = 1, int PageSize = 20);

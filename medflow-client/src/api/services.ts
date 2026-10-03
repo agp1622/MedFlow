@@ -14,7 +14,8 @@ import type {
   AcceptInvitationRequest, InvitationResult,
   PortalProfileDto, PortalAppointmentDto, PortalPrescriptionDto, PortalInvoiceDto,
   PortalAttachmentDto, PortalNoteDto,
-  DashboardStatsDto, AppointmentStatus
+  DashboardStatsDto, AppointmentStatus,
+  AuditEventDto, AuditLogQuery
 } from '@/types'
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -41,6 +42,12 @@ export const patientsApi = {
   delete:   (id: number)      => api.delete(`/patients/${id}`),
   invite:   (id: number)      => api.post<InvitationResult>(`/patients/${id}/portal-invitation`).then(r => r.data),
   revokePortalAccess: (id: number) => api.delete(`/patients/${id}/portal-access`),
+}
+
+// ── Audit log ─────────────────────────────────────────────────────────────────
+export const auditApi = {
+  getByPatient: (patientId: number, q?: AuditLogQuery) =>
+    api.get<PagedResult<AuditEventDto>>(`/patients/${patientId}/audit-log`, { params: q }).then(r => r.data),
 }
 
 // ── Appointments ──────────────────────────────────────────────────────────────

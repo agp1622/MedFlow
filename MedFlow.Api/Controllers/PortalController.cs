@@ -20,12 +20,18 @@ public class PortalController : ControllerBase
 {
     private readonly IPortalRepository _portal;
     private readonly IWebHostEnvironment _env;
+    private readonly IAuditService _audit;
 
-    public PortalController(IPortalRepository portal, IWebHostEnvironment env)
+    public PortalController(IPortalRepository portal, IWebHostEnvironment env, IAuditService audit)
     {
         _portal = portal;
         _env = env;
+        _audit = audit;
     }
+
+    /// <summary>Records the patient's own view before any data is returned (fail closed).</summary>
+    private Task<bool> AuditViewAsync(Patient patient, AuditItemKind kind, int? itemId = null) =>
+        this.AuditAsync(_audit, patient.Id, AuditAction.View, kind, itemId);
 
     private async Task<Patient?> ResolvePatientAsync()
     {
@@ -41,6 +47,7 @@ public class PortalController : ControllerBase
     {
         var patient = await ResolvePatientAsync();
         if (patient == null) return Unavailable();
+        if (!await AuditViewAsync(patient, AuditItemKind.Patient, patient.Id)) return Unavailable();
         return Ok(await _portal.GetProfileAsync(patient));
     }
 
@@ -49,6 +56,7 @@ public class PortalController : ControllerBase
     {
         var patient = await ResolvePatientAsync();
         if (patient == null) return Unavailable();
+        if (!await AuditViewAsync(patient, AuditItemKind.Appointment)) return Unavailable();
         return Ok(await _portal.GetAppointmentsAsync(patient.Id));
     }
 
@@ -57,6 +65,7 @@ public class PortalController : ControllerBase
     {
         var patient = await ResolvePatientAsync();
         if (patient == null) return Unavailable();
+        if (!await AuditViewAsync(patient, AuditItemKind.Prescription)) return Unavailable();
         return Ok(await _portal.GetPrescriptionsAsync(patient.Id));
     }
 
@@ -65,6 +74,7 @@ public class PortalController : ControllerBase
     {
         var patient = await ResolvePatientAsync();
         if (patient == null) return Unavailable();
+        if (!await AuditViewAsync(patient, AuditItemKind.Invoice)) return Unavailable();
         return Ok(await _portal.GetInvoicesAsync(patient.Id));
     }
 
@@ -73,6 +83,7 @@ public class PortalController : ControllerBase
     {
         var patient = await ResolvePatientAsync();
         if (patient == null) return Unavailable();
+        if (!await AuditViewAsync(patient, AuditItemKind.Attachment)) return Unavailable();
         return Ok(await _portal.GetSharedAttachmentsAsync(patient.Id));
     }
 
@@ -90,6 +101,7 @@ public class PortalController : ControllerBase
             attachment.PatientId.ToString(), attachment.StoredFileName);
         if (!System.IO.File.Exists(filePath)) return NotFound();
 
+        if (!await AuditViewAsync(patient, AuditItemKind.Attachment, id)) return Unavailable();
         await _portal.LogAccessAsync(patient.Id, "Attachment", new[] { id }, "Download");
         var bytes = await System.IO.File.ReadAllBytesAsync(filePath);
         return File(bytes, attachment.ContentType, attachment.FileName);
@@ -100,6 +112,7 @@ public class PortalController : ControllerBase
     {
         var patient = await ResolvePatientAsync();
         if (patient == null) return Unavailable();
+        if (!await AuditViewAsync(patient, AuditItemKind.Note)) return Unavailable();
         var notes = (await _portal.GetSharedNotesAsync(patient.Id)).ToList();
         if (notes.Count > 0)
             await _portal.LogAccessAsync(patient.Id, "Note", notes.Select(n => n.Id), "View");
