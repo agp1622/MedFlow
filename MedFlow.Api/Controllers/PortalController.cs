@@ -22,16 +22,18 @@ public class PortalController : ControllerBase
 {
     private readonly IPortalRepository _portal;
     private readonly IBookingRepository _booking;
+    private readonly IWaitlistRepository _waitlist;
     private readonly IWebHostEnvironment _env;
     private readonly IAuditService _audit;
     private readonly BookingConfirmationService _confirmation;
 
-    public PortalController(IPortalRepository portal, IBookingRepository booking, IWebHostEnvironment env, IAuditService audit,
+    public PortalController(IPortalRepository portal, IBookingRepository booking, IWaitlistRepository waitlist, IWebHostEnvironment env, IAuditService audit,
         BookingConfirmationService confirmation)
     {
         _confirmation = confirmation;
         _portal = portal;
         _booking = booking;
+        _waitlist = waitlist;
         _env = env;
         _audit = audit;
     }
@@ -156,5 +158,36 @@ public class PortalController : ControllerBase
             BookingOutcome.LimitReached => Conflict(new { error = this.T("Portal.LimitReached") }),
             _ => Conflict(new { error = this.T("Portal.SlotTaken") })
         };
+    }
+
+    [HttpGet("waitlist")]
+    public async Task<IActionResult> GetWaitlist()
+    {
+        var patient = await ResolvePatientAsync();
+        if (patient == null) return Unavailable();
+        return Ok(await _waitlist.GetForPatientAsync(patient.Id));
+    }
+
+    [HttpPost("waitlist")]
+    public async Task<IActionResult> JoinWaitlist()
+    {
+        var patient = await ResolvePatientAsync();
+        if (patient == null) return Unavailable();
+        var (outcome, entry) = await _waitlist.JoinAsync(patient);
+        if (outcome == WaitlistAddOutcome.AlreadyWaiting)
+            return Conflict(new { error = this.T("Waitlist.AlreadyWaiting") });
+        if (outcome != WaitlistAddOutcome.Added || entry == null) return Unavailable();
+        if (!await this.AuditAsync(_audit, patient.Id, AuditAction.Change, AuditItemKind.Waitlist, entry.Id)) return Unavailable();
+        return Created("/api/portal/waitlist", new PortalWaitlistDto(true, entry.JoinedAt));
+    }
+
+    [HttpDelete("waitlist")]
+    public async Task<IActionResult> LeaveWaitlist()
+    {
+        var patient = await ResolvePatientAsync();
+        if (patient == null) return Unavailable();
+        if (!await _waitlist.LeaveAsync(patient.Id)) return NotFound(new { error = this.T("Waitlist.NotOnList") });
+        await this.AuditAsync(_audit, patient.Id, AuditAction.Change, AuditItemKind.Waitlist);
+        return NoContent();
     }
 }

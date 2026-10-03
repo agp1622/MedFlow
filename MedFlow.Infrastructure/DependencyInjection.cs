@@ -55,6 +55,9 @@ public static class DependencyInjection
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<IPortalRepository, PortalRepository>();
         services.AddScoped<IBookingRepository, BookingRepository>();
+        services.Configure<Waitlist.WaitlistSettings>(config.GetSection(Waitlist.WaitlistSettings.SectionName));
+        services.AddScoped<IWaitlistRepository, Waitlist.WaitlistRepository>();
+        services.AddScoped<IWaitlistService, Waitlist.WaitlistService>();
         services.AddScoped<IPortalInvitationRepository, PortalInvitationRepository>();
         services.AddScoped<IIntakeRepository, IntakeRepository>();
 

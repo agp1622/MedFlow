@@ -302,6 +302,12 @@ export interface CreateBlockedDateRequest { date: string; label?: string }
 export interface BookingSlotDto { startsAt: string; durationMinutes: number }
 export interface BookAppointmentRequest { startsAt: string; reason?: string }
 
+// ── Waitlist ──────────────────────────────────────────────────────────────────
+export interface WaitlistEntryDto { id: number; patientId: number; patientName: string; joinedAt: string }
+export interface PortalWaitlistDto { onWaitlist: boolean; joinedAt?: string }
+export interface WaitlistOfferDto { slotStartsAt: string; durationMinutes: number; doctorName: string; expiresAt: string }
+export interface WaitlistClaimDto { slotStartsAt: string; durationMinutes: number; doctorName: string }
+
 // ── Audit log ─────────────────────────────────────────────────────────────────
 export type AuditAction = 'View' | 'Change'
 export interface AuditEventDto {

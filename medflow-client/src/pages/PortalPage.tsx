@@ -3,12 +3,13 @@ import { useTranslation } from 'react-i18next'
 import {
   usePortalMe, usePortalAppointments, usePortalPrescriptions, usePortalInvoices,
   usePortalAttachments, usePortalNotes, usePortalSlots, useBookAppointment,
+  usePortalWaitlist, useJoinPortalWaitlist, useLeavePortalWaitlist,
 } from '@/hooks/queries'
 import { portalApi } from '@/api/services'
 import { Badge, EmptyState, PageSpinner, Spinner } from '@/components/ui'
 import { fmt } from '@/utils/format'
 import { currentLanguage } from '@/i18n'
-import { CalendarPlus, CalendarDays, Pill, CreditCard, FileText, StickyNote, Download } from 'lucide-react'
+import { ListOrdered, CalendarPlus, CalendarDays, Pill, CreditCard, FileText, StickyNote, Download } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 type Q<T> = { data?: T[]; isLoading: boolean; isError: boolean }
@@ -81,6 +82,41 @@ function BookingSection() {
   )
 }
 
+function WaitlistSection() {
+  const { t } = useTranslation()
+  const status = usePortalWaitlist()
+  const join = useJoinPortalWaitlist()
+  const leave = useLeavePortalWaitlist()
+  const busy = join.isPending || leave.isPending
+
+  return (
+    <section className="card p-5">
+      <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900 mb-2">
+        <ListOrdered size={18} className="text-primary-600" />{t('waitlist.portal.title')}
+      </h2>
+      <p className="text-sm text-gray-500 mb-3">{t('waitlist.portal.help')}</p>
+      {status.isLoading ? (
+        <div className="flex justify-center py-2"><Spinner className="w-5 h-5" /></div>
+      ) : status.isError ? (
+        <p className="text-sm text-red-500">{t('portal.sectionError')}</p>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-gray-700">
+            {status.data?.onWaitlist
+              ? t('waitlist.portal.on', { date: fmt.date(status.data.joinedAt) })
+              : t('waitlist.portal.off')}
+          </p>
+          {status.data?.onWaitlist ? (
+            <button className="btn-secondary" disabled={busy} onClick={() => leave.mutate()}>{t('waitlist.portal.leave')}</button>
+          ) : (
+            <button className="btn-primary" disabled={busy} onClick={() => join.mutate()}>{t('waitlist.portal.join')}</button>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
 function formatSize(bytes: number) {
   const one = (n: number) => new Intl.NumberFormat(currentLanguage() === 'es' ? 'es' : 'en-US', { maximumFractionDigits: 1, minimumFractionDigits: 1 }).format(n)
   if (bytes < 1024) return `${fmt.number(bytes)} B`
@@ -125,6 +161,8 @@ export function PortalPage() {
       </div>
 
       <BookingSection />
+
+      <WaitlistSection />
 
       <Section icon={<CalendarDays size={18} className="text-primary-600" />} title={t('portal.appointments')}
         query={appointments} empty={t('portal.noAppointments')}>

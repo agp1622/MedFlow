@@ -221,3 +221,23 @@ public class ReminderDelivery : BaseEntity
     public ReminderOutcome Outcome { get; set; }
     public string? Reason { get; set; }
 }
+
+/// <summary>A patient waiting for an earlier slot with their own doctor. CreatedAt is the join time.</summary>
+public class WaitlistEntry : BaseEntity
+{
+    public int PatientId { get; set; }
+    public string DoctorId { get; set; } = string.Empty;
+    public WaitlistStatus Status { get; set; } = WaitlistStatus.Waiting;
+    public DateTime? ClosedAt { get; set; }
+}
+
+/// <summary>One emailed offer of a freed slot to a waitlist entry; the raw token exists only in the email.</summary>
+public class WaitlistOffer : BaseEntity
+{
+    public int EntryId { get; set; }
+    public DateTime SlotStartsAt { get; set; }
+    public string TokenHash { get; set; } = string.Empty; // SHA-256 hex
+    public DateTime ExpiresAt { get; set; }
+    public DateTime? SentAt { get; set; }
+    public DateTime? ClaimedAt { get; set; }
+}

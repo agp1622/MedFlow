@@ -320,3 +320,13 @@ public record SaveLabResultRequest(
     [StringLength(30)] string? Unit,
     [Range(-999999999.0, 999999999.0)] decimal? ReferenceLow,
     [Range(-999999999.0, 999999999.0)] decimal? ReferenceHigh);
+
+// ── Waitlist ──────────────────────────────────────────────────────────────────
+public record AddWaitlistEntryRequest(int PatientId);
+public record WaitlistEntryDto(int Id, int PatientId, string PatientName, DateTime JoinedAt);
+public record PortalWaitlistDto(bool OnWaitlist, DateTime? JoinedAt);
+public record WaitlistTokenRequest(string Token);
+public record WaitlistOfferDto(DateTime SlotStartsAt, int DurationMinutes, string DoctorName, DateTime ExpiresAt);
+public record WaitlistClaimDto(DateTime SlotStartsAt, int DurationMinutes, string DoctorName);
+public enum WaitlistAddOutcome { Added, PatientNotFound, NotActive, AlreadyWaiting }
+public enum WaitlistClaimOutcome { Claimed, Invalid, SlotUnavailable }

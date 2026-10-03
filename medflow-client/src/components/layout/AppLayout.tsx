@@ -5,7 +5,7 @@ import { useAuthStore } from '@/store/authStore'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 import {
-  LayoutDashboard, Users, CalendarDays, Pill, CreditCard, LogOut, Plus, Menu, X, ClipboardList, Clock, FileText, BarChart3
+  LayoutDashboard, Users, CalendarDays, Pill, CreditCard, LogOut, Plus, Menu, X, ClipboardList, Clock, FileText, BarChart3, ListOrdered
 } from 'lucide-react'
 
 const NAV = [
@@ -14,6 +14,7 @@ const NAV = [
   { to: '/intake',        icon: ClipboardList,   label: 'nav.intake' },
   { to: '/appointments',  icon: CalendarDays,    label: 'nav.appointments' },
   { to: '/availability',  icon: Clock,           label: 'nav.availability' },
+  { to: '/waitlist',      icon: ListOrdered,     label: 'nav.waitlist' },
   { to: '/prescriptions', icon: Pill,            label: 'nav.prescriptions' },
   { to: '/billing',       icon: CreditCard,      label: 'nav.billing' },
   { to: '/templates',     icon: FileText,        label: 'nav.templates' },

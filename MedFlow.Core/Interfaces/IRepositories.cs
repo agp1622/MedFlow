@@ -158,6 +158,8 @@ public interface IBookingRepository
     Task<IEnumerable<BookingSlotDto>> GetOpenSlotsAsync(Patient patient, DateOnly from, DateOnly to);
     /// <summary>Atomically re-validates the slot and creates a Pending appointment.</summary>
     Task<(BookingOutcome Outcome, PortalAppointmentDto? Appointment)> BookAsync(Patient patient, DateTime startsAt, string? reason);
+    /// <summary>True when the start is an offered slot of the doctor (availability, lead time, horizon) with no active clash.</summary>
+    Task<bool> IsSlotOpenAsync(string doctorId, DateTime startsAt);
 }
 
 public enum ReminderRespondResult { Ok, Invalid, Closed }
@@ -200,4 +202,25 @@ public interface ILabOrderRepository
     Task<LabOrderDto> AddResultAsync(LabOrder order, LabResult result);
     Task<LabOrderDto> SaveResultAsync(LabOrder order, LabResult result);
     Task<LabOrderDto> RemoveResultAsync(LabOrder order, LabResult result);
+}
+
+public interface IWaitlistRepository
+{
+    Task<PagedResult<WaitlistEntryDto>> GetPagedAsync(string doctorId, QueryParams q);
+    Task<(WaitlistAddOutcome Outcome, WaitlistEntryDto? Entry)> AddAsync(int patientId, string doctorId);
+    /// <summary>Null when the entry is not a Waiting entry of the doctor (otherwise the removed entry's patient id).</summary>
+    Task<int?> RemoveAsync(int entryId, string doctorId);
+    Task<PortalWaitlistDto> GetForPatientAsync(int patientId);
+    Task<(WaitlistAddOutcome Outcome, WaitlistEntryDto? Entry)> JoinAsync(Patient patient);
+    Task<bool> LeaveAsync(int patientId);
+    /// <summary>Null for any unknown, expired, used or otherwise unusable token.</summary>
+    Task<WaitlistOfferDto?> LookupOfferAsync(string token);
+    Task<(WaitlistClaimOutcome Outcome, WaitlistClaimDto? Claim)> ClaimOfferAsync(string token);
+    Task<bool> LeaveByTokenAsync(string token);
+}
+
+public interface IWaitlistService
+{
+    /// <summary>Emails offers for a just-freed slot to the earliest waiting patients. Returns the number of emails sent; never throws.</summary>
+    Task<int> OfferFreedSlotAsync(string doctorId, DateTime slotStartsAt);
 }

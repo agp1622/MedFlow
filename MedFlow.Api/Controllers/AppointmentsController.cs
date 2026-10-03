@@ -17,13 +17,20 @@ public class AppointmentsController : ControllerBase
     private readonly IAppointmentRepository _appointments;
     private readonly IReminderRepository _reminders;
     private readonly IAuditService _audit;
+    private readonly IWaitlistService _waitlist;
 
-    public AppointmentsController(IAppointmentRepository appointments, IReminderRepository reminders, IAuditService audit)
+    public AppointmentsController(IAppointmentRepository appointments, IReminderRepository reminders, IAuditService audit,
+        IWaitlistService waitlist)
     {
+        _waitlist = waitlist;
         _appointments = appointments;
         _reminders = reminders;
         _audit = audit;
     }
+
+    /// <summary>Start of the slot this appointment frees if it is cancelled or deleted now; null if it holds none.</summary>
+    private static DateTime? FreedSlot(Appointment appt) =>
+        appt.Status != AppointmentStatus.Cancelled && appt.ScheduledAt > DateTime.UtcNow ? appt.ScheduledAt : null;
 
     [HttpGet]
     public async Task<ActionResult<PagedResult<AppointmentDto>>> GetAll([FromQuery] QueryParams q)
@@ -87,6 +94,7 @@ public class AppointmentsController : ControllerBase
         if (appt == null) return NotFound();
 
         var before = AuditDiff.Snapshot(appt);
+        var freedAt = FreedSlot(appt);
         appt.ScheduledAt = req.ScheduledAt;
         appt.DurationMinutes = req.DurationMinutes;
         appt.Type = req.Type;
@@ -98,6 +106,8 @@ public class AppointmentsController : ControllerBase
         // Recording saves the in-memory edit together with the event
         if (!await this.AuditAsync(_audit, appt.PatientId, AuditAction.Change, AuditItemKind.Appointment, appt.Id, AuditDiff.Changed(before, appt))) return NotFound();
         await _appointments.UpdateAsync(appt);
+        if (freedAt != null && appt.Status == AppointmentStatus.Cancelled)
+            await _waitlist.OfferFreedSlotAsync(appt.DoctorId, freedAt.Value);
         return NoContent();
     }
 
@@ -107,9 +117,12 @@ public class AppointmentsController : ControllerBase
         var appt = await _appointments.GetByIdAsync(id);
         if (appt == null) return NotFound();
         var before = AuditDiff.Snapshot(appt);
+        var freedAt = FreedSlot(appt);
         appt.Status = status;
         if (!await this.AuditAsync(_audit, appt.PatientId, AuditAction.Change, AuditItemKind.Appointment, appt.Id, AuditDiff.Changed(before, appt))) return NotFound();
         await _appointments.UpdateAsync(appt);
+        if (freedAt != null && status == AppointmentStatus.Cancelled)
+            await _waitlist.OfferFreedSlotAsync(appt.DoctorId, freedAt.Value);
         return NoContent();
     }
 
@@ -119,7 +132,9 @@ public class AppointmentsController : ControllerBase
         var appt = await _appointments.GetByIdAsync(id);
         if (appt == null) return NotFound();
         if (!await this.AuditAsync(_audit, appt.PatientId, AuditAction.Change, AuditItemKind.Appointment, id)) return NotFound();
+        var freedAt = FreedSlot(appt);
         await _appointments.DeleteAsync(id);
+        if (freedAt != null) await _waitlist.OfferFreedSlotAsync(appt.DoctorId, freedAt.Value);
         return NoContent();
     }
 }

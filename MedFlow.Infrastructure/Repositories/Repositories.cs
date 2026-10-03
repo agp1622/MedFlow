@@ -709,6 +709,16 @@ public class BookingRepository : IBookingRepository
             .Select(s => new BookingSlotDto(s, SlotMinutes)).ToList();
     }
 
+    public async Task<bool> IsSlotOpenAsync(string doctorId, DateTime startsAt)
+    {
+        var start = startsAt.Kind == DateTimeKind.Utc ? startsAt : startsAt.ToUniversalTime();
+        var day = DateOnly.FromDateTime(start);
+        var candidates = await CandidateSlotsAsync(doctorId, day, day);
+        if (!candidates.Contains(start)) return false;
+        var busy = await BusyAsync(q => q.Where(a => a.DoctorId == doctorId), day, day);
+        return !Overlaps(start, busy);
+    }
+
     public async Task<(BookingOutcome Outcome, PortalAppointmentDto? Appointment)> BookAsync(
         Patient patient, DateTime startsAt, string? reason)
     {
@@ -758,7 +768,8 @@ public class BookingRepository : IBookingRepository
 public class ReminderRepository : IReminderRepository
 {
     private readonly AppDbContext _db;
-    public ReminderRepository(AppDbContext db) => _db = db;
+    private readonly IWaitlistService _waitlist;
+    public ReminderRepository(AppDbContext db, IWaitlistService waitlist) { _db = db; _waitlist = waitlist; }
 
     private static bool IsOpen(Appointment a) =>
         a.ScheduledAt > DateTime.UtcNow &&
@@ -809,6 +820,8 @@ public class ReminderRepository : IReminderRepository
         reminder.UpdatedAt = now;
         reminder.RespondedAt = now;
         await _db.SaveChangesAsync();
+        // The cancelled slot may be offered to waitlisted patients (best effort, never throws)
+        if (action == ReminderAction.Cancel) await _waitlist.OfferFreedSlotAsync(appt.DoctorId, appt.ScheduledAt);
         return (ReminderRespondResult.Ok, ToDto(appt));
     }
 

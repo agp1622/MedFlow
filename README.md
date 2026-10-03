@@ -75,6 +75,9 @@ npm run dev
 | `Reminders:LeadTimeHours` | How long before an appointment the reminder email is sent (1-168, default 24) |
 | `Reminders:IntervalMinutes` | How often the reminder job runs (default 15) |
 | `Reminders:MaxAttempts` | Send attempts per reminder before giving up (default 3) |
+| `Waitlist:OfferHours` | How long a waitlist slot offer stays valid, never past the slot start (1-168, default 24) |
+| `Waitlist:MaxOffersPerSlot` | Earliest-joined waiting patients emailed per freed slot (1-20, default 5) |
+| `RateLimiting:WaitlistOfferPermitLimit` | Public waitlist-offer requests per client IP per 15 minutes (default 30) |
 
 Use environment variables or Azure Key Vault for production secrets.  
 Never commit `appsettings.Production.json` to source control.
