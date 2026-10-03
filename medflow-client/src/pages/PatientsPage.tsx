@@ -19,6 +19,7 @@ import { ArrowLeft, Trash2, Plus } from 'lucide-react'
 import { ShareToggle } from '@/components/sharing/ShareToggle'
 import { ClinicalPanel } from '@/components/clinical/ClinicalPanel'
 import { AttachmentsTab } from '@/components/attachments/AttachmentsTab'
+import { PrintPrescriptionButton } from '@/components/prescriptions/PrintPrescriptionButton'
 import { AuditLogTab } from '@/components/audit/AuditLogTab'
 import { VitalsTrends } from '@/components/vitals/VitalsTrends'
 import type { CreatePatientRequest } from '@/types'
@@ -246,14 +247,15 @@ function RxTab({ patientId }: { patientId: number }) {
   return (
     <div className="card overflow-x-auto">
       <SimpleTable
-        headers={[t('patients.rx.drug'), t('patients.rx.dosage'), t('patients.rx.frequency'), t('patients.rx.issued'), t('patients.rx.expires'), t('patients.rx.refills'), t('patients.rx.status')]}
+        headers={[t('patients.rx.drug'), t('patients.rx.dosage'), t('patients.rx.frequency'), t('patients.rx.issued'), t('patients.rx.expires'), t('patients.rx.refills'), t('patients.rx.status'), '']}
         empty={!data?.length}
         rows={data?.map(rx => [
           <span key="d" className="font-semibold">{rx.drugName}</span>,
           rx.dosage, rx.frequency,
           fmt.date(rx.issuedDate), fmt.date(rx.expiryDate),
           rx.refillsRemaining,
-          <Badge key="s" status={rx.status} />
+          <Badge key="s" status={rx.status} />,
+          <PrintPrescriptionButton key="p" id={rx.id} />
         ]) ?? []}
       />
     </div>

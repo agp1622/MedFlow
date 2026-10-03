@@ -17,7 +17,21 @@ public class PrescriptionsController : ControllerBase
 {
     private readonly IPrescriptionRepository _rx;
     private readonly IAuditService _audit;
-    public PrescriptionsController(IPrescriptionRepository rx, IAuditService audit) { _rx = rx; _audit = audit; }
+    private readonly IPrescriptionDocumentRenderer _renderer;
+    public PrescriptionsController(IPrescriptionRepository rx, IAuditService audit, IPrescriptionDocumentRenderer renderer)
+    { _rx = rx; _audit = audit; _renderer = renderer; }
+
+    /// <summary>Printable PDF. 404 (no body) when missing or not the caller's patient; audited as a View on success.</summary>
+    [HttpGet("{id:int}/pdf")]
+    public async Task<IActionResult> GetPdf(int id)
+    {
+        var data = await _rx.GetDocumentDataAsync(id, User.GetUserId());
+        if (data == null) return NotFound();
+        var pdf = _renderer.Render(data);
+        if (!await this.AuditAsync(_audit, data.PatientId, AuditAction.View, AuditItemKind.Prescription, id)) return NotFound();
+        Response.Headers.CacheControl = "no-store";
+        return File(pdf, "application/pdf", $"prescription-{id}.pdf");
+    }
 
     [HttpGet]
     public async Task<ActionResult<PagedResult<PrescriptionDto>>> GetAll([FromQuery] QueryParams q)

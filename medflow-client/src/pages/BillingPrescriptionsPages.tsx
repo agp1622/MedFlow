@@ -13,6 +13,7 @@ import {
 import { PageHeader } from '@/components/layout/AppLayout'
 import { Avatar, Badge, StatCard, PageSpinner, EmptyState, SearchInput, Pagination, Spinner } from '@/components/ui'
 import { Modal } from './PatientsPage'
+import { PrintPrescriptionButton } from '@/components/prescriptions/PrintPrescriptionButton'
 import { fmt } from '@/utils/format'
 import { Trash2, CheckCircle } from 'lucide-react'
 import type { CreatePrescriptionRequest, CreateInvoiceRequest } from '@/types'
@@ -64,7 +65,8 @@ export function PrescriptionsPage() {
                     <td className="px-4 py-3 text-sm text-gray-500">{fmt.date(rx.expiryDate)}</td>
                     <td className="px-4 py-3 text-sm text-center text-gray-700">{rx.refillsRemaining}</td>
                     <td className="px-4 py-3"><Badge status={rx.status} /></td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <PrintPrescriptionButton id={rx.id} />
                       <button className="btn-ghost p-1.5"
                         onClick={() => { if (confirm(t('prescriptions.confirmDelete'))) deletePrescription.mutate(rx.id) }}>
                         <Trash2 size={14} className="text-gray-400" />

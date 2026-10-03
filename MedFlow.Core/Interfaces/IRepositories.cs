@@ -37,6 +37,14 @@ public interface IPrescriptionRepository : IRepository<Prescription>
     Task<IEnumerable<PrescriptionDto>> GetByPatientAsync(int patientId, string doctorId);
     Task<int> GetExpiringCountAsync(string doctorId, int daysAhead = 30);
     Task UpdateExpiryStatusesAsync();
+    /// <summary>Data for the printable prescription; null unless the prescription and its patient belong to the doctor.</summary>
+    Task<PrescriptionDocumentData?> GetDocumentDataAsync(int id, string doctorId);
+}
+
+public interface IPrescriptionDocumentRenderer
+{
+    /// <summary>Renders a one-page PDF with a blank signature block (no electronic signature).</summary>
+    byte[] Render(PrescriptionDocumentData data);
 }
 
 public interface IInvoiceRepository : IRepository<Invoice>
