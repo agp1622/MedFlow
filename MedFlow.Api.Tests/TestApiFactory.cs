@@ -16,8 +16,10 @@ namespace MedFlow.Api.Tests;
 public class FakeEmailSender : IEmailSender
 {
     public List<(string To, string Subject, string Body)> Sent { get; } = new();
+    public bool Fail { get; set; }
     public Task SendAsync(string toEmail, string subject, string htmlBody)
     {
+        if (Fail) throw new InvalidOperationException("smtp down");
         lock (Sent) Sent.Add((toEmail, subject, htmlBody));
         return Task.CompletedTask;
     }
@@ -33,6 +35,12 @@ public class TestApiFactory : WebApplicationFactory<Program>
     private HashSet<string> _preexistingUploads = new();
     public FakeEmailSender Email { get; } = new();
 
+    public async Task<int> RunRemindersAsync()
+    {
+        using var scope = Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<IReminderProcessor>().ProcessDueAsync();
+    }
+
     static TestApiFactory()
     {
         // Program.cs reads these while building, so they must be environment variables
@@ -41,6 +49,8 @@ public class TestApiFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("Jwt__Audience", "MedFlowTests");
         Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", "Server=unused;Database=unused");
         Environment.SetEnvironmentVariable("RateLimiting__AcceptInvitationPermitLimit", "1000");
+        Environment.SetEnvironmentVariable("RateLimiting__IntakePermitLimit", "1000");
+        Environment.SetEnvironmentVariable("RateLimiting__AppointmentResponsePermitLimit", "1000");
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -56,6 +66,8 @@ public class TestApiFactory : WebApplicationFactory<Program>
         {
             services.RemoveAll<DbContextOptions<AppDbContext>>();
             services.AddDbContext<AppDbContext>(o => o.UseInMemoryDatabase(_dbName));
+            // Tests drive the reminder processor directly; the timer must not race them
+            services.RemoveAll<Microsoft.Extensions.Hosting.IHostedService>();
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(Email);
         });

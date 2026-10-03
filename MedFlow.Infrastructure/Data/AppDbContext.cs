@@ -17,9 +17,19 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<VitalSign> VitalSigns => Set<VitalSign>();
     public DbSet<MedicalNote> MedicalNotes => Set<MedicalNote>();
+    public DbSet<NoteTemplate> NoteTemplates => Set<NoteTemplate>();
     public DbSet<PatientAttachment> PatientAttachments => Set<PatientAttachment>();
     public DbSet<PortalInvitation> PortalInvitations => Set<PortalInvitation>();
     public DbSet<PortalAccessLog> PortalAccessLogs => Set<PortalAccessLog>();
+    public DbSet<IntakeLink> IntakeLinks => Set<IntakeLink>();
+    public DbSet<IntakeSubmission> IntakeSubmissions => Set<IntakeSubmission>();
+
+    public DbSet<DoctorAvailability> DoctorAvailabilities => Set<DoctorAvailability>();
+    public DbSet<DoctorBlockedDate> DoctorBlockedDates => Set<DoctorBlockedDate>();
+
+    public DbSet<AppointmentReminder> AppointmentReminders => Set<AppointmentReminder>();
+    public DbSet<ReminderDelivery> ReminderDeliveries => Set<ReminderDelivery>();
+    public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -32,6 +42,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<Invoice>().HasQueryFilter(i => !i.IsDeleted);
         builder.Entity<VitalSign>().HasQueryFilter(v => !v.IsDeleted);
         builder.Entity<MedicalNote>().HasQueryFilter(n => !n.IsDeleted);
+        builder.Entity<NoteTemplate>().HasQueryFilter(t => !t.IsDeleted);
         builder.Entity<PatientAttachment>().HasQueryFilter(a => !a.IsDeleted);
 
         // Patient
@@ -59,6 +70,20 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         {
             e.HasIndex(d => d.UserId).IsUnique();
             e.Ignore(d => d.FullName);
+        });
+
+        // Online booking
+        builder.Entity<DoctorAvailability>(e =>
+        {
+            e.HasQueryFilter(a => !a.IsDeleted);
+            e.HasIndex(a => new { a.DoctorId, a.DayOfWeek });
+            e.Property(a => a.DayOfWeek).HasConversion<string>();
+        });
+        builder.Entity<DoctorBlockedDate>(e =>
+        {
+            e.HasQueryFilter(b => !b.IsDeleted);
+            e.HasIndex(b => new { b.DoctorId, b.Date });
+            e.Property(b => b.Label).HasMaxLength(200);
         });
 
         // Appointment
@@ -113,6 +138,15 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        // NoteTemplate
+        builder.Entity<NoteTemplate>(e =>
+        {
+            e.Property(t => t.DoctorId).HasMaxLength(450).IsRequired();
+            e.Property(t => t.Name).HasMaxLength(100).IsRequired();
+            e.Property(t => t.Body).HasMaxLength(5000).IsRequired();
+            e.HasIndex(t => t.DoctorId);
+        });
+
         // VitalSign
         builder.Entity<VitalSign>(e =>
         {
@@ -147,6 +181,59 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.Property(i => i.TokenHash).HasMaxLength(64);
         });
 
+        // IntakeLink / IntakeSubmission (no navigation to Patient: Patient has a soft-delete query filter)
+        builder.Entity<IntakeLink>(e =>
+        {
+            e.HasIndex(i => i.TokenHash).IsUnique();
+            e.HasIndex(i => i.PatientId);
+            e.Property(i => i.Email).HasMaxLength(256);
+            e.Property(i => i.TokenHash).HasMaxLength(64);
+            e.Property(i => i.UsedAt).IsConcurrencyToken();
+        });
+        builder.Entity<IntakeSubmission>(e =>
+        {
+            e.HasIndex(s => new { s.DoctorId, s.Status, s.SubmittedAt });
+            e.HasIndex(s => s.IntakeLinkId).IsUnique();
+            e.Property(s => s.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(s => s.Gender).HasConversion<string>().HasMaxLength(20);
+            e.Property(s => s.DoctorId).HasMaxLength(450);
+            e.Property(s => s.DecidedByDoctorId).HasMaxLength(450);
+            e.Property(s => s.FirstName).HasMaxLength(100);
+            e.Property(s => s.LastName).HasMaxLength(100);
+            e.Property(s => s.Phone).HasMaxLength(30);
+            e.Property(s => s.Address).HasMaxLength(200);
+            e.Property(s => s.City).HasMaxLength(100);
+            e.Property(s => s.State).HasMaxLength(100);
+            e.Property(s => s.ZipCode).HasMaxLength(20);
+            e.Property(s => s.InsuranceProvider).HasMaxLength(200);
+            e.Property(s => s.InsurancePolicyNumber).HasMaxLength(100);
+            e.Property(s => s.PrimaryCondition).HasMaxLength(500);
+            e.Property(s => s.Allergies).HasMaxLength(1000);
+            e.Property(s => s.CurrentMedications).HasMaxLength(2000);
+            e.Property(s => s.PastHistory).HasMaxLength(2000);
+            e.Property(s => s.AdditionalNotes).HasMaxLength(2000);
+            e.Property(s => s.ConsentVersion).HasMaxLength(50);
+            e.Property(s => s.SignatureName).HasMaxLength(200);
+            e.Property(s => s.RejectionReason).HasMaxLength(500);
+        });
+
+        // AppointmentReminder / ReminderDelivery (no navigations: Appointment has a soft-delete query filter)
+        builder.Entity<AppointmentReminder>(e =>
+        {
+            e.HasIndex(r => r.TokenHash);
+            e.HasIndex(r => new { r.AppointmentId, r.ScheduledAt });
+            e.Property(r => r.TokenHash).HasMaxLength(64);
+            e.Property(r => r.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(r => r.Response).HasConversion<string>().HasMaxLength(20);
+        });
+        builder.Entity<ReminderDelivery>(e =>
+        {
+            e.HasIndex(d => d.AppointmentId);
+            e.Property(d => d.Channel).HasMaxLength(20);
+            e.Property(d => d.Outcome).HasConversion<string>().HasMaxLength(20);
+            e.Property(d => d.Reason).HasMaxLength(200);
+        });
+
         // PortalAccessLog
         builder.Entity<PortalAccessLog>(e =>
         {
@@ -154,10 +241,27 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.Property(l => l.ResourceType).HasMaxLength(50);
             e.Property(l => l.Action).HasMaxLength(50);
         });
+
+        // AuditEvent (append-only; no FK to Patient so events outlive soft-deleted patients)
+        builder.Entity<AuditEvent>(e =>
+        {
+            e.HasIndex(a => new { a.PatientId, a.OccurredAt });
+            e.Property(a => a.DoctorId).HasMaxLength(450);
+            e.Property(a => a.ActorUserId).HasMaxLength(450);
+            e.Property(a => a.ActorName).HasMaxLength(200);
+            e.Property(a => a.ActorRole).HasMaxLength(20);
+            e.Property(a => a.Action).HasConversion<string>().HasMaxLength(20);
+            e.Property(a => a.ItemKind).HasConversion<string>().HasMaxLength(30);
+            e.Property(a => a.ChangedFields).HasMaxLength(500);
+        });
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken ct = default)
     {
+        // Audit events are append-only: refuse any attempt to edit or remove one
+        if (ChangeTracker.Entries<AuditEvent>().Any(e => e.State is EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("Audit events are immutable.");
+
         var entries = ChangeTracker.Entries()
             .Where(e => e.Entity is BaseEntity && e.State is EntityState.Added or EntityState.Modified);
 
