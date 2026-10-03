@@ -8,6 +8,16 @@
 
 **Input**: User description: "Lab orders and results (GitHub issue #21). As a doctor, I want to order labs and record or attach results with abnormal values flagged so that results don't get lost. Acceptance: manual result entry first (HL7/FHIR later); abnormal values flagged on the patient page. Refs #21"
 
+## Clarifications
+
+### Session 2026-10-03
+
+- Q: Should lab data be shared with the patient through the portal? → A: No. Doctor-private only (stricter privacy); sharing is future work.
+- Q: Can a doctor edit or delete results of a Completed order? → A: Yes, to correct mistakes, but each change is audited (field names only) and the flag is recomputed.
+- Q: Does a Cancelled order still show on the patient page, and do its results count toward the abnormal count? → A: It is shown (greyed, with status), cannot receive new results, and any values it already holds are excluded from the abnormal count.
+- Q: Is a result value without a reference range ever flagged? → A: No. Never infer ranges; such values show "no range" with no flag.
+- Q: Does opening the Labs section on the patient page create an audit event? → A: Yes, one "view" event per lab list request, consistent with other patient sections.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Order a lab for a patient (Priority: P1)
