@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using MedFlow.Core.Enums;
 
 namespace MedFlow.Core.DTOs;
@@ -187,6 +188,28 @@ public record PortalAttachmentDto(
     string? Category, string? Description, DateTime CreatedAt);
 public record PortalNoteDto(int Id, string DoctorName, string? VisitType, string Content, DateTime NoteDate);
 
+// ── Clinical lists (allergies, problems, medications) ─────────────────────────
+public record AllergyDto(int Id, string Substance, string? Reaction, string Severity, DateTime CreatedAt, DateTime UpdatedAt);
+public record ProblemDto(int Id, string Description, string Icd10Code, string Status, DateOnly? OnsetDate, DateTime CreatedAt, DateTime UpdatedAt);
+public record MedicationDto(int Id, string Name, string? Dosage, string? Frequency, string? Notes, DateTime CreatedAt, DateTime UpdatedAt);
+public record ClinicalSummaryDto(IEnumerable<AllergyDto> Allergies, IEnumerable<ProblemDto> Problems, IEnumerable<MedicationDto> Medications);
+
+public record SaveAllergyRequest(
+    [Required, StringLength(200)] string Substance,
+    [StringLength(500)] string? Reaction,
+    [Required] AllergySeverity? Severity);
+
+public record SaveProblemRequest(
+    [Required, StringLength(200)] string Description,
+    [Required, StringLength(16), RegularExpression(@"^\s*[A-Za-z][0-9][A-Za-z0-9](\.[A-Za-z0-9]{1,4})?\s*$", ErrorMessage = "Enter a valid ICD-10 code such as E11.9.")] string Icd10Code,
+    [Required] ProblemStatus? Status,
+    DateOnly? OnsetDate);
+
+public record SaveMedicationRequest(
+    [Required, StringLength(200)] string Name,
+    [StringLength(100)] string? Dosage,
+    [StringLength(100)] string? Frequency,
+    [StringLength(500)] string? Notes);
 // ── Intake forms ─────────────────────────────────────────────────────────────
 public record IntakeFormInfoDto(string FirstName, string ConsentVersion, string ConsentText);
 

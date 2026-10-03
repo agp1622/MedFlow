@@ -143,6 +143,27 @@ export interface CreateMedicalNoteRequest {
   patientId: number; content: string; visitType?: string
 }
 
+// ── Clinical lists (allergies, problems, medications) ────────────────────────
+export type AllergySeverity = 'Mild' | 'Moderate' | 'Severe' | 'LifeThreatening'
+export type ProblemStatus = 'Active' | 'Resolved'
+export interface AllergyDto {
+  id: number; substance: string; reaction?: string | null; severity: AllergySeverity
+  createdAt: string; updatedAt: string
+}
+export interface ProblemDto {
+  id: number; description: string; icd10Code: string; status: ProblemStatus
+  onsetDate?: string | null; createdAt: string; updatedAt: string
+}
+export interface MedicationDto {
+  id: number; name: string; dosage?: string | null; frequency?: string | null; notes?: string | null
+  createdAt: string; updatedAt: string
+}
+export interface ClinicalSummaryDto {
+  allergies: AllergyDto[]; problems: ProblemDto[]; medications: MedicationDto[]
+}
+export interface SaveAllergyRequest { substance: string; reaction?: string; severity: AllergySeverity }
+export interface SaveProblemRequest { description: string; icd10Code: string; status: ProblemStatus; onsetDate?: string }
+export interface SaveMedicationRequest { name: string; dosage?: string; frequency?: string; notes?: string }
 // ── NoteTemplate ──────────────────────────────────────────────────────────────
 export interface NoteTemplateDto {
   id: number; name: string; body: string; isBuiltIn: boolean; updatedAt?: string

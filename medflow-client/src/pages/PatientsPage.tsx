@@ -17,6 +17,7 @@ import { fmt, bloodTypeDisplay, displayEnum } from '@/utils/format'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Trash2, Plus } from 'lucide-react'
 import { ShareToggle } from '@/components/sharing/ShareToggle'
+import { ClinicalPanel } from '@/components/clinical/ClinicalPanel'
 import { AttachmentsTab } from '@/components/attachments/AttachmentsTab'
 import { AuditLogTab } from '@/components/audit/AuditLogTab'
 import type { CreatePatientRequest } from '@/types'
@@ -154,6 +155,9 @@ export function PatientDetailPage() {
             />
           </div>
         </div>
+
+        {/* Allergies, problems, medications: always visible */}
+        <ClinicalPanel patientId={patientId} legacyAllergies={patient.allergies} />
 
         {/* Tabs */}
         <div className="flex gap-1 bg-white border border-border rounded-xl p-1 w-fit max-w-full overflow-x-auto">
