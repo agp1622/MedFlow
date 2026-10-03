@@ -102,7 +102,7 @@ export function PortalPage() {
   if (me.isLoading) return <PageSpinner />
   if (me.isError) {
     return (
-      <div className="card p-8 text-center">
+      <div className="card p-5 sm:p-8 text-center">
         <h1 className="text-lg font-semibold text-gray-900">Portal unavailable</h1>
         <p className="text-sm text-gray-500 mt-2">
           Your portal access is not available right now. Please contact your doctor's office.
@@ -126,7 +126,7 @@ export function PortalPage() {
           <ul className="divide-y divide-gray-100">
             {items.map(a => (
               <li key={a.id} className="py-3 flex flex-wrap items-center justify-between gap-2">
-                <div>
+                <div className="min-w-0">
                   <p className="font-medium text-gray-900">{fmt.dateTime(a.scheduledAt)}</p>
                   <p className="text-sm text-gray-500">
                     {[a.reason, a.location, `${a.durationMinutes} min`].filter(Boolean).join(' · ')}

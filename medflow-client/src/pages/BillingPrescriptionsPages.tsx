@@ -32,9 +32,9 @@ export function PrescriptionsPage() {
       </PageHeader>
 
       {isLoading ? <PageSpinner /> : (
-        <div className="flex-1 overflow-auto px-8 py-6">
-          <div className="card overflow-hidden">
-            <table className="w-full">
+        <div className="flex-1 overflow-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+          <div className="card overflow-x-auto">
+            <table className="w-full min-w-[640px]">
               <thead>
                 <tr className="bg-gray-50 border-b border-border">
                   {['Patient', 'Drug', 'Dosage', 'Frequency', 'Issued', 'Expires', 'Refills', 'Status', ''].map(h => (
@@ -101,15 +101,15 @@ export function BillingPage() {
       </PageHeader>
 
       {isLoading ? <PageSpinner /> : (
-        <div className="flex-1 overflow-auto px-8 py-6 space-y-5">
+        <div className="flex-1 overflow-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-5">
           <div className="flex gap-4 flex-wrap">
             <StatCard icon="✅" label="Collected" value={fmt.currency(paid)} color="text-emerald-600" />
             <StatCard icon="⏳" label="Pending" value={fmt.currency(pending)} color="text-amber-600" />
             <StatCard icon="⚠️" label="Overdue" value={fmt.currency(overdue)} color="text-red-500" />
           </div>
 
-          <div className="card overflow-hidden">
-            <table className="w-full">
+          <div className="card overflow-x-auto">
+            <table className="w-full min-w-[640px]">
               <thead>
                 <tr className="bg-gray-50 border-b border-border">
                   {['Invoice #', 'Patient', 'Date', 'Service', 'Amount', 'Due Date', 'Status', 'Actions'].map(h => (
@@ -192,7 +192,7 @@ function NewPrescriptionModal({ onClose }: { onClose: () => void }) {
           </select>
           {errors.patientId && <p className="text-red-500 text-xs mt-1">{errors.patientId.message}</p>}
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="label">Drug name</label>
             <input className="input" placeholder="e.g. Lisinopril" {...register('drugName')} />
@@ -203,7 +203,7 @@ function NewPrescriptionModal({ onClose }: { onClose: () => void }) {
             <input className="input" placeholder="e.g. 10mg" {...register('dosage')} />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="label">Frequency</label>
             <input className="input" placeholder="e.g. Once daily" {...register('frequency')} />
@@ -213,7 +213,7 @@ function NewPrescriptionModal({ onClose }: { onClose: () => void }) {
             <input className="input" type="number" min={0} {...register('refillsRemaining')} />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="label">Issued date</label>
             <input className="input" type="date" {...register('issuedDate')} />
@@ -273,7 +273,7 @@ function NewInvoiceModal({ onClose }: { onClose: () => void }) {
           <input className="input" placeholder="e.g. Consultation + Labs" {...register('serviceDescription')} />
           {errors.serviceDescription && <p className="text-red-500 text-xs mt-1">{errors.serviceDescription.message}</p>}
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="label">Amount ($)</label>
             <input className="input" type="number" step="0.01" min="0" placeholder="0.00" {...register('amount')} />
