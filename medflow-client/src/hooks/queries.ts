@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi } from '@/api/services'
-import type { QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest } from '@/types'
+import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi, clinicalApi } from '@/api/services'
+import type { QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest, SaveAllergyRequest, SaveProblemRequest, SaveMedicationRequest } from '@/types'
 import toast from 'react-hot-toast'
 
 // Keys
@@ -18,6 +18,7 @@ export const QK = {
   invoicesByPatient: (pid: number) => ['invoices', 'patient', pid],
   vitals: (pid: number) => ['vitals', pid],
   notes: (pid: number) => ['notes', pid],
+  clinical: (pid: number) => ['clinical', pid],
   attachments: (pid: number) => ['attachments', pid],
   portal: (section: string) => ['portal', section],
 }
@@ -177,6 +178,42 @@ export const useDeleteNote = () => {
     onSuccess: (_, vars) => { qc.invalidateQueries({ queryKey: QK.notes(vars.patientId) }); toast.success('Note deleted') },
   })
 }
+
+// ── Clinical lists ────────────────────────────────────────────────────────────
+export const usePatientClinical = (patientId: number) =>
+  useQuery({ queryKey: QK.clinical(patientId), queryFn: () => clinicalApi.getSummary(patientId), enabled: patientId > 0 })
+
+const clinicalError = (err: any) => {
+  const d = err?.response?.data
+  const firstValidation = d?.errors ? (Object.values(d.errors).flat() as string[])[0] : undefined
+  toast.error(typeof d === 'string' && d ? d : firstValidation || d?.title || 'Could not save changes')
+}
+
+/** One hook for add/update/remove of a clinical list; invalidates the summary on success. */
+function useClinicalMutation<V>(fn: (v: V) => Promise<unknown>, patientId: number, message: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: QK.clinical(patientId) }); toast.success(message) },
+    onError: clinicalError,
+  })
+}
+
+export const useSaveAllergy = (patientId: number) =>
+  useClinicalMutation(({ id, data }: { id?: number; data: SaveAllergyRequest }) =>
+    id ? clinicalApi.updateAllergy(patientId, id, data) : clinicalApi.addAllergy(patientId, data), patientId, 'Allergy saved')
+export const useDeleteAllergy = (patientId: number) =>
+  useClinicalMutation((id: number) => clinicalApi.deleteAllergy(patientId, id), patientId, 'Allergy removed')
+export const useSaveProblem = (patientId: number) =>
+  useClinicalMutation(({ id, data }: { id?: number; data: SaveProblemRequest }) =>
+    id ? clinicalApi.updateProblem(patientId, id, data) : clinicalApi.addProblem(patientId, data), patientId, 'Problem saved')
+export const useDeleteProblem = (patientId: number) =>
+  useClinicalMutation((id: number) => clinicalApi.deleteProblem(patientId, id), patientId, 'Problem removed')
+export const useSaveMedication = (patientId: number) =>
+  useClinicalMutation(({ id, data }: { id?: number; data: SaveMedicationRequest }) =>
+    id ? clinicalApi.updateMedication(patientId, id, data) : clinicalApi.addMedication(patientId, data), patientId, 'Medication saved')
+export const useDeleteMedication = (patientId: number) =>
+  useClinicalMutation((id: number) => clinicalApi.deleteMedication(patientId, id), patientId, 'Medication removed')
 
 // ── Attachments ───────────────────────────────────────────────────────────────
 export const usePatientAttachments = (patientId: number) =>

@@ -10,6 +10,8 @@ import type {
   VitalSignDto, CreateVitalSignRequest,
   MedicalNoteDto, CreateMedicalNoteRequest,
   PatientAttachmentDto,
+  ClinicalSummaryDto, AllergyDto, ProblemDto, MedicationDto,
+  SaveAllergyRequest, SaveProblemRequest, SaveMedicationRequest,
   AcceptInvitationRequest, InvitationResult,
   PortalProfileDto, PortalAppointmentDto, PortalPrescriptionDto, PortalInvoiceDto,
   PortalAttachmentDto, PortalNoteDto,
@@ -86,6 +88,21 @@ export const notesApi = {
   create:       (data: CreateMedicalNoteRequest) => api.post<MedicalNoteDto>('/medicalnotes', data).then(r => r.data),
   delete:       (id: number)        => api.delete(`/medicalnotes/${id}`),
   setSharing:   (id: number, shared: boolean) => api.put<MedicalNoteDto>(`/medicalnotes/${id}/sharing`, { shared }).then(r => r.data),
+}
+
+// ── Clinical lists ────────────────────────────────────────────────────────────
+const clinical = (patientId: number) => `/patients/${patientId}/clinical`
+export const clinicalApi = {
+  getSummary:       (patientId: number) => api.get<ClinicalSummaryDto>(clinical(patientId)).then(r => r.data),
+  addAllergy:       (patientId: number, data: SaveAllergyRequest) => api.post<AllergyDto>(`${clinical(patientId)}/allergies`, data).then(r => r.data),
+  updateAllergy:    (patientId: number, id: number, data: SaveAllergyRequest) => api.put<AllergyDto>(`${clinical(patientId)}/allergies/${id}`, data).then(r => r.data),
+  deleteAllergy:    (patientId: number, id: number) => api.delete(`${clinical(patientId)}/allergies/${id}`),
+  addProblem:       (patientId: number, data: SaveProblemRequest) => api.post<ProblemDto>(`${clinical(patientId)}/problems`, data).then(r => r.data),
+  updateProblem:    (patientId: number, id: number, data: SaveProblemRequest) => api.put<ProblemDto>(`${clinical(patientId)}/problems/${id}`, data).then(r => r.data),
+  deleteProblem:    (patientId: number, id: number) => api.delete(`${clinical(patientId)}/problems/${id}`),
+  addMedication:    (patientId: number, data: SaveMedicationRequest) => api.post<MedicationDto>(`${clinical(patientId)}/medications`, data).then(r => r.data),
+  updateMedication: (patientId: number, id: number, data: SaveMedicationRequest) => api.put<MedicationDto>(`${clinical(patientId)}/medications/${id}`, data).then(r => r.data),
+  deleteMedication: (patientId: number, id: number) => api.delete(`${clinical(patientId)}/medications/${id}`),
 }
 
 // ── Attachments ───────────────────────────────────────────────────────────────
