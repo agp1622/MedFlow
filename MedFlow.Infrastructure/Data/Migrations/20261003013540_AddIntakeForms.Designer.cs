@@ -162,6 +162,7 @@ namespace MedFlow.Infrastructure.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("UsedAt")
+                        .IsConcurrencyToken()
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");

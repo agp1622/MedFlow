@@ -104,7 +104,7 @@ public interface IIntakeRepository
     Task<(string Token, DateTime ExpiresAt)> CreateLinkAsync(Patient patient);
     /// <summary>Returns the link and patient for a valid (unused, unexpired, active patient, email unchanged) token.</summary>
     Task<(IntakeLink Link, Patient Patient)?> FindValidLinkAsync(string token);
-    /// <summary>Atomically consumes the link and stores the submission; false if the link was already used.</summary>
+    /// <summary>Consumes the link and stores the submission in one save; false if the link was already used.</summary>
     Task<bool> SubmitAsync(IntakeLink link, Patient patient, IntakeSubmission submission);
     Task<PagedResult<IntakeSubmissionSummaryDto>> GetPagedAsync(string doctorId, IntakeStatus? status, int page, int pageSize);
     Task<IntakeSubmissionDetailDto?> GetDetailAsync(int id, string doctorId);

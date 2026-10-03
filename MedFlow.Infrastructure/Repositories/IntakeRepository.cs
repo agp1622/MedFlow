@@ -53,11 +53,6 @@ public class IntakeRepository : IIntakeRepository
     public async Task<bool> SubmitAsync(IntakeLink link, Patient patient, IntakeSubmission submission)
     {
         var now = DateTime.UtcNow;
-        // Conditional update: only one concurrent submission can consume the link
-        var won = await _db.IntakeLinks.Where(i => i.Id == link.Id && i.UsedAt == null)
-            .ExecuteUpdateAsync(s => s.SetProperty(i => i.UsedAt, now));
-        if (won == 0) return false;
-
         submission.PatientId = patient.Id;
         submission.DoctorId = patient.DoctorId;
         submission.IntakeLinkId = link.Id;
@@ -65,9 +60,22 @@ public class IntakeRepository : IIntakeRepository
         submission.SubmittedAt = now;
         submission.SignedAt = now;
         submission.ConsentVersion = IntakeConsent.Version;
+
+        // UsedAt is a concurrency token: if another request consumed the link first, this save fails and nothing is stored.
+        // The link update and the submission insert happen in the same save.
+        var tracked = await _db.IntakeLinks.FirstAsync(i => i.Id == link.Id);
+        if (tracked.UsedAt != null) return false;
+        tracked.UsedAt = now;
         _db.IntakeSubmissions.Add(submission);
-        await _db.SaveChangesAsync();
-        return true;
+        try
+        {
+            await _db.SaveChangesAsync();
+            return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return false;
+        }
     }
 
     public async Task<PagedResult<IntakeSubmissionSummaryDto>> GetPagedAsync(string doctorId, IntakeStatus? status, int page, int pageSize)

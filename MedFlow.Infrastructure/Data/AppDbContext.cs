@@ -156,6 +156,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.HasIndex(i => i.PatientId);
             e.Property(i => i.Email).HasMaxLength(256);
             e.Property(i => i.TokenHash).HasMaxLength(64);
+            e.Property(i => i.UsedAt).IsConcurrencyToken();
         });
         builder.Entity<IntakeSubmission>(e =>
         {
