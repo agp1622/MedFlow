@@ -8,6 +8,7 @@ import { PortalPage } from '@/pages/PortalPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { PatientsPage, PatientDetailPage } from '@/pages/PatientsPage'
 import { NoteTemplatesPage } from '@/pages/NoteTemplatesPage'
+import { ReportsPage } from '@/pages/ReportsPage'
 import { AppointmentsPage } from '@/pages/AppointmentsPage'
 import { IntakeFormPage, IntakeListPage, IntakeReviewPage } from '@/pages/IntakePages'
 import { AvailabilityPage } from '@/pages/AvailabilityPage'
@@ -66,6 +67,7 @@ export default function App() {
         <Route path="prescriptions" element={<PrescriptionsPage />} />
         <Route path="templates" element={<NoteTemplatesPage />} />
         <Route path="billing" element={<BillingPage />} />
+        <Route path="reports" element={<ReportsPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

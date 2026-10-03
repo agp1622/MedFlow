@@ -5,7 +5,7 @@ import { useAuthStore } from '@/store/authStore'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 import {
-  LayoutDashboard, Users, CalendarDays, Pill, CreditCard, LogOut, Plus, Menu, X, ClipboardList, Clock, FileText
+  LayoutDashboard, Users, CalendarDays, Pill, CreditCard, LogOut, Plus, Menu, X, ClipboardList, Clock, FileText, BarChart3
 } from 'lucide-react'
 
 const NAV = [
@@ -17,6 +17,7 @@ const NAV = [
   { to: '/prescriptions', icon: Pill,            label: 'nav.prescriptions' },
   { to: '/billing',       icon: CreditCard,      label: 'nav.billing' },
   { to: '/templates',     icon: FileText,        label: 'nav.templates' },
+  { to: '/reports',       icon: BarChart3,       label: 'nav.reports' },
 ] as const
 
 export function AppLayout() {
