@@ -71,7 +71,10 @@ npm run dev
 | `Jwt:Issuer` | Token issuer (default: `MedFlowApi`) |
 | `Jwt:Audience` | Token audience (default: `MedFlowClient`) |
 | `Jwt:ExpiryMinutes` | Token lifetime in minutes |
-| `AllowedOrigins` | CORS allowed origins array |
+| `AllowedOrigins` | CORS allowed origins array (the first entry is used for links in emails) |
+| `Reminders:LeadTimeHours` | How long before an appointment the reminder email is sent (1-168, default 24) |
+| `Reminders:IntervalMinutes` | How often the reminder job runs (default 15) |
+| `Reminders:MaxAttempts` | Send attempts per reminder before giving up (default 3) |
 
 Use environment variables or Azure Key Vault for production secrets.  
 Never commit `appsettings.Production.json` to source control.
@@ -138,6 +141,18 @@ Attachments and notes are **not shared by default**. Patients cannot use Google 
 In Development, a fresh database is seeded with a demo patient (`patient.demo@medflow.local`,
 password from `SeedUser:PatientPassword`, default `MedFlowPatient2026!`) that has an appointment,
 a prescription and an invoice. The seeder only runs when there are no users yet.
+
+### Appointment reminders
+
+A background job emails patients a reminder (email only) before Pending/Confirmed appointments. The email links to
+`/appointment-response?token=...`, where the patient can confirm or cancel without signing in. Every attempt is logged on
+the appointment. The job runs inside the API process, so run a single API instance.
+
+| Method | Route | Role | Description |
+|--------|-------|------|-------------|
+| POST | `/api/appointment-response/lookup` | Anonymous (token) | Minimal appointment details for the link |
+| POST | `/api/appointment-response/respond` | Anonymous (token) | `{ token, action: "Confirm" \| "Cancel" }` |
+| GET | `/api/appointments/{id}/reminders` | Doctor | Delivery log and patient response (own appointments only) |
 
 Access-control tests: `dotnet test MedFlow.Api.Tests`.
 

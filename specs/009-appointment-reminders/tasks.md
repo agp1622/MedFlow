@@ -23,17 +23,17 @@ Refs #9. Tests are included (repo rules require access control, isolation and va
 - [x] T011 [US2] Implement `ReminderRepository` (lookup by token hash, respond rules) in MedFlow.Infrastructure/Repositories/Repositories.cs and register
 - [x] T012 [US2] Add anonymous `AppointmentResponseController` (lookup, respond, uniform 404, 409 closed) and rate-limit policy in MedFlow.Api/Controllers/AppointmentResponseController.cs and Program.cs
 - [x] T013 [US2] Tests in ReminderTests.cs: confirm, cancel, cancelled cannot be re-confirmed, invalid/expired/tampered identical response, link cannot touch other appointments, lookup does not change state, stale token after reschedule
-- [ ] T014 [US2] Client: types in medflow-client/src/types/index.ts, `appointmentResponseApi` in medflow-client/src/api/services.ts, public page medflow-client/src/pages/AppointmentResponsePage.tsx, route in medflow-client/src/App.tsx
+- [x] T014 [US2] Client: types in medflow-client/src/types/index.ts, `appointmentResponseApi` in medflow-client/src/api/services.ts, public page medflow-client/src/pages/AppointmentResponsePage.tsx, route in medflow-client/src/App.tsx
 
 ## Phase 4: US3 Doctor delivery log (P2)
 
 - [x] T015 [US3] Add `GET /api/appointments/{id}/reminders` (owner-only, 404 otherwise) in MedFlow.Api/Controllers/AppointmentsController.cs using `IReminderRepository`
 - [x] T016 [US3] Tests in ReminderTests.cs: owner sees log, other doctor 404, patient token rejected, anonymous 401
-- [ ] T017 [US3] Client: `appointmentsApi.reminders`, query hook in medflow-client/src/hooks/queries.ts, display log and response in medflow-client/src/pages/AppointmentsPage.tsx
+- [x] T017 [US3] Client: `appointmentsApi.reminders`, query hook in medflow-client/src/hooks/queries.ts, display log and response in medflow-client/src/pages/AppointmentsPage.tsx
 
 ## Phase 5: Polish
 
-- [ ] T018 Document `Reminders` settings in MedFlow.Api/appsettings.json (non-secret defaults only) and README.md
+- [x] T018 Document `Reminders` settings in MedFlow.Api/appsettings.json (non-secret defaults only) and README.md
 - [ ] T019 Run dotnet build, dotnet test, npm run build, npm run lint
 
 Dependencies: Phase 1 first; US1 and US2 share T011 only for tests; US3 after US1 entities. MVP: Phase 1 + US1 + US2.

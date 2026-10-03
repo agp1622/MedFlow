@@ -160,6 +160,15 @@ export interface DashboardStatsDto {
   recentPatients: PatientSummaryDto[]
 }
 
+// ── Appointment reminders ─────────────────────────────────────────────────────
+export type ReminderAction = 'Confirm' | 'Cancel'
+export interface ReminderLookupDto {
+  appointmentAt: string; durationMinutes: number; doctorName: string; location?: string
+  status: AppointmentStatus; canRespond: boolean
+}
+export interface ReminderDeliveryDto { attemptedAt: string; channel: string; outcome: 'Sent' | 'Failed' | 'Skipped'; reason?: string }
+export interface ReminderLogDto { response: 'None' | 'Confirmed' | 'Cancelled'; respondedAt?: string; deliveries: ReminderDeliveryDto[] }
+
 // ── Patient portal ────────────────────────────────────────────────────────────
 export interface PortalProfileDto { firstName: string; lastName: string; doctorName: string }
 export interface PortalAppointmentDto {
