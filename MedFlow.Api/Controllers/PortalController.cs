@@ -1,5 +1,6 @@
 using MedFlow.Api.Localization;
 using MedFlow.Api.Extensions;
+using MedFlow.Api.Services;
 using MedFlow.Core;
 using MedFlow.Core.DTOs;
 using MedFlow.Core.Entities;
@@ -23,9 +24,12 @@ public class PortalController : ControllerBase
     private readonly IBookingRepository _booking;
     private readonly IWebHostEnvironment _env;
     private readonly IAuditService _audit;
+    private readonly BookingConfirmationService _confirmation;
 
-    public PortalController(IPortalRepository portal, IBookingRepository booking, IWebHostEnvironment env, IAuditService audit)
+    public PortalController(IPortalRepository portal, IBookingRepository booking, IWebHostEnvironment env, IAuditService audit,
+        BookingConfirmationService confirmation)
     {
+        _confirmation = confirmation;
         _portal = portal;
         _booking = booking;
         _env = env;
@@ -142,6 +146,9 @@ public class PortalController : ControllerBase
             return BadRequest(new { error = this.T("Error.ReasonMax", 500) });
 
         var (outcome, appt) = await _booking.BookAsync(patient, req.StartsAt, reason);
+        if (outcome == BookingOutcome.Booked && appt != null)
+            await _confirmation.SendAsync(patient, appt); // never throws; the booking is already saved
+
         return outcome switch
         {
             BookingOutcome.Booked => Created("/api/portal/appointments", appt),

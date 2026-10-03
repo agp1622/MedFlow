@@ -142,3 +142,12 @@ Each submission stores the consent as evidence: the exact consent text version s
 ## Dependencies
 
 - Issue #10 (online booking confirmation email) is not on `dev`. Automatic inclusion of the link in booking confirmations is deferred to a small follow-up once that lands; the doctor-triggered send is delivered here. The acceptance criterion "sent with the booking confirmation" is therefore only partially satisfied.
+
+## Addendum: intake link in the booking confirmation (issue #12, follow-up to #10)
+
+Issue #10 is now merged, so the deferred acceptance criterion is delivered here and the Dependencies note above is superseded.
+
+- **FR-015**: When a patient books online (`POST /api/portal/booking` returns Created), the system MUST email a booking confirmation containing a freshly created intake link, reusing the existing link creation (`IIntakeRepository.CreateLinkAsync`) and `IEmailSender`, but only if the patient has a valid email on file AND has no Pending/Accepted intake submission AND has no still-valid unused link.
+- **FR-016**: Sending is best effort and happens after the appointment is saved: any link or email failure is logged and MUST NOT fail the booking. Rejected bookings (slot taken, limit, not available) send nothing, so a client retry never produces a second link or email; a later booking while a valid link is outstanding reuses that link and sends nothing.
+- The confirmation email is only sent when a link is needed; patients who already completed or submitted intake get no new email from this change.
+- Out of scope: a general booking confirmation email for patients who do not need an intake link; email localization (matches the existing intake email, English).

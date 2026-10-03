@@ -37,6 +37,14 @@ public class IntakeRepository : IIntakeRepository
         return (token, link.ExpiresAt);
     }
 
+    public async Task<bool> NeedsLinkAsync(int patientId)
+    {
+        var now = DateTime.UtcNow;
+        if (await _db.IntakeSubmissions.AnyAsync(s => s.PatientId == patientId &&
+                (s.Status == IntakeStatus.Pending || s.Status == IntakeStatus.Accepted))) return false;
+        return !await _db.IntakeLinks.AnyAsync(l => l.PatientId == patientId && l.UsedAt == null && l.ExpiresAt > now);
+    }
+
     public async Task<(IntakeLink Link, Patient Patient)?> FindValidLinkAsync(string token)
     {
         if (string.IsNullOrWhiteSpace(token) || token.Length > 200) return null;
