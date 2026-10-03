@@ -538,3 +538,76 @@ public class PortalInvitationRepository : IPortalInvitationRepository
         return invited ? "Invited" : "NotInvited";
     }
 }
+
+// ── Reminder Repository ───────────────────────────────────────────────────────
+public class ReminderRepository : IReminderRepository
+{
+    private readonly AppDbContext _db;
+    public ReminderRepository(AppDbContext db) => _db = db;
+
+    private static bool IsOpen(Appointment a) =>
+        a.ScheduledAt > DateTime.UtcNow &&
+        (a.Status == AppointmentStatus.Pending || a.Status == AppointmentStatus.Confirmed);
+
+    // A token only works for the exact appointment time it was issued for
+    private async Task<(AppointmentReminder Reminder, Appointment Appt)?> FindAsync(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token) || token.Length > 128) return null;
+        var hash = Reminders.ReminderTokens.Hash(token);
+        var reminder = await _db.AppointmentReminders.FirstOrDefaultAsync(r => r.TokenHash == hash);
+        if (reminder == null || reminder.Status != ReminderStatus.Sent) return null;
+        var appt = await _db.Appointments.Include(a => a.Doctor)
+            .FirstOrDefaultAsync(a => a.Id == reminder.AppointmentId);
+        if (appt == null || appt.ScheduledAt != reminder.ScheduledAt || appt.ScheduledAt <= DateTime.UtcNow) return null;
+        return (reminder, appt);
+    }
+
+    private static ReminderLookupDto ToDto(Appointment a) => new(
+        a.ScheduledAt, a.DurationMinutes, a.Doctor?.FullName ?? "", a.Location,
+        a.Status.ToString(), IsOpen(a));
+
+    public async Task<ReminderLookupDto?> LookupAsync(string token)
+    {
+        var found = await FindAsync(token);
+        return found == null ? null : ToDto(found.Value.Appt);
+    }
+
+    public async Task<(ReminderRespondResult Result, ReminderLookupDto? Dto)> RespondAsync(string token, ReminderAction action)
+    {
+        var found = await FindAsync(token);
+        if (found == null) return (ReminderRespondResult.Invalid, null);
+        var (reminder, appt) = found.Value;
+        if (!IsOpen(appt)) return (ReminderRespondResult.Closed, null);
+
+        if (action == ReminderAction.Confirm)
+        {
+            appt.Status = AppointmentStatus.Confirmed;
+            reminder.Response = ReminderResponse.Confirmed;
+        }
+        else
+        {
+            appt.Status = AppointmentStatus.Cancelled;
+            reminder.Response = ReminderResponse.Cancelled;
+        }
+        var now = DateTime.UtcNow;
+        appt.UpdatedAt = now;
+        reminder.UpdatedAt = now;
+        reminder.RespondedAt = now;
+        await _db.SaveChangesAsync();
+        return (ReminderRespondResult.Ok, ToDto(appt));
+    }
+
+    public async Task<ReminderLogDto?> GetLogAsync(int appointmentId, string doctorId)
+    {
+        var appt = await _db.Appointments.FirstOrDefaultAsync(a => a.Id == appointmentId && a.DoctorId == doctorId);
+        if (appt == null) return null;
+        var latest = await _db.AppointmentReminders.Where(r => r.AppointmentId == appointmentId)
+            .OrderByDescending(r => r.Id).FirstOrDefaultAsync();
+        var deliveries = await _db.ReminderDeliveries.Where(d => d.AppointmentId == appointmentId)
+            .OrderBy(d => d.AttemptedAt).ThenBy(d => d.Id)
+            .Select(d => new ReminderDeliveryDto(d.AttemptedAt, d.Channel, d.Outcome.ToString(), d.Reason))
+            .ToListAsync();
+        return new ReminderLogDto(
+            (latest?.Response ?? ReminderResponse.None).ToString(), latest?.RespondedAt, deliveries);
+    }
+}

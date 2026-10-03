@@ -1,3 +1,4 @@
+using MedFlow.Core.Enums;
 using MedFlow.Core.DTOs;
 using MedFlow.Core.Entities;
 
@@ -95,4 +96,21 @@ public interface IPortalInvitationRepository
     Task MarkUsedAsync(PortalInvitation invitation, Patient patient, string userId);
     Task RevokeAsync(Patient patient);
     Task<string> GetPortalStatusAsync(Patient patient);
+}
+
+public enum ReminderRespondResult { Ok, Invalid, Closed }
+
+public interface IReminderRepository
+{
+    /// <summary>Takes the raw emailed token. Null for any unknown, expired, stale or tampered token (callers must not distinguish).</summary>
+    Task<ReminderLookupDto?> LookupAsync(string token);
+    Task<(ReminderRespondResult Result, ReminderLookupDto? Dto)> RespondAsync(string token, ReminderAction action);
+    /// <summary>Null when the appointment does not belong to the doctor.</summary>
+    Task<ReminderLogDto?> GetLogAsync(int appointmentId, string doctorId);
+}
+
+public interface IReminderProcessor
+{
+    /// <summary>Sends every reminder that is due. Returns the number of emails sent.</summary>
+    Task<int> ProcessDueAsync(CancellationToken ct = default);
 }
