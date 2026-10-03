@@ -220,6 +220,7 @@ export const useDeleteNote = () => {
 export const usePatientClinical = (patientId: number) =>
   useQuery({ queryKey: QK.clinical(patientId), queryFn: () => clinicalApi.getSummary(patientId), enabled: patientId > 0 })
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here; narrowing would change call signatures
 const clinicalError = (err: any) => {
   const d = err?.response?.data
   const firstValidation = d?.errors ? (Object.values(d.errors).flat() as string[])[0] : undefined
