@@ -3,8 +3,9 @@ using MedFlow.Core.Enums;
 namespace MedFlow.Core.Entities;
 
 /// <summary>A lab test ordered by a doctor for one of their patients. Doctor-private.</summary>
-public class LabOrder : BaseEntity
+public class LabOrder : BaseEntity, IClinicScoped
 {
+    public int ClinicId { get; set; }
     public int PatientId { get; set; }
     public Patient? Patient { get; set; }
     public string DoctorId { get; set; } = string.Empty;

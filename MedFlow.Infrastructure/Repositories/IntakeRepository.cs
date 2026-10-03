@@ -63,6 +63,7 @@ public class IntakeRepository : IIntakeRepository
         var now = DateTime.UtcNow;
         submission.PatientId = patient.Id;
         submission.DoctorId = patient.DoctorId;
+        submission.ClinicId = patient.ClinicId;
         submission.IntakeLinkId = link.Id;
         submission.Status = IntakeStatus.Pending;
         submission.SubmittedAt = now;
@@ -86,13 +87,13 @@ public class IntakeRepository : IIntakeRepository
         }
     }
 
-    public async Task<PagedResult<IntakeSubmissionSummaryDto>> GetPagedAsync(string doctorId, IntakeStatus? status, int page, int pageSize)
+    public async Task<PagedResult<IntakeSubmissionSummaryDto>> GetPagedAsync(ClinicScope scope, IntakeStatus? status, int page, int pageSize)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
         var query = from s in _db.IntakeSubmissions
                     join p in _db.Patients on s.PatientId equals p.Id
-                    where s.DoctorId == doctorId && p.DoctorId == doctorId
+                    where s.ClinicId == scope.ClinicId && p.ClinicId == scope.ClinicId
                     select new { s, p };
         if (status != null) query = query.Where(x => x.s.Status == status);
 
@@ -106,17 +107,17 @@ public class IntakeRepository : IIntakeRepository
         return new PagedResult<IntakeSubmissionSummaryDto>(items, total, page, pageSize);
     }
 
-    private async Task<(IntakeSubmission Submission, Patient Patient)?> LoadOwnedAsync(int id, string doctorId)
+    private async Task<(IntakeSubmission Submission, Patient Patient)?> LoadOwnedAsync(int id, ClinicScope scope)
     {
-        var s = await _db.IntakeSubmissions.FirstOrDefaultAsync(x => x.Id == id && x.DoctorId == doctorId);
+        var s = await _db.IntakeSubmissions.FirstOrDefaultAsync(x => x.Id == id && x.ClinicId == scope.ClinicId);
         if (s == null) return null;
-        var p = await _db.Patients.FirstOrDefaultAsync(x => x.Id == s.PatientId && x.DoctorId == doctorId);
+        var p = await _db.Patients.FirstOrDefaultAsync(x => x.Id == s.PatientId && x.ClinicId == scope.ClinicId);
         return p == null ? null : (s, p);
     }
 
-    public async Task<IntakeSubmissionDetailDto?> GetDetailAsync(int id, string doctorId)
+    public async Task<IntakeSubmissionDetailDto?> GetDetailAsync(int id, ClinicScope scope)
     {
-        var loaded = await LoadOwnedAsync(id, doctorId);
+        var loaded = await LoadOwnedAsync(id, scope);
         if (loaded == null) return null;
         var (s, p) = loaded.Value;
         var answers = new IntakeAnswersDto(s.FirstName, s.LastName, s.DateOfBirth, s.Gender.ToString(), s.Phone,
@@ -130,9 +131,9 @@ public class IntakeRepository : IIntakeRepository
             s.DecidedAt, s.RejectionReason);
     }
 
-    public async Task<DecisionResult> DecideAsync(int id, string doctorId, bool accept, string? reason)
+    public async Task<DecisionResult> DecideAsync(int id, ClinicScope scope, bool accept, string? reason)
     {
-        var loaded = await LoadOwnedAsync(id, doctorId);
+        var loaded = await LoadOwnedAsync(id, scope);
         if (loaded == null) return DecisionResult.NotFound;
         var (s, p) = loaded.Value;
         if (s.Status != IntakeStatus.Pending) return DecisionResult.AlreadyDecided;
@@ -162,7 +163,7 @@ public class IntakeRepository : IIntakeRepository
             s.Status = IntakeStatus.Rejected;
             s.RejectionReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
         }
-        s.DecidedByDoctorId = doctorId;
+        s.DecidedByDoctorId = scope.UserId;
         s.DecidedAt = now;
         await _db.SaveChangesAsync(); // patient and submission change in one save
         return DecisionResult.Done;

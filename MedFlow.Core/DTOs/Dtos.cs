@@ -8,7 +8,8 @@ public record RegisterRequest(string Email, string Password, string FirstName, s
 public record LoginRequest(string Email, string Password);
 public record GoogleLoginRequest(string Credential);
 public record AuthResponse(string Token, string RefreshToken, DateTime Expires, UserDto User);
-public record UserDto(string Id, string Email, string FirstName, string LastName, string Specialty, string Role = "Doctor");
+public record UserDto(string Id, string Email, string FirstName, string LastName, string Specialty, string Role = "Doctor",
+    int? ClinicId = null, string? ClinicName = null);
 
 // ── Auth (Password Recovery) ─────────────────────────────────────────────────
 public record ForgotPasswordRequest(string Email);
@@ -53,7 +54,8 @@ public record CreatePatientRequest(
     string? PrimaryCondition, string? Allergies, string? Notes,
     string? InsuranceProvider, string? InsurancePolicyNumber,
     string? InsuranceGroupNumber = null, string? InsurancePayerId = null, string? InsuranceSubscriberName = null,
-    DateOnly? InsuranceSubscriberDateOfBirth = null, InsuranceRelationship? InsuranceSubscriberRelationship = null
+    DateOnly? InsuranceSubscriberDateOfBirth = null, InsuranceRelationship? InsuranceSubscriberRelationship = null,
+    string? DoctorId = null
 );
 
 public record UpdatePatientRequest(
@@ -78,7 +80,8 @@ public record AppointmentDto(
 
 public record CreateAppointmentRequest(
     int PatientId, DateTime ScheduledAt, int DurationMinutes,
-    AppointmentType Type, string? Reason, string? Location
+    AppointmentType Type, string? Reason, string? Location,
+    string? DoctorId = null
 );
 
 public record UpdateAppointmentRequest(
@@ -330,3 +333,16 @@ public record WaitlistOfferDto(DateTime SlotStartsAt, int DurationMinutes, strin
 public record WaitlistClaimDto(DateTime SlotStartsAt, int DurationMinutes, string DoctorName);
 public enum WaitlistAddOutcome { Added, PatientNotFound, NotActive, AlreadyWaiting }
 public enum WaitlistClaimOutcome { Claimed, Invalid, SlotUnavailable }
+
+// ── Clinic and staff ──────────────────────────────────────────────────────────
+public record ClinicDto(int Id, string Name, string Role, string UserId);
+public record ClinicDoctorDto(string UserId, string FullName, string Role);
+public record RenameClinicRequest([Required, StringLength(200, MinimumLength = 1)] string Name);
+public record StaffMemberDto(int Id, string UserId, string Email, string FirstName, string LastName,
+    string Role, bool IsActive, DateTime JoinedAt);
+public record StaffInvitationDto(int Id, string Email, string Role, DateTime ExpiresAt, DateTime CreatedAt);
+public record InviteStaffRequest([Required, EmailAddress, StringLength(256)] string Email, [Required] ClinicRole? Role);
+public record ChangeRoleRequest([Required] ClinicRole? Role);
+public record AcceptStaffInvitationRequest(string Token, string Email, string Password, string ConfirmPassword,
+    string FirstName, string LastName, string? Specialty = null);
+public enum StaffChangeOutcome { Done, NotFound, LastOwner }

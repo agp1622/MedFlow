@@ -39,6 +39,7 @@ public static class DependencyInjection
         services.AddScoped<IReminderProcessor, ReminderProcessor>();
         services.AddScoped<IReminderRepository, ReminderRepository>();
 
+        services.AddScoped<IClinicService, Clinics.ClinicService>();
         services.AddScoped<IPatientRepository, PatientRepository>();
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
         services.AddScoped<IPrescriptionRepository, PrescriptionRepository>();

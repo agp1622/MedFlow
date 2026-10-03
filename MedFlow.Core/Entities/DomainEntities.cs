@@ -16,8 +16,9 @@ public class Doctor : BaseEntity
     public ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();
 }
 
-public class Appointment : BaseEntity
+public class Appointment : BaseEntity, IClinicScoped
 {
+    public int ClinicId { get; set; }
     public int PatientId { get; set; }
     public Patient? Patient { get; set; }
     public string DoctorId { get; set; } = string.Empty;
@@ -32,8 +33,9 @@ public class Appointment : BaseEntity
     public string? Location { get; set; }
 }
 
-public class Prescription : BaseEntity
+public class Prescription : BaseEntity, IClinicScoped
 {
+    public int ClinicId { get; set; }
     public int PatientId { get; set; }
     public Patient? Patient { get; set; }
     public string DoctorId { get; set; } = string.Empty;
@@ -49,8 +51,9 @@ public class Prescription : BaseEntity
     public PrescriptionStatus Status { get; set; } = PrescriptionStatus.Active;
 }
 
-public class Invoice : BaseEntity
+public class Invoice : BaseEntity, IClinicScoped
 {
+    public int ClinicId { get; set; }
     public int PatientId { get; set; }
     public Patient? Patient { get; set; }
     public string DoctorId { get; set; } = string.Empty;
@@ -69,8 +72,9 @@ public class Invoice : BaseEntity
     public string? Notes { get; set; }
 }
 
-public class VitalSign : BaseEntity
+public class VitalSign : BaseEntity, IClinicScoped
 {
+    public int ClinicId { get; set; }
     public int PatientId { get; set; }
     public Patient? Patient { get; set; }
     public DateTime RecordedAt { get; set; } = DateTime.UtcNow;
@@ -84,12 +88,12 @@ public class VitalSign : BaseEntity
     public string? RecordedBy { get; set; }
 }
 
-public class MedicalNote : BaseEntity
+public class MedicalNote : BaseEntity, IClinicScoped
 {
+    public int ClinicId { get; set; }
     public int PatientId { get; set; }
     public Patient? Patient { get; set; }
-    public string DoctorId { get; set; } = string.Empty;
-    public Doctor? Doctor { get; set; }
+    public string DoctorId { get; set; } = string.Empty; // author user id (a doctor, nurse or owner)
     public string Content { get; set; } = string.Empty;
     public string? VisitType { get; set; }
     public DateTime NoteDate { get; set; } = DateTime.UtcNow;
@@ -103,8 +107,9 @@ public class NoteTemplate : BaseEntity
     public string Body { get; set; } = string.Empty;
 }
 
-public class PatientAttachment : BaseEntity
+public class PatientAttachment : BaseEntity, IClinicScoped
 {
+    public int ClinicId { get; set; }
     public int PatientId { get; set; }
     public Patient? Patient { get; set; }
     public string DoctorId { get; set; } = string.Empty;
@@ -144,8 +149,9 @@ public class IntakeLink : BaseEntity
     public DateTime? UsedAt { get; set; }                 // set on submission or when superseded
 }
 
-public class IntakeSubmission : BaseEntity
+public class IntakeSubmission : BaseEntity, IClinicScoped
 {
+    public int ClinicId { get; set; }
     public int PatientId { get; set; }
     public string DoctorId { get; set; } = string.Empty;
     public int IntakeLinkId { get; set; }
@@ -223,8 +229,9 @@ public class ReminderDelivery : BaseEntity
 }
 
 /// <summary>A patient waiting for an earlier slot with their own doctor. CreatedAt is the join time.</summary>
-public class WaitlistEntry : BaseEntity
+public class WaitlistEntry : BaseEntity, IClinicScoped
 {
+    public int ClinicId { get; set; }
     public int PatientId { get; set; }
     public string DoctorId { get; set; } = string.Empty;
     public WaitlistStatus Status { get; set; } = WaitlistStatus.Waiting;

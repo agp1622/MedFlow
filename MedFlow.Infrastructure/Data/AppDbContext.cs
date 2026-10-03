@@ -38,6 +38,10 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<WaitlistEntry> WaitlistEntries => Set<WaitlistEntry>();
     public DbSet<WaitlistOffer> WaitlistOffers => Set<WaitlistOffer>();
 
+    public DbSet<Clinic> Clinics => Set<Clinic>();
+    public DbSet<ClinicMember> ClinicMembers => Set<ClinicMember>();
+    public DbSet<StaffInvitation> StaffInvitations => Set<StaffInvitation>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -150,9 +154,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.HasIndex(n => new { n.PatientId, n.DoctorId });
             e.HasOne(n => n.Patient).WithMany(p => p.MedicalNotes)
                 .HasForeignKey(n => n.PatientId).OnDelete(DeleteBehavior.Restrict);
-            e.HasOne(n => n.Doctor).WithMany()
-                .HasForeignKey(n => n.DoctorId).HasPrincipalKey(d => d.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
+            // DoctorId is the author's user id; nurses author notes too, so there is deliberately no FK to Doctors
+            e.Property(n => n.DoctorId).HasMaxLength(450);
         });
 
         // NoteTemplate
@@ -334,13 +337,118 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.Property(a => a.ItemKind).HasConversion<string>().HasMaxLength(30);
             e.Property(a => a.ChangedFields).HasMaxLength(500);
         });
+
+        // Clinics, membership and staff invitations
+        builder.Entity<Clinic>(e =>
+        {
+            e.Property(c => c.Name).HasMaxLength(200).IsRequired();
+            e.Property(c => c.Stamp).IsConcurrencyToken();
+        });
+        builder.Entity<ClinicMember>(e =>
+        {
+            e.HasIndex(m => m.UserId).IsUnique();
+            e.HasIndex(m => new { m.ClinicId, m.Role, m.IsActive });
+            e.Property(m => m.UserId).HasMaxLength(450).IsRequired();
+            e.Property(m => m.Role).HasConversion<string>().HasMaxLength(20);
+            e.HasOne<Clinic>().WithMany().HasForeignKey(m => m.ClinicId).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<StaffInvitation>(e =>
+        {
+            e.HasIndex(i => i.TokenHash);
+            e.HasIndex(i => new { i.ClinicId, i.Email });
+            e.Property(i => i.Email).HasMaxLength(256).IsRequired();
+            e.Property(i => i.TokenHash).HasMaxLength(64).IsRequired();
+            e.Property(i => i.Role).HasConversion<string>().HasMaxLength(20);
+            e.Property(i => i.InvitedByUserId).HasMaxLength(450).IsRequired();
+            e.HasOne<Clinic>().WithMany().HasForeignKey(i => i.ClinicId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Every clinic-scoped record: indexed ClinicId with a restricting FK to its clinic
+        foreach (var type in builder.Model.GetEntityTypes().Where(t => typeof(IClinicScoped).IsAssignableFrom(t.ClrType)).ToList())
+        {
+            var entity = builder.Entity(type.ClrType);
+            entity.HasIndex("ClinicId");
+            entity.HasOne(typeof(Clinic)).WithMany().HasForeignKey("ClinicId").OnDelete(DeleteBehavior.Restrict);
+        }
     }
 
-    public override Task<int> SaveChangesAsync(CancellationToken ct = default)
+    /// <summary>
+    /// Central guarantee that no clinic-scoped record is ever saved without a clinic, in a different clinic than its
+    /// patient, or by a doctor/author of another clinic. Rows added without a ClinicId take it from their patient (a
+    /// patient from its treating doctor's membership). Anything that cannot be resolved or contradicts throws, so a
+    /// writer that forgets the clinic fails instead of creating unscoped or cross-clinic data.
+    /// </summary>
+    private async Task StampClinicIdsAsync(CancellationToken ct)
+    {
+        var added = ChangeTracker.Entries().Where(e => e.State == EntityState.Added && e.Entity is IClinicScoped).ToList();
+        if (added.Count == 0) return;
+
+        var patientClinics = new Dictionary<int, int>();
+        var memberClinics = new Dictionary<string, int?>();
+        foreach (var entry in added)
+        {
+            var scoped = (IClinicScoped)entry.Entity;
+            var name = entry.Metadata.ClrType.Name;
+
+            if (entry.Entity is Patient patient)
+            {
+                if (scoped.ClinicId == 0)
+                    scoped.ClinicId = await MemberClinicAsync(memberClinics, patient.DoctorId, ct)
+                        ?? throw new InvalidOperationException("A patient needs a treating doctor that belongs to a clinic.");
+            }
+            else if (entry.Metadata.FindProperty("PatientId") == null)
+            {
+                if (scoped.ClinicId == 0) throw new InvalidOperationException($"{name} was saved without a clinic.");
+            }
+            else
+            {
+                var patientId = (int)entry.Property("PatientId").CurrentValue!;
+                if (!patientClinics.TryGetValue(patientId, out var patientClinic))
+                {
+                    var stored = await Patients.IgnoreQueryFilters().AsNoTracking().Where(p => p.Id == patientId)
+                        .Select(p => (int?)p.ClinicId).FirstOrDefaultAsync(ct);
+                    stored ??= Patients.Local.Where(p => p.Id == patientId).Select(p => (int?)p.ClinicId).FirstOrDefault();
+                    patientClinic = stored ?? 0;
+                    patientClinics[patientId] = patientClinic;
+                }
+                if (patientClinic == 0)
+                {
+                    if (scoped.ClinicId == 0) throw new InvalidOperationException($"{name} was saved for a patient without a clinic.");
+                }
+                else if (scoped.ClinicId == 0) scoped.ClinicId = patientClinic;
+                else if (scoped.ClinicId != patientClinic)
+                    throw new InvalidOperationException($"{name} clinic differs from its patient's clinic.");
+            }
+
+            // The doctor or author of a record must belong to the record's clinic (a user without any membership is tolerated)
+            if (entry.Metadata.FindProperty("DoctorId") != null
+                && entry.Property("DoctorId").CurrentValue is string doctorId && doctorId.Length > 0)
+            {
+                var doctorClinic = await MemberClinicAsync(memberClinics, doctorId, ct);
+                if (doctorClinic != null && doctorClinic != scoped.ClinicId)
+                    throw new InvalidOperationException($"{name} was written by a user of another clinic.");
+            }
+        }
+    }
+
+    private async Task<int?> MemberClinicAsync(Dictionary<string, int?> cache, string userId, CancellationToken ct)
+    {
+        if (!cache.TryGetValue(userId, out var clinicId))
+        {
+            clinicId = await ClinicMembers.AsNoTracking().Where(m => m.UserId == userId)
+                .Select(m => (int?)m.ClinicId).FirstOrDefaultAsync(ct);
+            cache[userId] = clinicId;
+        }
+        return clinicId;
+    }
+
+    public override async Task<int> SaveChangesAsync(CancellationToken ct = default)
     {
         // Audit events are append-only: refuse any attempt to edit or remove one
         if (ChangeTracker.Entries<AuditEvent>().Any(e => e.State is EntityState.Modified or EntityState.Deleted))
             throw new InvalidOperationException("Audit events are immutable.");
+
+        await StampClinicIdsAsync(ct);
 
         var entries = ChangeTracker.Entries()
             .Where(e => e.Entity is BaseEntity && e.State is EntityState.Added or EntityState.Modified);
@@ -352,6 +460,6 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             if (entry.State == EntityState.Added)
                 entity.CreatedAt = DateTime.UtcNow;
         }
-        return base.SaveChangesAsync(ct);
+        return await base.SaveChangesAsync(ct);
     }
 }
