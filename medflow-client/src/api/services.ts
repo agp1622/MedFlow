@@ -21,7 +21,8 @@ import type {
   BookingSlotDto, BookAppointmentRequest,
   ReminderLookupDto, ReminderLogDto, ReminderAction,
   DashboardStatsDto, AppointmentStatus,
-  AuditEventDto, AuditLogQuery
+  AuditEventDto, AuditLogQuery,
+  ReportQuery, RevenueReport, VisitsReport, NoShowReport, ArAgingReport
 } from '@/types'
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -54,6 +55,22 @@ export const patientsApi = {
 export const auditApi = {
   getByPatient: (patientId: number, q?: AuditLogQuery) =>
     api.get<PagedResult<AuditEventDto>>(`/patients/${patientId}/audit-log`, { params: q }).then(r => r.data),
+}
+
+// ── Reports ───────────────────────────────────────────────────────────────────
+export type ReportKind = 'revenue' | 'visits' | 'no-shows' | 'ar-aging'
+export const reportsApi = {
+  revenue:  (q: ReportQuery) => api.get<RevenueReport>('/reports/revenue', { params: q }).then(r => r.data),
+  visits:   (q: ReportQuery) => api.get<VisitsReport>('/reports/visits', { params: q }).then(r => r.data),
+  noShows:  (q: ReportQuery) => api.get<NoShowReport>('/reports/no-shows', { params: q }).then(r => r.data),
+  arAging:  (page = 1, pageSize = 20) =>
+    api.get<ArAgingReport>('/reports/ar-aging', { params: { page, pageSize } }).then(r => r.data),
+  /** CSV for the same filters as the on-screen report; returns the file name and content. */
+  exportCsv: async (kind: ReportKind, q?: ReportQuery) => {
+    const res = await api.get<Blob>(`/reports/${kind}/export`, { params: q, responseType: 'blob' })
+    const match = /filename="?([^";]+)"?/i.exec(String(res.headers['content-disposition'] ?? ''))
+    return { blob: res.data, fileName: match?.[1] ?? `${kind}.csv` }
+  },
 }
 
 // ── Appointments ──────────────────────────────────────────────────────────────
