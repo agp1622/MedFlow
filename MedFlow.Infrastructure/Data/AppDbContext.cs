@@ -22,6 +22,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<PatientAllergy> PatientAllergies => Set<PatientAllergy>();
     public DbSet<PatientProblem> PatientProblems => Set<PatientProblem>();
     public DbSet<PatientMedication> PatientMedications => Set<PatientMedication>();
+    public DbSet<LabOrder> LabOrders => Set<LabOrder>();
+    public DbSet<LabResult> LabResults => Set<LabResult>();
     public DbSet<PortalInvitation> PortalInvitations => Set<PortalInvitation>();
     public DbSet<PortalAccessLog> PortalAccessLogs => Set<PortalAccessLog>();
     public DbSet<IntakeLink> IntakeLinks => Set<IntakeLink>();
@@ -51,6 +53,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<PatientAllergy>().HasQueryFilter(a => !a.IsDeleted);
         builder.Entity<PatientProblem>().HasQueryFilter(p => !p.IsDeleted);
         builder.Entity<PatientMedication>().HasQueryFilter(m => !m.IsDeleted);
+        builder.Entity<LabOrder>().HasQueryFilter(o => !o.IsDeleted);
+        builder.Entity<LabResult>().HasQueryFilter(r => !r.IsDeleted);
 
         // Patient
         builder.Entity<Patient>(e =>
@@ -177,6 +181,27 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.Property(a => a.SharedWithPatient).HasDefaultValue(false);
             e.HasOne(a => a.Patient).WithMany(p => p.Attachments)
                 .HasForeignKey(a => a.PatientId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Lab orders and results (doctor-facing only)
+        builder.Entity<LabOrder>(e =>
+        {
+            e.HasIndex(o => new { o.PatientId, o.DoctorId });
+            e.Property(o => o.DoctorId).HasMaxLength(450).IsRequired();
+            e.Property(o => o.TestName).HasMaxLength(150).IsRequired();
+            e.Property(o => o.Notes).HasMaxLength(1000);
+            e.Property(o => o.Status).HasConversion<string>().HasMaxLength(20);
+            e.HasOne(o => o.Patient).WithMany().HasForeignKey(o => o.PatientId).OnDelete(DeleteBehavior.Restrict);
+            e.HasMany(o => o.Results).WithOne().HasForeignKey(r => r.LabOrderId).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<LabResult>(e =>
+        {
+            e.HasIndex(r => r.LabOrderId);
+            e.Property(r => r.AnalyteName).HasMaxLength(100).IsRequired();
+            e.Property(r => r.Unit).HasMaxLength(30);
+            e.Property(r => r.Value).HasPrecision(18, 4);
+            e.Property(r => r.ReferenceLow).HasPrecision(18, 4);
+            e.Property(r => r.ReferenceHigh).HasPrecision(18, 4);
         });
 
         // Clinical lists (doctor-facing only)
