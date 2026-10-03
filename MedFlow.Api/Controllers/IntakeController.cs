@@ -1,3 +1,4 @@
+using MedFlow.Api.Localization;
 using MedFlow.Core;
 using MedFlow.Core.DTOs;
 using MedFlow.Core.Entities;
@@ -25,7 +26,7 @@ public class IntakeController : ControllerBase
     }
 
     // Every failure of the link (unknown, expired, used, superseded, inactive patient) looks the same.
-    private NotFoundObjectResult InvalidLink() => NotFound(new { error = "This link is invalid or has expired." });
+    private NotFoundObjectResult InvalidLink() => NotFound(new { error = this.T("Intake.InvalidLink") });
 
     [HttpGet]
     public async Task<ActionResult<IntakeFormInfoDto>> GetForm(string token)
@@ -64,38 +65,38 @@ public class IntakeController : ControllerBase
         if (!await _intake.SubmitAsync(link, patient, submission)) return InvalidLink();
 
         _logger.LogInformation("Intake form submitted for patient {PatientId}", patient.Id);
-        return StatusCode(StatusCodes.Status201Created, new { message = "Thank you. Your form has been submitted." });
+        return StatusCode(StatusCodes.Status201Created, new { message = this.T("Intake.Thanks") });
     }
 
     private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
-    private static List<string> Validate(IntakeSubmitRequest r)
+    private List<string> Validate(IntakeSubmitRequest r)
     {
         var e = new List<string>();
         void Req(string? v, string name, int max)
         {
-            if (string.IsNullOrWhiteSpace(v)) e.Add($"{name} is required.");
-            else if (v.Trim().Length > max) e.Add($"{name} must be at most {max} characters.");
+            if (string.IsNullOrWhiteSpace(v)) e.Add(this.T("Intake.Required", this.T(name)));
+            else if (v.Trim().Length > max) e.Add(this.T("Intake.MaxLength", this.T(name), max));
         }
         void Opt(string? v, string name, int max)
         {
-            if (v != null && v.Trim().Length > max) e.Add($"{name} must be at most {max} characters.");
+            if (v != null && v.Trim().Length > max) e.Add(this.T("Intake.MaxLength", this.T(name), max));
         }
 
-        Req(r.FirstName, "First name", 100);
-        Req(r.LastName, "Last name", 100);
-        Req(r.Phone, "Phone", 30);
-        if (r.DateOfBirth == null) e.Add("Date of birth is required.");
+        Req(r.FirstName, "Intake.Field.FirstName", 100);
+        Req(r.LastName, "Intake.Field.LastName", 100);
+        Req(r.Phone, "Intake.Field.Phone", 30);
+        if (r.DateOfBirth == null) e.Add(this.T("Intake.DobRequired"));
         else if (r.DateOfBirth > DateOnly.FromDateTime(DateTime.UtcNow) || r.DateOfBirth < new DateOnly(1900, 1, 1))
-            e.Add("Date of birth is not valid.");
-        if (r.Gender == null) e.Add("Gender is required.");
-        Opt(r.Address, "Address", 200); Opt(r.City, "City", 100); Opt(r.State, "State", 100); Opt(r.ZipCode, "ZIP code", 20);
-        Opt(r.InsuranceProvider, "Insurance provider", 200); Opt(r.InsurancePolicyNumber, "Policy number", 100);
-        Opt(r.PrimaryCondition, "Primary condition", 500); Opt(r.Allergies, "Allergies", 1000);
-        Opt(r.CurrentMedications, "Current medications", 2000); Opt(r.PastHistory, "Past history", 2000);
-        Opt(r.AdditionalNotes, "Additional notes", 2000);
-        if (!r.ConsentAgreed) e.Add("You must agree to the consent statement.");
-        Req(r.SignatureName, "Signature", 200);
+            e.Add(this.T("Intake.DobInvalid"));
+        if (r.Gender == null) e.Add(this.T("Intake.GenderRequired"));
+        Opt(r.Address, "Intake.Field.Address", 200); Opt(r.City, "Intake.Field.City", 100); Opt(r.State, "Intake.Field.State", 100); Opt(r.ZipCode, "Intake.Field.ZipCode", 20);
+        Opt(r.InsuranceProvider, "Intake.Field.InsuranceProvider", 200); Opt(r.InsurancePolicyNumber, "Intake.Field.InsurancePolicyNumber", 100);
+        Opt(r.PrimaryCondition, "Intake.Field.PrimaryCondition", 500); Opt(r.Allergies, "Intake.Field.Allergies", 1000);
+        Opt(r.CurrentMedications, "Intake.Field.CurrentMedications", 2000); Opt(r.PastHistory, "Intake.Field.PastHistory", 2000);
+        Opt(r.AdditionalNotes, "Intake.Field.AdditionalNotes", 2000);
+        if (!r.ConsentAgreed) e.Add(this.T("Intake.ConsentRequired"));
+        Req(r.SignatureName, "Intake.Field.Signature", 200);
         return e;
     }
 }
