@@ -121,6 +121,15 @@ builder.Services.AddRateLimiter(options =>
                 Window = TimeSpan.FromMinutes(15),
                 QueueLimit = 0
             }));
+    options.AddPolicy("appointment-response", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = builder.Configuration.GetValue("RateLimiting:AppointmentResponsePermitLimit", 30),
+                Window = TimeSpan.FromMinutes(15),
+                QueueLimit = 0
+            }));
     options.OnRejected = async (context, token) =>
     {
         context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
@@ -128,6 +137,8 @@ builder.Services.AddRateLimiter(options =>
             new { error = "Too many requests. Please try again later." }, token);
     };
 });
+
+builder.Services.AddHostedService<MedFlow.Api.Services.ReminderBackgroundService>();
 
 var app = builder.Build();
 

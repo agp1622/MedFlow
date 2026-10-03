@@ -15,11 +15,13 @@ namespace MedFlow.Api.Controllers;
 public class AppointmentsController : ControllerBase
 {
     private readonly IAppointmentRepository _appointments;
+    private readonly IReminderRepository _reminders;
     private readonly IAuditService _audit;
 
-    public AppointmentsController(IAppointmentRepository appointments, IAuditService audit)
+    public AppointmentsController(IAppointmentRepository appointments, IReminderRepository reminders, IAuditService audit)
     {
         _appointments = appointments;
+        _reminders = reminders;
         _audit = audit;
     }
 
@@ -49,6 +51,13 @@ public class AppointmentsController : ControllerBase
         if (appt == null) return NotFound();
         if (!await this.AuditAsync(_audit, appt.PatientId, AuditAction.View, AuditItemKind.Appointment, appt.Id)) return NotFound();
         return Ok(appt);
+    }
+
+    [HttpGet("{id:int}/reminders")]
+    public async Task<ActionResult<ReminderLogDto>> GetReminders(int id)
+    {
+        var log = await _reminders.GetLogAsync(id, User.GetUserId());
+        return log == null ? NotFound() : Ok(log);
     }
 
     [HttpPost]

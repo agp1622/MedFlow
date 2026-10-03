@@ -134,3 +134,26 @@ public class PortalAccessLog : BaseEntity
     public string Action { get; set; } = string.Empty;       // View | Download
     public DateTime OccurredAt { get; set; } = DateTime.UtcNow;
 }
+
+/// <summary>One per (appointment, scheduled time): the emailed response link and its state.</summary>
+public class AppointmentReminder : BaseEntity
+{
+    public int AppointmentId { get; set; }
+    public DateTime ScheduledAt { get; set; }             // snapshot of the appointment time this reminder is for
+    public string TokenHash { get; set; } = string.Empty; // SHA-256 of the emailed token
+    public ReminderStatus Status { get; set; } = ReminderStatus.Pending;
+    public int Attempts { get; set; }
+    public DateTime? SentAt { get; set; }
+    public ReminderResponse Response { get; set; } = ReminderResponse.None;
+    public DateTime? RespondedAt { get; set; }
+}
+
+public class ReminderDelivery : BaseEntity
+{
+    public int AppointmentId { get; set; }
+    public int ReminderId { get; set; }
+    public DateTime AttemptedAt { get; set; } = DateTime.UtcNow;
+    public string Channel { get; set; } = "Email";
+    public ReminderOutcome Outcome { get; set; }
+    public string? Reason { get; set; }
+}

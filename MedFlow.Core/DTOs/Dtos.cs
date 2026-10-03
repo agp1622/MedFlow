@@ -187,6 +187,16 @@ public record PortalAttachmentDto(
     string? Category, string? Description, DateTime CreatedAt);
 public record PortalNoteDto(int Id, string DoctorName, string? VisitType, string Content, DateTime NoteDate);
 
+// ── Appointment reminders ─────────────────────────────────────────────────────
+public record ReminderTokenRequest(string Token);
+public record ReminderRespondRequest(string Token, ReminderAction Action);
+public record ReminderLookupDto(
+    DateTime AppointmentAt, int DurationMinutes, string DoctorName, string? Location,
+    string Status, bool CanRespond
+);
+public record ReminderDeliveryDto(DateTime AttemptedAt, string Channel, string Outcome, string? Reason);
+public record ReminderLogDto(string Response, DateTime? RespondedAt, IEnumerable<ReminderDeliveryDto> Deliveries);
+
 // ── Audit log ─────────────────────────────────────────────────────────────────
 public record AuditEventDto(int Id, DateTime OccurredAt, string ActorUserId, string ActorName, string ActorRole,
     string Action, string ItemKind, int? ItemId, string[] ChangedFields);

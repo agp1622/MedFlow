@@ -75,6 +75,9 @@ export const useUpcomingAppointments = (count = 5) =>
 export const usePatientAppointments = (patientId: number) =>
   useQuery({ queryKey: QK.appointmentsByPatient(patientId), queryFn: () => appointmentsApi.getByPatient(patientId), enabled: patientId > 0 })
 
+export const useAppointmentReminders = (id: number) =>
+  useQuery({ queryKey: ['appointments', 'reminders', id], queryFn: () => appointmentsApi.getReminders(id) })
+
 export const useCreateAppointment = () => {
   const qc = useQueryClient()
   return useMutation({

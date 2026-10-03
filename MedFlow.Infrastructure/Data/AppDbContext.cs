@@ -21,6 +21,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<PatientAttachment> PatientAttachments => Set<PatientAttachment>();
     public DbSet<PortalInvitation> PortalInvitations => Set<PortalInvitation>();
     public DbSet<PortalAccessLog> PortalAccessLogs => Set<PortalAccessLog>();
+    public DbSet<AppointmentReminder> AppointmentReminders => Set<AppointmentReminder>();
+    public DbSet<ReminderDelivery> ReminderDeliveries => Set<ReminderDelivery>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
     protected override void OnModelCreating(ModelBuilder builder)
@@ -157,6 +159,23 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.HasIndex(i => i.PatientId);
             e.Property(i => i.Email).HasMaxLength(256);
             e.Property(i => i.TokenHash).HasMaxLength(64);
+        });
+
+        // AppointmentReminder / ReminderDelivery (no navigations: Appointment has a soft-delete query filter)
+        builder.Entity<AppointmentReminder>(e =>
+        {
+            e.HasIndex(r => r.TokenHash);
+            e.HasIndex(r => new { r.AppointmentId, r.ScheduledAt });
+            e.Property(r => r.TokenHash).HasMaxLength(64);
+            e.Property(r => r.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(r => r.Response).HasConversion<string>().HasMaxLength(20);
+        });
+        builder.Entity<ReminderDelivery>(e =>
+        {
+            e.HasIndex(d => d.AppointmentId);
+            e.Property(d => d.Channel).HasMaxLength(20);
+            e.Property(d => d.Outcome).HasConversion<string>().HasMaxLength(20);
+            e.Property(d => d.Reason).HasMaxLength(200);
         });
 
         // PortalAccessLog

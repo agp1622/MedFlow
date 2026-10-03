@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { LoginPage, RegisterPage, ForgotPasswordPage, ResetPasswordPage, AcceptInvitePage } from '@/pages/AuthPages'
+import { AppointmentResponsePage } from '@/pages/AppointmentResponsePage'
 import { PortalLayout } from '@/components/layout/PortalLayout'
 import { PortalPage } from '@/pages/PortalPage'
 import { DashboardPage } from '@/pages/DashboardPage'
@@ -41,6 +42,9 @@ export default function App() {
 
       {/* Not wrapped in PublicRoute: opening an invitation link must work even if someone is signed in */}
       <Route path="/accept-invite" element={<AcceptInvitePage />} />
+
+      {/* Public: opened from the reminder email, authorised by its token only */}
+      <Route path="/appointment-response" element={<AppointmentResponsePage />} />
 
       <Route path="portal" element={<PatientRoute><PortalLayout /></PatientRoute>}>
         <Route index element={<PortalPage />} />

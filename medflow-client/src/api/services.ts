@@ -14,6 +14,7 @@ import type {
   AcceptInvitationRequest, InvitationResult,
   PortalProfileDto, PortalAppointmentDto, PortalPrescriptionDto, PortalInvoiceDto,
   PortalAttachmentDto, PortalNoteDto,
+  ReminderLookupDto, ReminderLogDto, ReminderAction,
   DashboardStatsDto, AppointmentStatus,
   AuditEventDto, AuditLogQuery
 } from '@/types'
@@ -60,6 +61,14 @@ export const appointmentsApi = {
   update:       (id: number, data: UpdateAppointmentRequest) => api.put(`/appointments/${id}`, data),
   updateStatus: (id: number, status: AppointmentStatus) => api.patch(`/appointments/${id}/status`, status, { headers: { 'Content-Type': 'application/json' } }),
   delete:       (id: number) => api.delete(`/appointments/${id}`),
+  getReminders: (id: number) => api.get<ReminderLogDto>(`/appointments/${id}/reminders`).then(r => r.data),
+}
+
+// ── Appointment response (public, token from the reminder email) ──────────────
+export const appointmentResponseApi = {
+  lookup:  (token: string) => api.post<ReminderLookupDto>('/appointment-response/lookup', { token }).then(r => r.data),
+  respond: (token: string, action: ReminderAction) =>
+    api.post<ReminderLookupDto>('/appointment-response/respond', { token, action }).then(r => r.data),
 }
 
 // ── Prescriptions ─────────────────────────────────────────────────────────────
