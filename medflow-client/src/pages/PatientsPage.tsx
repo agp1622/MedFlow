@@ -20,6 +20,7 @@ import { ShareToggle } from '@/components/sharing/ShareToggle'
 import { ClinicalPanel } from '@/components/clinical/ClinicalPanel'
 import { AttachmentsTab } from '@/components/attachments/AttachmentsTab'
 import { AuditLogTab } from '@/components/audit/AuditLogTab'
+import { VitalsTrends } from '@/components/vitals/VitalsTrends'
 import type { CreatePatientRequest } from '@/types'
 
 // ── Patient List ──────────────────────────────────────────────────────────────
@@ -92,7 +93,7 @@ export function PatientsPage() {
 }
 
 // ── Patient Detail ────────────────────────────────────────────────────────────
-const TABS = ['overview', 'appointments', 'prescriptions', 'invoices', 'notes', 'attachments', 'audit'] as const
+const TABS = ['overview', 'appointments', 'prescriptions', 'invoices', 'notes', 'vitals', 'attachments', 'audit'] as const
 type Tab = typeof TABS[number]
 
 export function PatientDetailPage() {
@@ -175,6 +176,7 @@ export function PatientDetailPage() {
         {tab === 'prescriptions' && <RxTab patientId={patientId} />}
         {tab === 'invoices'      && <InvTab patientId={patientId} />}
         {tab === 'notes'         && <NotesTab patientId={patientId} />}
+        {tab === 'vitals'        && <VitalsTrends patientId={patientId} />}
         {tab === 'attachments'   && <AttachmentsTab patientId={patientId} />}
         {tab === 'audit'         && <AuditLogTab patientId={patientId} />}
       </div>
