@@ -1,5 +1,6 @@
 using MedFlow.Core;
 using MedFlow.Api.Extensions;
+using MedFlow.Api.Localization;
 using MedFlow.Core.DTOs;
 using MedFlow.Core.Entities;
 using MedFlow.Core.Enums;
@@ -49,6 +50,9 @@ public class PatientsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<PatientDto>> Create([FromBody] CreatePatientRequest req)
     {
+        var invalid = ValidateInsurance(req.InsuranceGroupNumber, req.InsurancePayerId, req.InsuranceSubscriberName,
+            req.InsuranceSubscriberDateOfBirth, req.InsuranceSubscriberRelationship);
+        if (invalid != null) return invalid;
         var doctorId = User.GetUserId();
         var patient = new Patient
         {
@@ -68,6 +72,11 @@ public class PatientsController : ControllerBase
             Notes = req.Notes,
             InsuranceProvider = req.InsuranceProvider,
             InsurancePolicyNumber = req.InsurancePolicyNumber,
+            InsuranceGroupNumber = Clean(req.InsuranceGroupNumber),
+            InsurancePayerId = Clean(req.InsurancePayerId),
+            InsuranceSubscriberName = Clean(req.InsuranceSubscriberName),
+            InsuranceSubscriberDateOfBirth = req.InsuranceSubscriberDateOfBirth,
+            InsuranceSubscriberRelationship = req.InsuranceSubscriberRelationship,
             DoctorId = doctorId
         };
 
@@ -80,6 +89,9 @@ public class PatientsController : ControllerBase
     [HttpPut("{id:int}")]
     public async Task<ActionResult<PatientDto>> Update(int id, [FromBody] UpdatePatientRequest req)
     {
+        var invalid = ValidateInsurance(req.InsuranceGroupNumber, req.InsurancePayerId, req.InsuranceSubscriberName,
+            req.InsuranceSubscriberDateOfBirth, req.InsuranceSubscriberRelationship);
+        if (invalid != null) return invalid;
         var doctorId = User.GetUserId();
         var patient = await _patients.GetWithDetailsAsync(id, doctorId);
         if (patient == null) return NotFound();
@@ -102,6 +114,11 @@ public class PatientsController : ControllerBase
         patient.Notes = req.Notes;
         patient.InsuranceProvider = req.InsuranceProvider;
         patient.InsurancePolicyNumber = req.InsurancePolicyNumber;
+        patient.InsuranceGroupNumber = Clean(req.InsuranceGroupNumber);
+        patient.InsurancePayerId = Clean(req.InsurancePayerId);
+        patient.InsuranceSubscriberName = Clean(req.InsuranceSubscriberName);
+        patient.InsuranceSubscriberDateOfBirth = req.InsuranceSubscriberDateOfBirth;
+        patient.InsuranceSubscriberRelationship = req.InsuranceSubscriberRelationship;
 
         // Recording saves the in-memory edit together with the event; if it cannot be stored nothing is saved
         if (!await this.AuditAsync(_audit, id, AuditAction.Change, AuditItemKind.Patient, id, AuditDiff.Changed(before, patient)))
@@ -128,5 +145,34 @@ public class PatientsController : ControllerBase
         p.Address, p.City, p.State, p.ZipCode,
         p.PrimaryCondition, p.Allergies, p.Notes,
         p.InsuranceProvider, p.InsurancePolicyNumber,
-        lastVisit, nextAppt, p.CreatedAt, p.UpdatedAt, portalStatus);
+        lastVisit, nextAppt, p.CreatedAt, p.UpdatedAt, portalStatus,
+        p.InsuranceGroupNumber, p.InsurancePayerId, p.InsuranceSubscriberName,
+        p.InsuranceSubscriberDateOfBirth, p.InsuranceSubscriberRelationship?.ToString());
+
+    private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+    /// <summary>Localized 400 when any new insurance field breaks its limit; null when valid.</summary>
+    private BadRequestObjectResult? ValidateInsurance(string? group, string? payerId, string? subscriber,
+        DateOnly? subscriberDob, InsuranceRelationship? relationship)
+    {
+        var errors = new List<string>();
+        void Max(string? v, string key, int max)
+        {
+            if (v != null && v.Trim().Length > max) errors.Add(this.T("Patient.Insurance.MaxLength", this.T(key), max));
+        }
+        Max(group, "Patient.Insurance.Field.Group", 100);
+        Max(payerId, "Patient.Insurance.Field.PayerId", 50);
+        Max(subscriber, "Patient.Insurance.Field.Subscriber", 200);
+        if (subscriberDob != null && (subscriberDob > DateOnly.FromDateTime(DateTime.UtcNow) || subscriberDob < new DateOnly(1900, 1, 1)))
+            errors.Add(this.T("Patient.Insurance.SubscriberDobInvalid"));
+        if (relationship != null && !Enum.IsDefined(relationship.Value))
+            errors.Add(this.T("Patient.Insurance.RelationshipInvalid"));
+        if (errors.Count == 0) return null;
+        return BadRequest(new ValidationProblemDetails(new Dictionary<string, string[]> { ["insurance"] = errors.ToArray() })
+        {
+            Status = StatusCodes.Status400BadRequest,
+            Title = this.T("Error.Validation"),
+            Instance = Request.Path
+        });
+    }
 }

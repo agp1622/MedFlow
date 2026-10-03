@@ -249,6 +249,24 @@ public class InvoiceRepository : Repository<Invoice>, IInvoiceRepository
 {
     public InvoiceRepository(AppDbContext db) : base(db) { }
 
+    public async Task<ClaimSourceData?> GetClaimSourceAsync(int id, string doctorId)
+    {
+        var inv = await _db.Invoices.AsNoTracking()
+            .Include(i => i.Patient).Include(i => i.Doctor).Include(i => i.Appointment)
+            .FirstOrDefaultAsync(i => i.Id == id && i.DoctorId == doctorId
+                && i.Patient != null && i.Patient.DoctorId == doctorId);
+        if (inv?.Patient == null || inv.Doctor == null) return null;
+        var p = inv.Patient;
+        return new ClaimSourceData(
+            inv.Id, inv.PatientId, inv.InvoiceNumber, inv.Status.ToString(), inv.ServiceDescription,
+            inv.Amount, inv.InvoiceDate, inv.Appointment?.ScheduledAt,
+            p.FirstName, p.LastName, p.DateOfBirth, p.Gender, p.Phone,
+            p.Address, p.City, p.State, p.ZipCode,
+            p.InsuranceProvider, p.InsurancePolicyNumber, p.InsuranceGroupNumber, p.InsurancePayerId,
+            p.InsuranceSubscriberName, p.InsuranceSubscriberDateOfBirth, p.InsuranceSubscriberRelationship,
+            inv.Doctor.FullName, inv.Doctor.Phone);
+    }
+
     public async Task<PagedResult<InvoiceDto>> GetPagedAsync(string doctorId, QueryParams q)
     {
         var query = _db.Invoices.Include(i => i.Patient).Where(i => i.DoctorId == doctorId);

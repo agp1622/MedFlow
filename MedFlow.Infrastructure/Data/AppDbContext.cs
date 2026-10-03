@@ -62,6 +62,10 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.Property(p => p.BloodType).HasConversion<string>();
             e.Property(p => p.Gender).HasConversion<string>();
             e.Property(p => p.Status).HasConversion<string>();
+            e.Property(p => p.InsuranceGroupNumber).HasMaxLength(100);
+            e.Property(p => p.InsurancePayerId).HasMaxLength(50);
+            e.Property(p => p.InsuranceSubscriberName).HasMaxLength(200);
+            e.Property(p => p.InsuranceSubscriberRelationship).HasConversion<string>().HasMaxLength(16);
             e.Property(p => p.Email).HasMaxLength(256);
             e.Property(p => p.FirstName).HasMaxLength(100);
             e.Property(p => p.LastName).HasMaxLength(100);
