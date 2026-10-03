@@ -96,6 +96,13 @@ public class MedicalNote : BaseEntity
     public bool SharedWithPatient { get; set; }
 }
 
+public class NoteTemplate : BaseEntity
+{
+    public string DoctorId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Body { get; set; } = string.Empty;
+}
+
 public class PatientAttachment : BaseEntity
 {
     public int PatientId { get; set; }
@@ -173,4 +180,44 @@ public class IntakeSubmission : BaseEntity
     public string? DecidedByDoctorId { get; set; }
     public DateTime? DecidedAt { get; set; }
     public string? RejectionReason { get; set; }
+}
+
+/// <summary>A recurring weekly window (UTC) in which a doctor accepts online bookings.</summary>
+public class DoctorAvailability : BaseEntity
+{
+    public string DoctorId { get; set; } = string.Empty;
+    public DayOfWeek DayOfWeek { get; set; }
+    public TimeOnly StartTime { get; set; }
+    public TimeOnly EndTime { get; set; }
+}
+
+/// <summary>A date on which a doctor offers no online slots.</summary>
+public class DoctorBlockedDate : BaseEntity
+{
+    public string DoctorId { get; set; } = string.Empty;
+    public DateOnly Date { get; set; }
+    public string? Label { get; set; }
+}
+
+/// <summary>One per (appointment, scheduled time): the emailed response link and its state.</summary>
+public class AppointmentReminder : BaseEntity
+{
+    public int AppointmentId { get; set; }
+    public DateTime ScheduledAt { get; set; }             // snapshot of the appointment time this reminder is for
+    public string TokenHash { get; set; } = string.Empty; // SHA-256 of the emailed token
+    public ReminderStatus Status { get; set; } = ReminderStatus.Pending;
+    public int Attempts { get; set; }
+    public DateTime? SentAt { get; set; }
+    public ReminderResponse Response { get; set; } = ReminderResponse.None;
+    public DateTime? RespondedAt { get; set; }
+}
+
+public class ReminderDelivery : BaseEntity
+{
+    public int AppointmentId { get; set; }
+    public int ReminderId { get; set; }
+    public DateTime AttemptedAt { get; set; } = DateTime.UtcNow;
+    public string Channel { get; set; } = "Email";
+    public ReminderOutcome Outcome { get; set; }
+    public string? Reason { get; set; }
 }

@@ -2,12 +2,15 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { LoginPage, RegisterPage, ForgotPasswordPage, ResetPasswordPage, AcceptInvitePage } from '@/pages/AuthPages'
+import { AppointmentResponsePage } from '@/pages/AppointmentResponsePage'
 import { PortalLayout } from '@/components/layout/PortalLayout'
 import { PortalPage } from '@/pages/PortalPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { PatientsPage, PatientDetailPage } from '@/pages/PatientsPage'
+import { NoteTemplatesPage } from '@/pages/NoteTemplatesPage'
 import { AppointmentsPage } from '@/pages/AppointmentsPage'
 import { IntakeFormPage, IntakeListPage, IntakeReviewPage } from '@/pages/IntakePages'
+import { AvailabilityPage } from '@/pages/AvailabilityPage'
 import { PrescriptionsPage, BillingPage } from '@/pages/BillingPrescriptionsPages'
 
 const homeFor = (role?: string) => (role === 'Patient' ? '/portal' : '/')
@@ -45,6 +48,9 @@ export default function App() {
       {/* Public, token-gated intake form: no account needed, works whether or not someone is signed in */}
       <Route path="/intake/:token" element={<IntakeFormPage />} />
 
+      {/* Public: opened from the reminder email, authorised by its token only */}
+      <Route path="/appointment-response" element={<AppointmentResponsePage />} />
+
       <Route path="portal" element={<PatientRoute><PortalLayout /></PatientRoute>}>
         <Route index element={<PortalPage />} />
       </Route>
@@ -56,7 +62,9 @@ export default function App() {
         <Route path="intake" element={<IntakeListPage />} />
         <Route path="intake/review/:id" element={<IntakeReviewPage />} />
         <Route path="appointments" element={<AppointmentsPage />} />
+        <Route path="availability" element={<AvailabilityPage />} />
         <Route path="prescriptions" element={<PrescriptionsPage />} />
+        <Route path="templates" element={<NoteTemplatesPage />} />
         <Route path="billing" element={<BillingPage />} />
       </Route>
 

@@ -8,3 +8,10 @@ public enum InvoiceStatus { Draft, Pending, Paid, Overdue, Cancelled }
 public enum Gender { Male, Female, NonBinary, PreferNotToSay }
 public enum BloodType { APos, ANeg, BPos, BNeg, ABPos, ABNeg, OPos, ONeg, Unknown }
 public enum IntakeStatus { Pending, Accepted, Rejected }
+
+public enum ReminderStatus { Pending, Sent, Failed, Skipped }
+public enum ReminderOutcome { Sent, Failed, Skipped }
+public enum ReminderResponse { None, Confirmed, Cancelled }
+public enum ReminderAction { Confirm, Cancel }
+public enum AuditAction { View, Change }
+public enum AuditItemKind { Patient, Appointment, Prescription, Invoice, VitalSign, Note, Attachment, PortalAccess, AuditLog }

@@ -143,6 +143,16 @@ export interface CreateMedicalNoteRequest {
   patientId: number; content: string; visitType?: string
 }
 
+// ── NoteTemplate ──────────────────────────────────────────────────────────────
+export interface NoteTemplateDto {
+  id: number; name: string; body: string; isBuiltIn: boolean; updatedAt?: string
+}
+export interface CreateNoteTemplateRequest { name: string; body: string }
+export type UpdateNoteTemplateRequest = CreateNoteTemplateRequest
+export interface CopyForwardDto {
+  noteId: number; content: string; visitType?: string; noteDate: string
+}
+
 // ── PatientAttachment ─────────────────────────────────────────────────────────
 export interface PatientAttachmentDto {
   id: number; patientId: number; fileName: string; contentType: string
@@ -159,6 +169,15 @@ export interface DashboardStatsDto {
   todaySchedule: AppointmentDto[]
   recentPatients: PatientSummaryDto[]
 }
+
+// ── Appointment reminders ─────────────────────────────────────────────────────
+export type ReminderAction = 'Confirm' | 'Cancel'
+export interface ReminderLookupDto {
+  appointmentAt: string; durationMinutes: number; doctorName: string; location?: string
+  status: AppointmentStatus; canRespond: boolean
+}
+export interface ReminderDeliveryDto { attemptedAt: string; channel: string; outcome: 'Sent' | 'Failed' | 'Skipped'; reason?: string }
+export interface ReminderLogDto { response: 'None' | 'Confirmed' | 'Cancelled'; respondedAt?: string; deliveries: ReminderDeliveryDto[] }
 
 // ── Patient portal ────────────────────────────────────────────────────────────
 export interface PortalProfileDto { firstName: string; lastName: string; doctorName: string }
@@ -208,4 +227,24 @@ export interface IntakeSubmissionDetail {
   answers: IntakeAnswers; current: IntakeAnswers | null
   consent: { consentVersion: string; consentAgreed: boolean; signatureName: string; signedAt: string }
   decidedAt?: string | null; rejectionReason?: string | null
+
+// ── Online booking ────────────────────────────────────────────────────────────
+export type WeekDay = 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday'
+export interface AvailabilityWindowInput { dayOfWeek: WeekDay; startTime: string; endTime: string }
+export interface AvailabilityWindowDto extends AvailabilityWindowInput { id: number }
+export interface BlockedDateDto { id: number; date: string; label?: string }
+export interface AvailabilityDto { windows: AvailabilityWindowDto[]; blockedDates: BlockedDateDto[] }
+export interface SetWeeklyAvailabilityRequest { windows: AvailabilityWindowInput[] }
+export interface CreateBlockedDateRequest { date: string; label?: string }
+export interface BookingSlotDto { startsAt: string; durationMinutes: number }
+export interface BookAppointmentRequest { startsAt: string; reason?: string }
+
+// ── Audit log ─────────────────────────────────────────────────────────────────
+export type AuditAction = 'View' | 'Change'
+export interface AuditEventDto {
+  id: number; occurredAt: string; actorUserId: string; actorName: string; actorRole: string
+  action: AuditAction; itemKind: string; itemId: number | null; changedFields: string[]
+}
+export interface AuditLogQuery {
+  action?: AuditAction; actor?: string; from?: string; to?: string; page?: number; pageSize?: number
 }

@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import {
   usePortalMe, usePortalAppointments, usePortalPrescriptions, usePortalInvoices,
-  usePortalAttachments, usePortalNotes,
+  usePortalAttachments, usePortalNotes, usePortalSlots, useBookAppointment,
 } from '@/hooks/queries'
 import { portalApi } from '@/api/services'
 import { Badge, EmptyState, PageSpinner, Spinner } from '@/components/ui'
 import { fmt } from '@/utils/format'
-import { CalendarDays, Pill, CreditCard, FileText, StickyNote, Download } from 'lucide-react'
+import { CalendarPlus, CalendarDays, Pill, CreditCard, FileText, StickyNote, Download } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 type Q<T> = { data?: T[]; isLoading: boolean; isError: boolean }
@@ -26,6 +26,52 @@ function Section<T>({ icon, title, query, empty, children }: {
         <EmptyState title={empty} />
       ) : (
         children(query.data)
+      )}
+    </section>
+  )
+}
+
+function BookingSection() {
+  const [date, setDate] = useState('')
+  const [reason, setReason] = useState('')
+  const slots = usePortalSlots(date)
+  const book = useBookAppointment()
+  const today = new Date().toISOString().slice(0, 10)
+
+  return (
+    <section className="card p-5">
+      <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900 mb-4">
+        <CalendarPlus size={18} className="text-primary-600" />Book an appointment
+      </h2>
+      <div className="flex flex-wrap gap-3 mb-4">
+        <div>
+          <label className="label" htmlFor="booking-date">Date</label>
+          <input id="booking-date" className="input" type="date" min={today} value={date}
+            onChange={e => setDate(e.target.value)} />
+        </div>
+        <div className="flex-1 min-w-[200px]">
+          <label className="label" htmlFor="booking-reason">Reason (optional)</label>
+          <input id="booking-reason" className="input" maxLength={500} value={reason}
+            onChange={e => setReason(e.target.value)} placeholder="Reason for visit..." />
+        </div>
+      </div>
+      {!date ? (
+        <p className="text-sm text-gray-500">Choose a date to see open times (UTC).</p>
+      ) : slots.isLoading ? (
+        <div className="flex justify-center py-4"><Spinner className="w-5 h-5" /></div>
+      ) : slots.isError ? (
+        <p className="text-sm text-red-500">Could not load open times. Please try again.</p>
+      ) : !slots.data || slots.data.length === 0 ? (
+        <EmptyState title="No open times on this date" />
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {slots.data.map(s => (
+            <button key={s.startsAt} className="btn-secondary" disabled={book.isPending}
+              onClick={() => book.mutate({ startsAt: s.startsAt, reason: reason.trim() || undefined })}>
+              {new Date(s.startsAt).toISOString().slice(11, 16)}
+            </button>
+          ))}
+        </div>
       )}
     </section>
   )
@@ -71,6 +117,8 @@ export function PortalPage() {
         <h1 className="text-2xl font-bold text-gray-900">Hello, {me.data?.firstName}</h1>
         <p className="text-sm text-gray-500 mt-1">Your records from {me.data?.doctorName}</p>
       </div>
+
+      <BookingSection />
 
       <Section icon={<CalendarDays size={18} className="text-primary-600" />} title="Upcoming appointments"
         query={appointments} empty="No upcoming appointments">
