@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi } from '@/api/services'
-import type { QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest } from '@/types'
+import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, noteTemplatesApi, attachmentsApi, portalApi } from '@/api/services'
+import type { QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest, CreateNoteTemplateRequest } from '@/types'
 import toast from 'react-hot-toast'
 
 // Keys
@@ -18,6 +18,7 @@ export const QK = {
   invoicesByPatient: (pid: number) => ['invoices', 'patient', pid],
   vitals: (pid: number) => ['vitals', pid],
   notes: (pid: number) => ['notes', pid],
+  noteTemplates: ['noteTemplates'],
   attachments: (pid: number) => ['attachments', pid],
   portal: (section: string) => ['portal', section],
 }
@@ -161,6 +162,35 @@ export const useCreateVital = () => {
 // ── Notes ─────────────────────────────────────────────────────────────────────
 export const usePatientNotes = (patientId: number) =>
   useQuery({ queryKey: QK.notes(patientId), queryFn: () => notesApi.getByPatient(patientId), enabled: patientId > 0 })
+
+export const useNoteTemplates = () =>
+  useQuery({
+    queryKey: QK.noteTemplates,
+    queryFn: async () => {
+      const [builtIn, own] = await Promise.all([noteTemplatesApi.getBuiltIn(), noteTemplatesApi.getAll({ page: 1, pageSize: 100 })])
+      return [...builtIn, ...own.items]
+    },
+  })
+
+export const useSaveNoteTemplate = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id?: number; data: CreateNoteTemplateRequest }) =>
+      id ? noteTemplatesApi.update(id, data) : noteTemplatesApi.create(data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: QK.noteTemplates }); toast.success('Template saved') },
+  })
+}
+
+export const useDeleteNoteTemplate = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => noteTemplatesApi.delete(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: QK.noteTemplates }); toast.success('Template deleted') },
+  })
+}
+
+export const useCopyForward = () =>
+  useMutation({ mutationFn: (patientId: number) => notesApi.getLatest(patientId) })
 
 export const useCreateNote = () => {
   const qc = useQueryClient()
