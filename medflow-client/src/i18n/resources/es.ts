@@ -129,6 +129,7 @@ export const es = {
     patientCreateFailed: 'No se pudo crear el paciente',
     patientUpdated: 'Paciente actualizado',
     patientUpdateFailed: 'No se pudo actualizar el paciente',
+    claimExportFailed: 'No se pudo exportar el borrador de reclamación',
     patientRemoved: 'Paciente eliminado',
     patientRemoveFailed: 'No se pudo eliminar el paciente',
     appointmentScheduled: 'Cita programada',
@@ -300,6 +301,13 @@ export const es = {
       bloodType: 'Grupo sanguíneo', email: 'Correo electrónico', phone: 'Teléfono',
       insurance: 'Seguro', allergies: 'Alergias',
     },
+    insurance: {
+      title: 'Seguro', edit: 'Editar seguro', none: 'No hay datos de seguro registrados.', save: 'Guardar',
+      provider: 'Aseguradora', policyNumber: 'Número de póliza', groupNumber: 'Número de grupo', payerId: 'ID del pagador',
+      subscriberName: 'Nombre del titular', subscriberDob: 'Fecha de nacimiento del titular', relationship: 'Relación con el titular',
+      futureDob: 'La fecha de nacimiento no puede ser futura.',
+      relationships: { Self: 'Titular', Spouse: 'Cónyuge', Child: 'Hijo/a', Other: 'Otro' },
+    },
     tabs: {
       overview: 'Resumen', appointments: 'Citas', prescriptions: 'Recetas', invoices: 'Facturas',
       notes: 'Notas', attachments: 'Archivos adjuntos', audit: 'Registro de auditoría', vitals: 'Signos vitales',
@@ -438,6 +446,10 @@ export const es = {
     },
     empty: 'No hay facturas',
     emptyHint: 'Cree su primera factura',
+    claim: {
+      exportTitle: 'Exportar borrador de reclamación ({{format}})',
+      draftNotice: 'Solo un borrador: datos por casilla del CMS-1500 para revisión. No es el formulario oficial, no es un archivo X12 837 y ningún pagador lo ha validado. Faltan CPT/HCPCS, CIE-10, NPI e identificación fiscal.',
+    },
     markPaid: 'Marcar como pagada',
     paid: 'Pagada',
     amountPositive: 'Debe ser mayor que 0',

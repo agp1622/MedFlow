@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
-  usePatients, usePatient, useCreatePatient, useDeletePatient,
+  usePatients, usePatient, useCreatePatient, useUpdatePatient, useDeletePatient,
   usePatientAppointments, usePatientPrescriptions, usePatientInvoices,
   usePatientVitals, usePatientNotes, useCreateNote, useDeleteNote,
   useSetNoteSharing, useNoteTemplates, useCopyForward, useInvitePatient, useRevokePortalAccess, useSendIntakeLink,
@@ -22,7 +22,7 @@ import { AttachmentsTab } from '@/components/attachments/AttachmentsTab'
 import { PrintPrescriptionButton } from '@/components/prescriptions/PrintPrescriptionButton'
 import { AuditLogTab } from '@/components/audit/AuditLogTab'
 import { VitalsTrends } from '@/components/vitals/VitalsTrends'
-import type { CreatePatientRequest } from '@/types'
+import type { CreatePatientRequest, UpdatePatientRequest, PatientDto, InsuranceRelationship } from '@/types'
 
 // ── Patient List ──────────────────────────────────────────────────────────────
 export function PatientsPage() {
@@ -216,7 +216,118 @@ function OverviewTab({ patient, patientId }: { patient: ReturnType<typeof usePat
         <h3 className="font-bold text-gray-800 mb-4">{t('patients.medicalNotes')}</h3>
         <p className="text-sm text-gray-600 leading-relaxed">{patient?.notes ?? t('patients.noNotesOnFile')}</p>
       </div>
+      {patient && <InsuranceCard patient={patient} />}
     </div>
+  )
+}
+
+// ── Insurance ─────────────────────────────────────────────────────────────────
+function InsuranceCard({ patient }: { patient: PatientDto }) {
+  const { t } = useTranslation()
+  const [editing, setEditing] = useState(false)
+  const rel = patient.insuranceSubscriberRelationship
+  const rows: [string, string | undefined][] = [
+    ['provider', patient.insuranceProvider],
+    ['policyNumber', patient.insurancePolicyNumber],
+    ['groupNumber', patient.insuranceGroupNumber],
+    ['payerId', patient.insurancePayerId],
+    ['subscriberName', patient.insuranceSubscriberName],
+    ['subscriberDob', patient.insuranceSubscriberDateOfBirth ? fmt.date(patient.insuranceSubscriberDateOfBirth) : undefined],
+    ['relationship', rel ? t(`patients.insurance.relationships.${rel}`) : undefined],
+  ]
+  const hasAny = rows.some(([, v]) => v)
+  return (
+    <div className="card p-5 lg:col-span-2">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-bold text-gray-800">{t('patients.insurance.title')}</h3>
+        <button className="btn-secondary text-xs" onClick={() => setEditing(true)}>{t('patients.insurance.edit')}</button>
+      </div>
+      {!hasAny ? <p className="text-gray-400 text-sm">{t('patients.insurance.none')}</p> : (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 break-words">
+          {rows.map(([k, v]) => (
+            <div key={k}>
+              <p className="label">{t(`patients.insurance.${k as 'provider'}`)}</p>
+              <p className="text-sm font-medium text-gray-800">{v ?? '—'}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      {editing && <EditInsuranceModal patient={patient} onClose={() => setEditing(false)} />}
+    </div>
+  )
+}
+
+const RELATIONSHIPS: InsuranceRelationship[] = ['Self', 'Spouse', 'Child', 'Other']
+const insMax = (max: number, field: string) =>
+  z.string().max(max, `validation.maxLength?${JSON.stringify({ field: `patients.insurance.${field}`, max })}`).optional()
+const insuranceSchema = z.object({
+  insuranceProvider: insMax(200, 'provider'),
+  insurancePolicyNumber: insMax(100, 'policyNumber'),
+  insuranceGroupNumber: insMax(100, 'groupNumber'),
+  insurancePayerId: insMax(50, 'payerId'),
+  insuranceSubscriberName: insMax(200, 'subscriberName'),
+  insuranceSubscriberDateOfBirth: z.string().optional()
+    .refine(v => !v || new Date(v) <= new Date(), 'patients.insurance.futureDob'),
+  insuranceSubscriberRelationship: z.union([z.enum(['Self', 'Spouse', 'Child', 'Other']), z.literal('')]).optional(),
+})
+type InsuranceForm = z.infer<typeof insuranceSchema>
+
+function EditInsuranceModal({ patient, onClose }: { patient: PatientDto; onClose: () => void }) {
+  const { t } = useTranslation()
+  const update = useUpdatePatient(patient.id)
+  const { register, handleSubmit, formState: { errors } } = useForm<InsuranceForm>({
+    resolver: zodResolver(insuranceSchema),
+    defaultValues: {
+      insuranceProvider: patient.insuranceProvider ?? '', insurancePolicyNumber: patient.insurancePolicyNumber ?? '',
+      insuranceGroupNumber: patient.insuranceGroupNumber ?? '', insurancePayerId: patient.insurancePayerId ?? '',
+      insuranceSubscriberName: patient.insuranceSubscriberName ?? '',
+      insuranceSubscriberDateOfBirth: patient.insuranceSubscriberDateOfBirth ?? '',
+      insuranceSubscriberRelationship: patient.insuranceSubscriberRelationship ?? '',
+    },
+  })
+
+  // The update endpoint replaces the whole record, so every other field is sent back unchanged
+  const onSubmit = (v: InsuranceForm) => {
+    const req: UpdatePatientRequest = {
+      firstName: patient.firstName, lastName: patient.lastName, dateOfBirth: patient.dateOfBirth,
+      gender: patient.gender as UpdatePatientRequest['gender'], bloodType: patient.bloodType as UpdatePatientRequest['bloodType'],
+      status: patient.status, email: patient.email, phone: patient.phone,
+      address: patient.address, city: patient.city, state: patient.state, zipCode: patient.zipCode,
+      primaryCondition: patient.primaryCondition, allergies: patient.allergies, notes: patient.notes,
+      insuranceProvider: v.insuranceProvider || undefined, insurancePolicyNumber: v.insurancePolicyNumber || undefined,
+      insuranceGroupNumber: v.insuranceGroupNumber || undefined, insurancePayerId: v.insurancePayerId || undefined,
+      insuranceSubscriberName: v.insuranceSubscriberName || undefined,
+      insuranceSubscriberDateOfBirth: v.insuranceSubscriberDateOfBirth || undefined,
+      insuranceSubscriberRelationship: v.insuranceSubscriberRelationship || undefined,
+    }
+    update.mutate(req, { onSuccess: onClose })
+  }
+
+  return (
+    <Modal title={t('patients.insurance.edit')} onClose={onClose}>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Field label={t('patients.insurance.provider')} error={errors.insuranceProvider?.message}><input className="input" {...register('insuranceProvider')} /></Field>
+          <Field label={t('patients.insurance.policyNumber')} error={errors.insurancePolicyNumber?.message}><input className="input" {...register('insurancePolicyNumber')} /></Field>
+          <Field label={t('patients.insurance.groupNumber')} error={errors.insuranceGroupNumber?.message}><input className="input" {...register('insuranceGroupNumber')} /></Field>
+          <Field label={t('patients.insurance.payerId')} error={errors.insurancePayerId?.message}><input className="input" {...register('insurancePayerId')} /></Field>
+          <Field label={t('patients.insurance.subscriberName')} error={errors.insuranceSubscriberName?.message}><input className="input" {...register('insuranceSubscriberName')} /></Field>
+          <Field label={t('patients.insurance.subscriberDob')} error={errors.insuranceSubscriberDateOfBirth?.message}><input className="input" type="date" {...register('insuranceSubscriberDateOfBirth')} /></Field>
+          <Field label={t('patients.insurance.relationship')} error={errors.insuranceSubscriberRelationship?.message}>
+            <select className="input" {...register('insuranceSubscriberRelationship')}>
+              <option value="">{t('common.select')}</option>
+              {RELATIONSHIPS.map(r => <option key={r} value={r}>{t(`patients.insurance.relationships.${r}`)}</option>)}
+            </select>
+          </Field>
+        </div>
+        <div className="flex justify-end gap-3 pt-2">
+          <button type="button" className="btn-ghost" onClick={onClose}>{t('common.cancel')}</button>
+          <button type="submit" className="btn-primary" disabled={update.isPending}>
+            {update.isPending ? <Spinner className="w-4 h-4" /> : t('patients.insurance.save')}
+          </button>
+        </div>
+      </form>
+    </Modal>
   )
 }
 
