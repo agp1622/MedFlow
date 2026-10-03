@@ -7,7 +7,7 @@ import {
   usePatients, usePatient, useCreatePatient, useDeletePatient,
   usePatientAppointments, usePatientPrescriptions, usePatientInvoices,
   usePatientVitals, usePatientNotes, useCreateNote, useDeleteNote,
-  useSetNoteSharing, useInvitePatient, useRevokePortalAccess,
+  useSetNoteSharing, useInvitePatient, useRevokePortalAccess, useSendIntakeLink,
 } from '@/hooks/queries'
 import { PageHeader } from '@/components/layout/AppLayout'
 import { Avatar, Badge, SearchInput, PageSpinner, EmptyState, Pagination, Spinner } from '@/components/ui'
@@ -97,6 +97,7 @@ export function PatientDetailPage() {
   const { data: patient, isLoading } = usePatient(patientId)
   const invite = useInvitePatient()
   const revoke = useRevokePortalAccess()
+  const sendIntake = useSendIntakeLink()
 
   if (isLoading) return <PageSpinner />
   if (!patient) return <div className="p-8 text-gray-500">Patient not found</div>
@@ -133,6 +134,11 @@ export function PatientDetailPage() {
           </div>
           <div className="flex flex-col items-end gap-2">
             <Badge status={patient.status} />
+            <button className="btn-secondary text-xs" disabled={sendIntake.isPending || !patient.email?.trim()}
+              title={patient.email?.trim() ? undefined : 'An email is required'}
+              onClick={() => sendIntake.mutate(patientId)}>
+              {sendIntake.isPending ? <Spinner className="w-3.5 h-3.5" /> : 'Send intake form'}
+            </button>
             <PortalAccess
               status={patient.portalStatus ?? 'NotInvited'}
               hasEmail={!!patient.email?.trim()}

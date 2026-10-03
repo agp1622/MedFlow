@@ -26,8 +26,8 @@
 
 - [x] T011 [US2] Public `GET/POST /api/intake/{token}` in `MedFlow.Api/Controllers/IntakeController.cs` (anonymous, rate limited, uniform 404, server timestamp, consent version constant, atomic single use)
 - [x] T012 [US2] Tests in `MedFlow.Api.Tests/IntakeTests.cs`: submit ok + consent fields, missing consent/signature 400, over-length 400, future DOB 400, uniform 404 for unknown/expired/used/superseded, double submit only one succeeds, rate limit returns 429 after the configured limit, record unchanged
-- [ ] T013 [P] [US2] Client types in `medflow-client/src/types/` and `intakeApi` in `medflow-client/src/api/services.ts`
-- [ ] T014 [US2] Public intake page with react-hook-form+zod in `medflow-client/src/pages/IntakePages.tsx`; route `/intake/:token` (unauthenticated) in `medflow-client/src/App.tsx`
+- [x] T013 [P] [US2] Client types in `medflow-client/src/types/` and `intakeApi` in `medflow-client/src/api/services.ts`
+- [x] T014 [US2] Public intake page with react-hook-form+zod in `medflow-client/src/pages/IntakePages.tsx`; route `/intake/:token` (unauthenticated) in `medflow-client/src/App.tsx`
 
 ## Phase 4: US3 Doctor review (P1)
 
@@ -35,12 +35,12 @@
 
 - [x] T015 [US3] Doctor endpoints list/detail/accept/reject in `MedFlow.Api/Controllers/IntakeReviewController.cs` (repository applies accept in one transaction; Notes append, never overwrite)
 - [x] T016 [US3] Tests in `MedFlow.Api.Tests/IntakeTests.cs`: accept updates fields and appends Notes, reject leaves record, repeat decision 409, cross-doctor 404 on view/accept/reject, patient role 403, consent immutability (no mutation route)
-- [ ] T017 [US3] Client: review list + detail page with accept/reject (TanStack Query) in `medflow-client/src/pages/IntakePages.tsx`, nav entry and routes in `medflow-client/src/App.tsx`, "Send intake form" button on the patient page in `medflow-client/src/pages/PatientsPage.tsx`
+- [x] T017 [US3] Client: review list + detail page with accept/reject (TanStack Query) in `medflow-client/src/pages/IntakePages.tsx`, nav entry and routes in `medflow-client/src/App.tsx`, "Send intake form" button on the patient page in `medflow-client/src/pages/PatientsPage.tsx`
 
 ## Phase 5: Polish
 
 - [x] T018 Verify `Patient.Notes` is not exposed through portal DTOs; note outcome in tests or research
-- [ ] T019 Run `dotnet build`, `dotnet test`, `npm run build`, `npm run lint`; walk `quickstart.md`
+- [x] T019 Run `dotnet build`, `dotnet test`, `npm run build`, `npm run lint`; walk `quickstart.md`
 
 ## Dependencies
 

@@ -13,6 +13,7 @@ import type {
   AcceptInvitationRequest, InvitationResult,
   PortalProfileDto, PortalAppointmentDto, PortalPrescriptionDto, PortalInvoiceDto,
   PortalAttachmentDto, PortalNoteDto,
+  IntakeFormInfo, IntakeSubmitRequest, IntakeSubmissionSummary, IntakeSubmissionDetail, IntakeStatus,
   DashboardStatsDto, AppointmentStatus
 } from '@/types'
 
@@ -151,4 +152,19 @@ export const portalApi = {
     link.remove()
     window.URL.revokeObjectURL(url)
   },
+}
+
+// ── Intake forms ──────────────────────────────────────────────────────────────
+export const intakeApi = {
+  // Public (token-gated) form used by patients
+  getForm:   (token: string) => api.get<IntakeFormInfo>(`/intake/${encodeURIComponent(token)}`).then(r => r.data),
+  submit:    (token: string, data: IntakeSubmitRequest) =>
+    api.post<{ message: string }>(`/intake/${encodeURIComponent(token)}`, data).then(r => r.data),
+  // Doctor
+  sendLink:  (patientId: number) => api.post<InvitationResult>(`/patients/${patientId}/intake-link`).then(r => r.data),
+  list:      (params?: { status?: IntakeStatus; page?: number; pageSize?: number }) =>
+    api.get<PagedResult<IntakeSubmissionSummary>>('/intake-submissions', { params }).then(r => r.data),
+  getById:   (id: number) => api.get<IntakeSubmissionDetail>(`/intake-submissions/${id}`).then(r => r.data),
+  accept:    (id: number) => api.post(`/intake-submissions/${id}/accept`),
+  reject:    (id: number, reason?: string) => api.post(`/intake-submissions/${id}/reject`, { reason }),
 }
