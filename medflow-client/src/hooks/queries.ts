@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi, clinicalApi, intakeApi, noteTemplatesApi, availabilityApi, auditApi } from '@/api/services'
-import type { QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest, SaveAllergyRequest, SaveProblemRequest, SaveMedicationRequest, IntakeStatus, CreateNoteTemplateRequest, AuditLogQuery, ClaimExportFormat } from '@/types'
+import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi, clinicalApi, labsApi, intakeApi, noteTemplatesApi, availabilityApi, auditApi, reportsApi } from '@/api/services'
+import type { ReportQuery, QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest, SaveAllergyRequest, SaveProblemRequest, SaveMedicationRequest, SaveLabOrderRequest, SaveLabResultRequest, IntakeStatus, CreateNoteTemplateRequest, AuditLogQuery, ClaimExportFormat } from '@/types'
 import toast from 'react-hot-toast'
 import i18n from '@/i18n'
 
@@ -20,6 +20,7 @@ export const QK = {
   vitals: (pid: number) => ['vitals', pid],
   notes: (pid: number) => ['notes', pid],
   clinical: (pid: number) => ['clinical', pid],
+  labs: (pid: number) => ['labs', pid],
   noteTemplates: ['noteTemplates'],
   attachments: (pid: number) => ['attachments', pid],
   auditLog: (pid: number, q?: AuditLogQuery) => ['audit-log', pid, q],
@@ -31,6 +32,16 @@ export const QK = {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export const useDashboard = () =>
   useQuery({ queryKey: QK.dashboard, queryFn: dashboardApi.getStats, staleTime: 60_000 })
+
+// ── Reports ───────────────────────────────────────────────────────────────────
+export const useRevenueReport = (q: ReportQuery, enabled = true) =>
+  useQuery({ queryKey: ['reports', 'revenue', q], queryFn: () => reportsApi.revenue(q), enabled })
+export const useVisitsReport = (q: ReportQuery, enabled = true) =>
+  useQuery({ queryKey: ['reports', 'visits', q], queryFn: () => reportsApi.visits(q), enabled })
+export const useNoShowReport = (q: ReportQuery, enabled = true) =>
+  useQuery({ queryKey: ['reports', 'no-shows', q], queryFn: () => reportsApi.noShows(q), enabled })
+export const useArAgingReport = (page: number, enabled = true) =>
+  useQuery({ queryKey: ['reports', 'ar-aging', page], queryFn: () => reportsApi.arAging(page, 20), enabled })
 
 // ── Patients ──────────────────────────────────────────────────────────────────
 export const usePatients = (q?: QueryParams) =>
@@ -252,6 +263,40 @@ export const useDeleteNote = () => {
     onSuccess: (_, vars) => { qc.invalidateQueries({ queryKey: QK.notes(vars.patientId) }); toast.success(i18n.t('toasts.noteDeleted')) },
   })
 }
+
+// ── Lab orders and results ────────────────────────────────────────────────────
+export const usePatientLabs = (patientId: number) =>
+  useQuery({ queryKey: QK.labs(patientId), queryFn: () => labsApi.getAll(patientId), enabled: patientId > 0 })
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here
+const labError = (err: any) => {
+  const d = err?.response?.data
+  const firstValidation = d?.errors ? (Object.values(d.errors).flat() as string[])[0] : undefined
+  toast.error(d?.message || firstValidation || i18n.t('labs.saveFailed'))
+}
+
+/** One hook for every lab order/result change; refreshes the patient's labs on success. */
+function useLabMutation<V>(fn: (v: V) => Promise<unknown>, patientId: number, messageKey: 'labs.saved' | 'labs.removed') {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: QK.labs(patientId) }); toast.success(i18n.t(messageKey)) },
+    onError: labError,
+  })
+}
+
+export const useSaveLabOrder = (patientId: number) =>
+  useLabMutation(({ id, data }: { id?: number; data: SaveLabOrderRequest }) =>
+    id ? labsApi.updateOrder(patientId, id, data) : labsApi.createOrder(patientId, data), patientId, 'labs.saved')
+export const useCancelLabOrder = (patientId: number) =>
+  useLabMutation((id: number) => labsApi.cancelOrder(patientId, id), patientId, 'labs.saved')
+export const useDeleteLabOrder = (patientId: number) =>
+  useLabMutation((id: number) => labsApi.deleteOrder(patientId, id), patientId, 'labs.removed')
+export const useSaveLabResult = (patientId: number, orderId: number) =>
+  useLabMutation(({ id, data }: { id?: number; data: SaveLabResultRequest }) =>
+    id ? labsApi.updateResult(patientId, orderId, id, data) : labsApi.addResult(patientId, orderId, data), patientId, 'labs.saved')
+export const useDeleteLabResult = (patientId: number, orderId: number) =>
+  useLabMutation((id: number) => labsApi.deleteResult(patientId, orderId, id), patientId, 'labs.removed')
 
 // ── Clinical lists ────────────────────────────────────────────────────────────
 export const usePatientClinical = (patientId: number) =>

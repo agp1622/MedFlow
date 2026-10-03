@@ -171,8 +171,33 @@ public interface IReminderRepository
     Task<ReminderLogDto?> GetLogAsync(int appointmentId, string doctorId);
 }
 
+/// <summary>Report aggregates for one doctor (no clinic layer yet). Dates are inclusive UTC calendar days.</summary>
+public interface IReportRepository
+{
+    Task<RevenueReport> GetRevenueAsync(string doctorId, DateOnly from, DateOnly to, ReportPeriod period);
+    Task<VisitsReport> GetVisitsAsync(string doctorId, DateOnly from, DateOnly to, ReportPeriod period);
+    Task<NoShowReport> GetNoShowsAsync(string doctorId, DateOnly from, DateOnly to, ReportPeriod period);
+    Task<ArAgingReport> GetArAgingAsync(string doctorId, DateOnly asOf, int page, int pageSize);
+    /// <summary>Open invoices, oldest first, at most <paramref name="max"/> rows.</summary>
+    Task<IReadOnlyList<ArInvoiceDto>> GetArRowsAsync(string doctorId, DateOnly asOf, int max);
+}
+
 public interface IReminderProcessor
 {
     /// <summary>Sends every reminder that is due. Returns the number of emails sent.</summary>
     Task<int> ProcessDueAsync(CancellationToken ct = default);
+}
+
+public interface ILabOrderRepository
+{
+    Task<bool> OwnsPatientAsync(int patientId, string doctorId);
+    Task<LabSummaryDto> GetSummaryAsync(int patientId, string doctorId);
+    Task<LabOrder?> GetOrderAsync(int orderId, int patientId, string doctorId);
+    Task<int> CountOrdersAsync(int patientId, string doctorId);
+    Task<LabOrderDto> AddOrderAsync(LabOrder order);
+    Task<LabOrderDto> SaveOrderAsync(LabOrder order);
+    Task DeleteOrderAsync(LabOrder order);
+    Task<LabOrderDto> AddResultAsync(LabOrder order, LabResult result);
+    Task<LabOrderDto> SaveResultAsync(LabOrder order, LabResult result);
+    Task<LabOrderDto> RemoveResultAsync(LabOrder order, LabResult result);
 }

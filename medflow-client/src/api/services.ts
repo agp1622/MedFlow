@@ -13,6 +13,7 @@ import type {
   PatientAttachmentDto,
   ClinicalSummaryDto, AllergyDto, ProblemDto, MedicationDto,
   SaveAllergyRequest, SaveProblemRequest, SaveMedicationRequest,
+  LabSummaryDto, LabOrderDto, SaveLabOrderRequest, SaveLabResultRequest,
   AcceptInvitationRequest, InvitationResult,
   PortalProfileDto, PortalAppointmentDto, PortalPrescriptionDto, PortalInvoiceDto,
   PortalAttachmentDto, PortalNoteDto,
@@ -23,6 +24,7 @@ import type {
   DashboardStatsDto, AppointmentStatus,
   AuditEventDto, AuditLogQuery,
   ClaimExportFormat,
+  ReportQuery, RevenueReport, VisitsReport, NoShowReport, ArAgingReport
 } from '@/types'
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -55,6 +57,22 @@ export const patientsApi = {
 export const auditApi = {
   getByPatient: (patientId: number, q?: AuditLogQuery) =>
     api.get<PagedResult<AuditEventDto>>(`/patients/${patientId}/audit-log`, { params: q }).then(r => r.data),
+}
+
+// ── Reports ───────────────────────────────────────────────────────────────────
+export type ReportKind = 'revenue' | 'visits' | 'no-shows' | 'ar-aging'
+export const reportsApi = {
+  revenue:  (q: ReportQuery) => api.get<RevenueReport>('/reports/revenue', { params: q }).then(r => r.data),
+  visits:   (q: ReportQuery) => api.get<VisitsReport>('/reports/visits', { params: q }).then(r => r.data),
+  noShows:  (q: ReportQuery) => api.get<NoShowReport>('/reports/no-shows', { params: q }).then(r => r.data),
+  arAging:  (page = 1, pageSize = 20) =>
+    api.get<ArAgingReport>('/reports/ar-aging', { params: { page, pageSize } }).then(r => r.data),
+  /** CSV for the same filters as the on-screen report; returns the file name and content. */
+  exportCsv: async (kind: ReportKind, q?: ReportQuery) => {
+    const res = await api.get<Blob>(`/reports/${kind}/export`, { params: q, responseType: 'blob' })
+    const match = /filename="?([^";]+)"?/i.exec(String(res.headers['content-disposition'] ?? ''))
+    return { blob: res.data, fileName: match?.[1] ?? `${kind}.csv` }
+  },
 }
 
 // ── Appointments ──────────────────────────────────────────────────────────────
@@ -115,6 +133,19 @@ export const notesApi = {
   getLatest:    (patientId: number) => api.get<CopyForwardDto>(`/medicalnotes/patient/${patientId}/latest`).then(r => r.data),
   delete:       (id: number)        => api.delete(`/medicalnotes/${id}`),
   setSharing:   (id: number, shared: boolean) => api.put<MedicalNoteDto>(`/medicalnotes/${id}/sharing`, { shared }).then(r => r.data),
+}
+
+// ── Lab orders and results ────────────────────────────────────────────────────
+const labs = (patientId: number) => `/patients/${patientId}/labs`
+export const labsApi = {
+  getAll:       (patientId: number) => api.get<LabSummaryDto>(labs(patientId)).then(r => r.data),
+  createOrder:  (patientId: number, data: SaveLabOrderRequest) => api.post<LabOrderDto>(labs(patientId), data).then(r => r.data),
+  updateOrder:  (patientId: number, id: number, data: SaveLabOrderRequest) => api.put<LabOrderDto>(`${labs(patientId)}/${id}`, data).then(r => r.data),
+  cancelOrder:  (patientId: number, id: number) => api.post<LabOrderDto>(`${labs(patientId)}/${id}/cancel`).then(r => r.data),
+  deleteOrder:  (patientId: number, id: number) => api.delete(`${labs(patientId)}/${id}`),
+  addResult:    (patientId: number, orderId: number, data: SaveLabResultRequest) => api.post<LabOrderDto>(`${labs(patientId)}/${orderId}/results`, data).then(r => r.data),
+  updateResult: (patientId: number, orderId: number, id: number, data: SaveLabResultRequest) => api.put<LabOrderDto>(`${labs(patientId)}/${orderId}/results/${id}`, data).then(r => r.data),
+  deleteResult: (patientId: number, orderId: number, id: number) => api.delete<LabOrderDto>(`${labs(patientId)}/${orderId}/results/${id}`).then(r => r.data),
 }
 
 // ── Clinical lists ────────────────────────────────────────────────────────────

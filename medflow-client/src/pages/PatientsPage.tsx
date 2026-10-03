@@ -8,7 +8,7 @@ import { z } from 'zod'
 import {
   usePatients, usePatient, useCreatePatient, useUpdatePatient, useDeletePatient,
   usePatientAppointments, usePatientPrescriptions, usePatientInvoices,
-  usePatientVitals, usePatientNotes, useCreateNote, useDeleteNote,
+  usePatientVitals, usePatientLabs, usePatientNotes, useCreateNote, useDeleteNote,
   useSetNoteSharing, useNoteTemplates, useCopyForward, useInvitePatient, useRevokePortalAccess, useSendIntakeLink,
 } from '@/hooks/queries'
 import { PageHeader } from '@/components/layout/AppLayout'
@@ -18,6 +18,7 @@ import toast from 'react-hot-toast'
 import { ArrowLeft, Trash2, Plus } from 'lucide-react'
 import { ShareToggle } from '@/components/sharing/ShareToggle'
 import { ClinicalPanel } from '@/components/clinical/ClinicalPanel'
+import { LabsPanel } from '@/components/labs/LabsPanel'
 import { AttachmentsTab } from '@/components/attachments/AttachmentsTab'
 import { PrintPrescriptionButton } from '@/components/prescriptions/PrintPrescriptionButton'
 import { AuditLogTab } from '@/components/audit/AuditLogTab'
@@ -94,7 +95,7 @@ export function PatientsPage() {
 }
 
 // ── Patient Detail ────────────────────────────────────────────────────────────
-const TABS = ['overview', 'appointments', 'prescriptions', 'invoices', 'notes', 'vitals', 'attachments', 'audit'] as const
+const TABS = ['overview', 'appointments', 'prescriptions', 'invoices', 'notes', 'vitals', 'labs', 'attachments', 'audit'] as const
 type Tab = typeof TABS[number]
 
 export function PatientDetailPage() {
@@ -107,6 +108,8 @@ export function PatientDetailPage() {
   const invite = useInvitePatient()
   const revoke = useRevokePortalAccess()
   const sendIntake = useSendIntakeLink()
+  // Shares the Labs tab's query, so the tab badge needs no extra request
+  const abnormalLabs = usePatientLabs(patientId).data?.abnormalCount ?? 0
 
   if (isLoading) return <PageSpinner />
   if (!patient) return <div className="p-8 text-gray-500">{t('patients.notFound')}</div>
@@ -167,7 +170,12 @@ export function PatientDetailPage() {
             <button key={k} onClick={() => setTab(k)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                 tab === k ? 'bg-primary-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-              }`}>{t(`patients.tabs.${k}`)}</button>
+              }`}>
+              {t(`patients.tabs.${k}`)}
+              {k === 'labs' && abnormalLabs > 0 && (
+                <span className="ml-1.5 badge bg-red-50 text-red-700" aria-label={t('labs.abnormal', { count: abnormalLabs })}>{abnormalLabs}</span>
+              )}
+            </button>
           ))}
         </div>
 
@@ -178,6 +186,7 @@ export function PatientDetailPage() {
         {tab === 'invoices'      && <InvTab patientId={patientId} />}
         {tab === 'notes'         && <NotesTab patientId={patientId} />}
         {tab === 'vitals'        && <VitalsTrends patientId={patientId} />}
+        {tab === 'labs'          && <LabsPanel patientId={patientId} />}
         {tab === 'attachments'   && <AttachmentsTab patientId={patientId} />}
         {tab === 'audit'         && <AuditLogTab patientId={patientId} />}
       </div>

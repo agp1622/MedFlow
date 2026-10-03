@@ -301,3 +301,22 @@ public record AuditEventDto(int Id, DateTime OccurredAt, string ActorUserId, str
     string Action, string ItemKind, int? ItemId, string[] ChangedFields);
 public record AuditLogQuery(AuditAction? Action = null, string? Actor = null, DateTime? From = null,
     DateTime? To = null, int Page = 1, int PageSize = 20);
+
+// ── Lab orders and results (doctor-private) ───────────────────────────────────
+public record LabResultDto(int Id, string AnalyteName, decimal Value, string? Unit, decimal? ReferenceLow, decimal? ReferenceHigh, string Flag);
+public record LabOrderDto(
+    int Id, string TestName, string? Notes, DateOnly OrderedDate, string Status,
+    IEnumerable<LabResultDto> Results, int AbnormalCount, DateTime CreatedAt, DateTime UpdatedAt);
+public record LabSummaryDto(IEnumerable<LabOrderDto> Orders, int AbnormalCount);
+
+public record SaveLabOrderRequest(
+    [Required, StringLength(150)] string TestName,
+    [StringLength(1000)] string? Notes,
+    DateOnly? OrderedDate);
+
+public record SaveLabResultRequest(
+    [Required, StringLength(100)] string AnalyteName,
+    [Required, Range(-999999999.0, 999999999.0)] decimal? Value,
+    [StringLength(30)] string? Unit,
+    [Range(-999999999.0, 999999999.0)] decimal? ReferenceLow,
+    [Range(-999999999.0, 999999999.0)] decimal? ReferenceHigh);
