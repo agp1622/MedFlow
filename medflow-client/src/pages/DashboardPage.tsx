@@ -16,7 +16,7 @@ export function DashboardPage() {
       <PageHeader title="Dashboard" subtitle={today} />
 
       {isLoading ? <PageSpinner /> : (
-        <div className="flex-1 overflow-auto px-8 py-6 space-y-6">
+        <div className="flex-1 overflow-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6">
           {/* Greeting */}
           <p className="text-gray-500 text-sm">
             Good {getTimeOfDay()}, <span className="font-semibold text-gray-800">Dr. {user?.lastName}</span>. Here's your overview.
@@ -37,7 +37,7 @@ export function DashboardPage() {
           </div>
 
           {/* Two column */}
-          <div className="grid grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* Today's schedule */}
             <div className="card overflow-hidden">
               <div className="px-5 py-4 border-b border-border flex items-center justify-between">

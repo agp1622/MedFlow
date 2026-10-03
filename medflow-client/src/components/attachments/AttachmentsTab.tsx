@@ -186,7 +186,7 @@ export function AttachmentsTab({ patientId }: { patientId: number }) {
       {showUpload && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowUpload(false)}>
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-          <div className="relative bg-white rounded-2xl shadow-modal w-full max-w-md mx-4"
+          <div className="relative bg-white rounded-2xl shadow-modal w-full max-w-md mx-4 max-h-[90dvh] overflow-y-auto"
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <h2 className="font-bold text-gray-900">Upload Files</h2>
@@ -356,7 +356,7 @@ function FilePreviewModal({ file, onClose }: { file: PatientAttachmentDto; onClo
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div className="relative bg-white rounded-2xl shadow-modal w-full max-w-5xl mx-4 max-h-[92vh] flex flex-col overflow-hidden"
+      <div className="relative bg-white rounded-2xl shadow-modal w-full max-w-5xl mx-2 sm:mx-4 max-h-[92vh] max-h-[92dvh] flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}>
 
         {/* Header */}
@@ -388,7 +388,7 @@ function FilePreviewModal({ file, onClose }: { file: PatientAttachmentDto; onClo
         </div>
 
         {/* Preview content */}
-        <div className="flex-1 overflow-auto bg-gray-900/5 flex items-center justify-center p-4 min-h-[400px]">
+        <div className="flex-1 overflow-auto bg-gray-900/5 flex items-center justify-center p-4 min-h-[240px] sm:min-h-[400px]">
           {file.contentType.startsWith('image/') && (
             <img
               src={previewUrl}

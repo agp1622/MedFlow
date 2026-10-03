@@ -147,7 +147,7 @@ export function RegisterPage() {
   return (
     <AuthShell title="Create your account" subtitle="Start managing your patients today">
       <form onSubmit={handleSubmit(d => mutation.mutate(d))} className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="First name" error={errors.firstName?.message}>
             <input className="input" placeholder="John" {...register('firstName')} />
           </Field>
@@ -354,7 +354,7 @@ function AuthShell({ title, subtitle, children }: { title: string; subtitle: str
           <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
           <p className="text-gray-500 text-sm mt-1">{subtitle}</p>
         </div>
-        <div className="card p-8">{children}</div>
+        <div className="card p-5 sm:p-8">{children}</div>
       </div>
     </div>
   )

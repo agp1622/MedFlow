@@ -34,9 +34,9 @@ export function PatientsPage() {
       </PageHeader>
 
       {isLoading ? <PageSpinner /> : (
-        <div className="flex-1 overflow-auto px-8 py-6">
-          <div className="card overflow-hidden">
-            <table className="w-full">
+        <div className="flex-1 overflow-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+          <div className="card overflow-x-auto">
+            <table className="w-full min-w-[640px]">
               <thead>
                 <tr className="bg-gray-50 border-b border-border">
                   {['Patient', 'Age', 'Condition', 'Blood', 'Last Visit', 'Next Appt', 'Status', ''].map(h => (
@@ -110,11 +110,11 @@ export function PatientDetailPage() {
         </button>
       </PageHeader>
 
-      <div className="flex-1 overflow-auto px-8 py-6 space-y-5">
+      <div className="flex-1 overflow-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-5">
         {/* Patient header card */}
-        <div className="card p-5 flex gap-6">
+        <div className="card p-4 sm:p-5 flex flex-col sm:flex-row gap-4 sm:gap-6">
           <Avatar name={patient.fullName} size="lg" />
-          <div className="flex-1 grid grid-cols-4 gap-4">
+          <div className="flex-1 min-w-0 grid grid-cols-2 md:grid-cols-4 gap-4 break-words">
             {[
               ['Full Name', patient.fullName],
               ['Date of Birth', fmt.date(patient.dateOfBirth)],
@@ -131,7 +131,7 @@ export function PatientDetailPage() {
               </div>
             ))}
           </div>
-          <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-col sm:items-end gap-2">
             <Badge status={patient.status} />
             <PortalAccess
               status={patient.portalStatus ?? 'NotInvited'}
@@ -144,10 +144,10 @@ export function PatientDetailPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-white border border-border rounded-xl p-1 w-fit">
+        <div className="flex gap-1 bg-white border border-border rounded-xl p-1 w-fit max-w-full overflow-x-auto">
           {TABS.map(t => (
             <button key={t} onClick={() => setTab(t)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                 tab === t ? 'bg-primary-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
               }`}>{t}</button>
           ))}
@@ -169,7 +169,7 @@ function OverviewTab({ patient, patientId }: { patient: ReturnType<typeof usePat
   const { data: vitals } = usePatientVitals(patientId)
   const latest = vitals?.[0]
   return (
-    <div className="grid grid-cols-2 gap-5">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
       <div className="card p-5">
         <h3 className="font-bold text-gray-800 mb-4">Latest Vitals</h3>
         {!latest ? <p className="text-gray-400 text-sm">No vitals recorded</p> : (
@@ -203,7 +203,7 @@ function ApptTab({ patientId }: { patientId: number }) {
   const { data, isLoading } = usePatientAppointments(patientId)
   if (isLoading) return <PageSpinner />
   return (
-    <div className="card overflow-hidden">
+    <div className="card overflow-x-auto">
       <SimpleTable
         headers={['Date', 'Time', 'Type', 'Duration', 'Status', 'Notes']}
         empty={!data?.length}
@@ -222,7 +222,7 @@ function RxTab({ patientId }: { patientId: number }) {
   const { data, isLoading } = usePatientPrescriptions(patientId)
   if (isLoading) return <PageSpinner />
   return (
-    <div className="card overflow-hidden">
+    <div className="card overflow-x-auto">
       <SimpleTable
         headers={['Drug', 'Dosage', 'Frequency', 'Issued', 'Expires', 'Refills', 'Status']}
         empty={!data?.length}
@@ -242,7 +242,7 @@ function InvTab({ patientId }: { patientId: number }) {
   const { data, isLoading } = usePatientInvoices(patientId)
   if (isLoading) return <PageSpinner />
   return (
-    <div className="card overflow-hidden">
+    <div className="card overflow-x-auto">
       <SimpleTable
         headers={['Invoice #', 'Date', 'Service', 'Amount', 'Status']}
         empty={!data?.length}
@@ -263,7 +263,7 @@ function PortalAccess({ status, hasEmail, busy, onInvite, onRevoke }: {
 }) {
   const label = { NotInvited: 'No portal access', Invited: 'Invitation pending', Active: 'Portal active' }[status]
   return (
-    <div className="flex flex-col items-end gap-1.5 text-right">
+    <div className="flex flex-col sm:items-end gap-1.5 sm:text-right">
       <span className={`text-xs font-medium ${status === 'Active' ? 'text-emerald-600' : 'text-gray-500'}`}>{label}</span>
       {status !== 'Active' && (
         <button className="btn-secondary text-xs" onClick={onInvite} disabled={busy || !hasEmail}
@@ -333,7 +333,7 @@ function NotesTab({ patientId }: { patientId: number }) {
 // ── SimpleTable helper ────────────────────────────────────────────────────────
 function SimpleTable({ headers, rows, empty }: { headers: string[]; rows: React.ReactNode[][]; empty: boolean }) {
   return (
-    <table className="w-full">
+    <table className="w-full min-w-[640px]">
       <thead>
         <tr className="bg-gray-50 border-b border-border">
           {headers.map(h => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>)}
@@ -378,11 +378,11 @@ function NewPatientModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="New Patient" onClose={onClose}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="First name" error={errors.firstName?.message}><input className="input" {...register('firstName')} /></Field>
           <Field label="Last name" error={errors.lastName?.message}><input className="input" {...register('lastName')} /></Field>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Date of birth" error={errors.dateOfBirth?.message}><input className="input" type="date" {...register('dateOfBirth')} /></Field>
           <Field label="Gender" error={errors.gender?.message}>
             <select className="input" {...register('gender')}>
@@ -391,11 +391,11 @@ function NewPatientModal({ onClose }: { onClose: () => void }) {
             </select>
           </Field>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Email" error={errors.email?.message}><input className="input" type="email" {...register('email')} /></Field>
           <Field label="Phone" error={errors.phone?.message}><input className="input" {...register('phone')} /></Field>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Blood type" error={errors.bloodType?.message}>
             <select className="input" {...register('bloodType')}>
               <option value="">Select...</option>
@@ -404,7 +404,7 @@ function NewPatientModal({ onClose }: { onClose: () => void }) {
           </Field>
           <Field label="Primary condition"><input className="input" {...register('primaryCondition')} /></Field>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Allergies"><input className="input" {...register('allergies')} /></Field>
           <Field label="Insurance provider"><input className="input" {...register('insuranceProvider')} /></Field>
         </div>
@@ -423,13 +423,13 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-      <div className="relative bg-white rounded-2xl shadow-modal w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"
+      <div className="relative bg-white rounded-2xl shadow-modal w-full max-w-lg mx-4 max-h-[90vh] max-h-[90dvh] overflow-y-auto"
         onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-border">
           <h2 className="font-bold text-gray-900">{title}</h2>
           <button className="btn-ghost p-1" onClick={onClose}>✕</button>
         </div>
-        <div className="px-6 py-5">{children}</div>
+        <div className="px-4 sm:px-6 py-5">{children}</div>
       </div>
     </div>
   )

@@ -30,9 +30,9 @@ export function AppointmentsPage() {
       </PageHeader>
 
       {isLoading ? <PageSpinner /> : (
-        <div className="flex-1 overflow-auto px-8 py-6">
-          <div className="card overflow-hidden">
-            <table className="w-full">
+        <div className="flex-1 overflow-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+          <div className="card overflow-x-auto">
+            <table className="w-full min-w-[640px]">
               <thead>
                 <tr className="bg-gray-50 border-b border-border">
                   {['Patient', 'Date', 'Time', 'Type', 'Duration', 'Reason', 'Status', 'Actions'].map(h => (
@@ -125,7 +125,7 @@ function NewAppointmentModal({ onClose }: { onClose: () => void }) {
           </select>
           {errors.patientId && <p className="text-red-500 text-xs mt-1">{errors.patientId.message}</p>}
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="label">Date & Time</label>
             <input className="input" type="datetime-local" {...register('scheduledAt')} />

@@ -55,7 +55,7 @@ interface PaginationProps { page: number; totalPages: number; onPage: (p: number
 export function Pagination({ page, totalPages, onPage }: PaginationProps) {
   if (totalPages <= 1) return null
   return (
-    <div className="flex items-center justify-center gap-1 py-4">
+    <div className="flex flex-wrap items-center justify-center gap-1 py-4 px-2">
       <button className="btn-ghost px-3 py-1.5 text-sm" disabled={page === 1} onClick={() => onPage(page - 1)}>← Prev</button>
       {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => i + 1).map(p => (
         <button key={p} onClick={() => onPage(p)}
@@ -72,9 +72,9 @@ export function Pagination({ page, totalPages, onPage }: PaginationProps) {
 interface StatCardProps { icon: string; label: string; value: string | number; sub?: string; color?: string }
 export function StatCard({ icon, label, value, sub, color = 'text-primary-600' }: StatCardProps) {
   return (
-    <div className="card p-5 flex items-center gap-4 flex-1 min-w-44">
+    <div className="card p-5 flex items-center gap-4 flex-1 min-w-[10rem] basis-full sm:basis-auto">
       <div className="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center text-2xl flex-shrink-0">{icon}</div>
-      <div>
+      <div className="min-w-0">
         <div className="text-2xl font-bold text-gray-900 leading-none">{value}</div>
         <div className="text-xs text-gray-500 mt-1">{label}</div>
         {sub && <div className={`text-xs font-semibold mt-0.5 ${color}`}>{sub}</div>}
@@ -87,9 +87,9 @@ export function StatCard({ icon, label, value, sub, color = 'text-primary-600' }
 interface SearchInputProps { value: string; onChange: (v: string) => void; placeholder?: string }
 export function SearchInput({ value, onChange, placeholder = 'Search...' }: SearchInputProps) {
   return (
-    <div className="relative">
+    <div className="relative w-full sm:w-auto">
       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
-      <input className="input pl-8 pr-3 h-9 w-56" placeholder={placeholder}
+      <input className="input pl-8 pr-3 h-9 w-full sm:w-56" placeholder={placeholder}
         value={value} onChange={e => onChange(e.target.value)} />
     </div>
   )
