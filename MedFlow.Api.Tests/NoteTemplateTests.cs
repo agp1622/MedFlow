@@ -127,14 +127,12 @@ public class NoteTemplateTests : IClassFixture<TestApiFactory>
         await Add(ca, p1, "old");
         await Add(ca, p1, "newest");
         await Add(ca, p2, "other patient");
-        await Add(_f.ClientFor(b.Token), p1, "other doctor, same patient");
 
         var latest = await ca.GetFromJsonAsync<JsonElement>($"/api/medicalnotes/patient/{p1}/latest");
         Assert.Equal("newest", latest.GetProperty("content").GetString());
 
-        // doctor B sees only their own note; doctor with no own notes / unknown patient gets 404
-        var bl = await _f.ClientFor(b.Token).GetFromJsonAsync<JsonElement>($"/api/medicalnotes/patient/{p1}/latest");
-        Assert.Equal("other doctor, same patient", bl.GetProperty("content").GetString());
+        // doctor B does not own either patient (patient ownership is enforced), so gets 404; unknown patient also 404
+        Assert.Equal(HttpStatusCode.NotFound, (await _f.ClientFor(b.Token).GetAsync($"/api/medicalnotes/patient/{p1}/latest")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await _f.ClientFor(b.Token).GetAsync($"/api/medicalnotes/patient/{p2}/latest")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await ca.GetAsync("/api/medicalnotes/patient/999999/latest")).StatusCode);
     }
