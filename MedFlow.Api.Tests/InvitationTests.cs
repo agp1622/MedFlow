@@ -13,7 +13,7 @@ public class InvitationTests : IClassFixture<TestApiFactory>
     private async Task AssertGenericInvalid(HttpResponseMessage res)
     {
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
-        Assert.Equal("This invitation is invalid or has expired.",
+        Assert.Equal("Esta invitación no es válida o ha caducado.",
             (await res.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
     }
 
