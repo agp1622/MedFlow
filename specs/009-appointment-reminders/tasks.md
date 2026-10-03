@@ -34,6 +34,6 @@ Refs #9. Tests are included (repo rules require access control, isolation and va
 ## Phase 5: Polish
 
 - [x] T018 Document `Reminders` settings in MedFlow.Api/appsettings.json (non-secret defaults only) and README.md
-- [ ] T019 Run dotnet build, dotnet test, npm run build, npm run lint
+- [x] T019 Run dotnet build, dotnet test, npm run build, npm run lint
 
 Dependencies: Phase 1 first; US1 and US2 share T011 only for tests; US3 after US1 entities. MVP: Phase 1 + US1 + US2.
