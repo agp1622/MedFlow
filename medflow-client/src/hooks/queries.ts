@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi, clinicalApi, labsApi, intakeApi, noteTemplatesApi, availabilityApi, auditApi, reportsApi } from '@/api/services'
+import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi, clinicalApi, labsApi, intakeApi, noteTemplatesApi, availabilityApi, waitlistApi, auditApi, reportsApi } from '@/api/services'
 import type { ReportQuery, QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest, SaveAllergyRequest, SaveProblemRequest, SaveMedicationRequest, SaveLabOrderRequest, SaveLabResultRequest, IntakeStatus, CreateNoteTemplateRequest, AuditLogQuery, ClaimExportFormat } from '@/types'
 import toast from 'react-hot-toast'
 import i18n from '@/i18n'
@@ -517,3 +517,46 @@ export const useBookAppointment = () => {
 // ── Audit log ─────────────────────────────────────────────────────────────────
 export const useAuditLog = (patientId: number, q?: AuditLogQuery) =>
   useQuery({ queryKey: QK.auditLog(patientId, q), queryFn: () => auditApi.getByPatient(patientId, q), enabled: patientId > 0 })
+
+// ── Waitlist ──────────────────────────────────────────────────────────────────
+export const useWaitlist = (q?: QueryParams) =>
+  useQuery({ queryKey: ['waitlist', q], queryFn: () => waitlistApi.getAll(q) })
+
+export const useAddWaitlistEntry = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: waitlistApi.add,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['waitlist'] }); toast.success(i18n.t('waitlist.added')) },
+    onError: (e) => toast.error(errMsg(e, i18n.t('waitlist.addFailed'))),
+  })
+}
+
+export const useRemoveWaitlistEntry = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: waitlistApi.remove,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['waitlist'] }); toast.success(i18n.t('waitlist.removed')) },
+    onError: (e) => toast.error(errMsg(e, i18n.t('waitlist.removeFailed'))),
+  })
+}
+
+export const usePortalWaitlist = () =>
+  useQuery({ queryKey: QK.portal('waitlist'), queryFn: portalApi.waitlist })
+
+export const useJoinPortalWaitlist = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: portalApi.joinWaitlist,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: QK.portal('waitlist') }); toast.success(i18n.t('waitlist.joined')) },
+    onError: (e) => toast.error(errMsg(e, i18n.t('waitlist.joinFailed'))),
+  })
+}
+
+export const useLeavePortalWaitlist = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: portalApi.leaveWaitlist,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: QK.portal('waitlist') }); toast.success(i18n.t('waitlist.left')) },
+    onError: (e) => toast.error(errMsg(e, i18n.t('waitlist.leaveFailed'))),
+  })
+}

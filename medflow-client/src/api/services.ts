@@ -20,6 +20,7 @@ import type {
   IntakeFormInfo, IntakeSubmitRequest, IntakeSubmissionSummary, IntakeSubmissionDetail, IntakeStatus,
   AvailabilityDto, AvailabilityWindowDto, SetWeeklyAvailabilityRequest, BlockedDateDto, CreateBlockedDateRequest,
   BookingSlotDto, BookAppointmentRequest,
+  WaitlistEntryDto, PortalWaitlistDto, WaitlistOfferDto, WaitlistClaimDto,
   ReminderLookupDto, ReminderLogDto, ReminderAction,
   DashboardStatsDto, AppointmentStatus,
   AuditEventDto, AuditLogQuery,
@@ -227,6 +228,9 @@ export const portalApi = {
     api.get<BookingSlotDto[]>('/portal/booking/slots', { params: { from, to } }).then(r => r.data),
   book:          (data: BookAppointmentRequest) =>
     api.post<PortalAppointmentDto>('/portal/booking', data).then(r => r.data),
+  waitlist:      () => api.get<PortalWaitlistDto>('/portal/waitlist').then(r => r.data),
+  joinWaitlist:  () => api.post<PortalWaitlistDto>('/portal/waitlist').then(r => r.data),
+  leaveWaitlist: () => api.delete('/portal/waitlist'),
   // Header-authenticated blob download: no token ever goes into a URL
   downloadAttachment: async (id: number, fileName: string) => {
     const response = await api.get(`/portal/attachments/${id}/download`, { responseType: 'blob' })
@@ -264,4 +268,18 @@ export const availabilityApi = {
   addBlockedDate:  (data: CreateBlockedDateRequest) =>
     api.post<BlockedDateDto>('/availability/blocked-dates', data).then(r => r.data),
   removeBlockedDate: (id: number) => api.delete(`/availability/blocked-dates/${id}`),
+}
+
+// ── Waitlist (doctor) ─────────────────────────────────────────────────────────
+export const waitlistApi = {
+  getAll: (q?: QueryParams) => api.get<PagedResult<WaitlistEntryDto>>('/waitlist', { params: q }).then(r => r.data),
+  add:    (patientId: number) => api.post<WaitlistEntryDto>('/waitlist', { patientId }).then(r => r.data),
+  remove: (id: number) => api.delete(`/waitlist/${id}`),
+}
+
+// ── Waitlist offer (public, token from the offer email) ───────────────────────
+export const waitlistOfferApi = {
+  lookup: (token: string) => api.post<WaitlistOfferDto>('/waitlist-offer/lookup', { token }).then(r => r.data),
+  claim:  (token: string) => api.post<WaitlistClaimDto>('/waitlist-offer/claim', { token }).then(r => r.data),
+  leave:  (token: string) => api.post('/waitlist-offer/leave', { token }),
 }

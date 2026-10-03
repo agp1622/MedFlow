@@ -12,6 +12,8 @@ import { ReportsPage } from '@/pages/ReportsPage'
 import { AppointmentsPage } from '@/pages/AppointmentsPage'
 import { IntakeFormPage, IntakeListPage, IntakeReviewPage } from '@/pages/IntakePages'
 import { AvailabilityPage } from '@/pages/AvailabilityPage'
+import { WaitlistPage } from '@/pages/WaitlistPage'
+import { WaitlistOfferPage } from '@/pages/WaitlistOfferPage'
 import { PrescriptionsPage, BillingPage } from '@/pages/BillingPrescriptionsPages'
 
 const homeFor = (role?: string) => (role === 'Patient' ? '/portal' : '/')
@@ -51,6 +53,7 @@ export default function App() {
 
       {/* Public: opened from the reminder email, authorised by its token only */}
       <Route path="/appointment-response" element={<AppointmentResponsePage />} />
+      <Route path="/waitlist-offer" element={<WaitlistOfferPage />} />
 
       <Route path="portal" element={<PatientRoute><PortalLayout /></PatientRoute>}>
         <Route index element={<PortalPage />} />
@@ -64,6 +67,7 @@ export default function App() {
         <Route path="intake/review/:id" element={<IntakeReviewPage />} />
         <Route path="appointments" element={<AppointmentsPage />} />
         <Route path="availability" element={<AvailabilityPage />} />
+        <Route path="waitlist" element={<WaitlistPage />} />
         <Route path="prescriptions" element={<PrescriptionsPage />} />
         <Route path="templates" element={<NoteTemplatesPage />} />
         <Route path="billing" element={<BillingPage />} />
