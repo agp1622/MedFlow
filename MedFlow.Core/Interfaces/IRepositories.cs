@@ -1,5 +1,6 @@
 using MedFlow.Core.DTOs;
 using MedFlow.Core.Entities;
+using MedFlow.Core.Enums;
 
 namespace MedFlow.Core.Interfaces;
 
@@ -96,3 +97,19 @@ public interface IPortalInvitationRepository
     Task RevokeAsync(Patient patient);
     Task<string> GetPortalStatusAsync(Patient patient);
 }
+
+public interface IIntakeRepository
+{
+    /// <summary>Creates a link (superseding earlier unused ones) and returns the raw token.</summary>
+    Task<(string Token, DateTime ExpiresAt)> CreateLinkAsync(Patient patient);
+    /// <summary>Returns the link and patient for a valid (unused, unexpired, active patient, email unchanged) token.</summary>
+    Task<(IntakeLink Link, Patient Patient)?> FindValidLinkAsync(string token);
+    /// <summary>Atomically consumes the link and stores the submission; false if the link was already used.</summary>
+    Task<bool> SubmitAsync(IntakeLink link, Patient patient, IntakeSubmission submission);
+    Task<PagedResult<IntakeSubmissionSummaryDto>> GetPagedAsync(string doctorId, IntakeStatus? status, int page, int pageSize);
+    Task<IntakeSubmissionDetailDto?> GetDetailAsync(int id, string doctorId);
+    /// <summary>Accepts (applies the answers to the patient record) or rejects a pending submission.</summary>
+    Task<DecisionResult> DecideAsync(int id, string doctorId, bool accept, string? reason);
+}
+
+public enum DecisionResult { Done, NotFound, AlreadyDecided }

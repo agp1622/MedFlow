@@ -180,3 +180,30 @@ public record PortalAttachmentDto(
     int Id, string FileName, string ContentType, long FileSize,
     string? Category, string? Description, DateTime CreatedAt);
 public record PortalNoteDto(int Id, string DoctorName, string? VisitType, string Content, DateTime NoteDate);
+
+// ── Intake forms ─────────────────────────────────────────────────────────────
+public record IntakeFormInfoDto(string FirstName, string ConsentVersion, string ConsentText);
+
+public record IntakeSubmitRequest(
+    string? FirstName, string? LastName, DateOnly? DateOfBirth, Gender? Gender, string? Phone,
+    string? Address, string? City, string? State, string? ZipCode,
+    string? InsuranceProvider, string? InsurancePolicyNumber,
+    string? PrimaryCondition, string? Allergies, string? CurrentMedications, string? PastHistory, string? AdditionalNotes,
+    bool ConsentAgreed, string? SignatureName);
+
+public record IntakeSubmissionSummaryDto(int Id, int PatientId, string PatientName, string Status, DateTime SubmittedAt);
+
+public record IntakeAnswersDto(
+    string FirstName, string LastName, DateOnly DateOfBirth, string Gender, string Phone,
+    string? Address, string? City, string? State, string? ZipCode,
+    string? InsuranceProvider, string? InsurancePolicyNumber,
+    string? PrimaryCondition, string? Allergies, string? CurrentMedications, string? PastHistory, string? AdditionalNotes);
+
+public record IntakeConsentDto(string ConsentVersion, bool ConsentAgreed, string SignatureName, DateTime SignedAt);
+
+public record IntakeSubmissionDetailDto(
+    int Id, int PatientId, string Status, DateTime SubmittedAt,
+    IntakeAnswersDto Answers, IntakeAnswersDto? Current, IntakeConsentDto Consent,
+    DateTime? DecidedAt, string? RejectionReason);
+
+public record IntakeRejectRequest(string? Reason);

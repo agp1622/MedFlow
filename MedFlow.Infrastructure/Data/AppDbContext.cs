@@ -20,6 +20,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<PatientAttachment> PatientAttachments => Set<PatientAttachment>();
     public DbSet<PortalInvitation> PortalInvitations => Set<PortalInvitation>();
     public DbSet<PortalAccessLog> PortalAccessLogs => Set<PortalAccessLog>();
+    public DbSet<IntakeLink> IntakeLinks => Set<IntakeLink>();
+    public DbSet<IntakeSubmission> IntakeSubmissions => Set<IntakeSubmission>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -145,6 +147,41 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.HasIndex(i => i.PatientId);
             e.Property(i => i.Email).HasMaxLength(256);
             e.Property(i => i.TokenHash).HasMaxLength(64);
+        });
+
+        // IntakeLink / IntakeSubmission (no navigation to Patient: Patient has a soft-delete query filter)
+        builder.Entity<IntakeLink>(e =>
+        {
+            e.HasIndex(i => i.TokenHash).IsUnique();
+            e.HasIndex(i => i.PatientId);
+            e.Property(i => i.Email).HasMaxLength(256);
+            e.Property(i => i.TokenHash).HasMaxLength(64);
+        });
+        builder.Entity<IntakeSubmission>(e =>
+        {
+            e.HasIndex(s => new { s.DoctorId, s.Status, s.SubmittedAt });
+            e.HasIndex(s => s.IntakeLinkId).IsUnique();
+            e.Property(s => s.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(s => s.Gender).HasConversion<string>().HasMaxLength(20);
+            e.Property(s => s.DoctorId).HasMaxLength(450);
+            e.Property(s => s.DecidedByDoctorId).HasMaxLength(450);
+            e.Property(s => s.FirstName).HasMaxLength(100);
+            e.Property(s => s.LastName).HasMaxLength(100);
+            e.Property(s => s.Phone).HasMaxLength(30);
+            e.Property(s => s.Address).HasMaxLength(200);
+            e.Property(s => s.City).HasMaxLength(100);
+            e.Property(s => s.State).HasMaxLength(100);
+            e.Property(s => s.ZipCode).HasMaxLength(20);
+            e.Property(s => s.InsuranceProvider).HasMaxLength(200);
+            e.Property(s => s.InsurancePolicyNumber).HasMaxLength(100);
+            e.Property(s => s.PrimaryCondition).HasMaxLength(500);
+            e.Property(s => s.Allergies).HasMaxLength(1000);
+            e.Property(s => s.CurrentMedications).HasMaxLength(2000);
+            e.Property(s => s.PastHistory).HasMaxLength(2000);
+            e.Property(s => s.AdditionalNotes).HasMaxLength(2000);
+            e.Property(s => s.ConsentVersion).HasMaxLength(50);
+            e.Property(s => s.SignatureName).HasMaxLength(200);
+            e.Property(s => s.RejectionReason).HasMaxLength(500);
         });
 
         // PortalAccessLog

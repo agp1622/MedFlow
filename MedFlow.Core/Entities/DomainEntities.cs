@@ -127,3 +127,50 @@ public class PortalAccessLog : BaseEntity
     public string Action { get; set; } = string.Empty;       // View | Download
     public DateTime OccurredAt { get; set; } = DateTime.UtcNow;
 }
+
+public class IntakeLink : BaseEntity
+{
+    public int PatientId { get; set; }
+    public string Email { get; set; } = string.Empty;
+    public string TokenHash { get; set; } = string.Empty; // SHA-256 of the emailed token
+    public DateTime ExpiresAt { get; set; }
+    public DateTime? UsedAt { get; set; }                 // set on submission or when superseded
+}
+
+public class IntakeSubmission : BaseEntity
+{
+    public int PatientId { get; set; }
+    public string DoctorId { get; set; } = string.Empty;
+    public int IntakeLinkId { get; set; }
+    public IntakeStatus Status { get; set; } = IntakeStatus.Pending;
+    public DateTime SubmittedAt { get; set; } = DateTime.UtcNow;
+
+    // Answers
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public DateOnly DateOfBirth { get; set; }
+    public Gender Gender { get; set; }
+    public string Phone { get; set; } = string.Empty;
+    public string? Address { get; set; }
+    public string? City { get; set; }
+    public string? State { get; set; }
+    public string? ZipCode { get; set; }
+    public string? InsuranceProvider { get; set; }
+    public string? InsurancePolicyNumber { get; set; }
+    public string? PrimaryCondition { get; set; }
+    public string? Allergies { get; set; }
+    public string? CurrentMedications { get; set; }
+    public string? PastHistory { get; set; }
+    public string? AdditionalNotes { get; set; }
+
+    // Consent (immutable after submission)
+    public string ConsentVersion { get; set; } = string.Empty;
+    public bool ConsentAgreed { get; set; }
+    public string SignatureName { get; set; } = string.Empty;
+    public DateTime SignedAt { get; set; }
+
+    // Decision
+    public string? DecidedByDoctorId { get; set; }
+    public DateTime? DecidedAt { get; set; }
+    public string? RejectionReason { get; set; }
+}
