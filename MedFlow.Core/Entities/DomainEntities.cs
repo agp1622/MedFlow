@@ -127,3 +127,20 @@ public class PortalAccessLog : BaseEntity
     public string Action { get; set; } = string.Empty;       // View | Download
     public DateTime OccurredAt { get; set; } = DateTime.UtcNow;
 }
+
+/// <summary>A recurring weekly window (UTC) in which a doctor accepts online bookings.</summary>
+public class DoctorAvailability : BaseEntity
+{
+    public string DoctorId { get; set; } = string.Empty;
+    public DayOfWeek DayOfWeek { get; set; }
+    public TimeOnly StartTime { get; set; }
+    public TimeOnly EndTime { get; set; }
+}
+
+/// <summary>A date on which a doctor offers no online slots.</summary>
+public class DoctorBlockedDate : BaseEntity
+{
+    public string DoctorId { get; set; } = string.Empty;
+    public DateOnly Date { get; set; }
+    public string? Label { get; set; }
+}

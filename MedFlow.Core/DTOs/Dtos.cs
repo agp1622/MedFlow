@@ -180,3 +180,15 @@ public record PortalAttachmentDto(
     int Id, string FileName, string ContentType, long FileSize,
     string? Category, string? Description, DateTime CreatedAt);
 public record PortalNoteDto(int Id, string DoctorName, string? VisitType, string Content, DateTime NoteDate);
+
+// ── Online booking ────────────────────────────────────────────────────────────
+public record AvailabilityWindowInput(DayOfWeek DayOfWeek, string StartTime, string EndTime);
+public record AvailabilityWindowDto(int Id, DayOfWeek DayOfWeek, string StartTime, string EndTime);
+public record SetWeeklyAvailabilityRequest(List<AvailabilityWindowInput> Windows);
+public record BlockedDateDto(int Id, DateOnly Date, string? Label);
+public record CreateBlockedDateRequest(DateOnly Date, string? Label);
+public record AvailabilityDto(IEnumerable<AvailabilityWindowDto> Windows, IEnumerable<BlockedDateDto> BlockedDates);
+
+public record BookingSlotDto(DateTime StartsAt, int DurationMinutes);
+public record BookAppointmentRequest(DateTime StartsAt, string? Reason);
+public enum BookingOutcome { Booked, NotAvailable, Conflict, LimitReached }

@@ -538,3 +538,150 @@ public class PortalInvitationRepository : IPortalInvitationRepository
         return invited ? "Invited" : "NotInvited";
     }
 }
+
+// ── Booking Repository ────────────────────────────────────────────────────────
+public class BookingRepository : IBookingRepository
+{
+    public const int SlotMinutes = 30;
+    public const int LeadMinutes = 60;
+    public const int HorizonDays = 60;
+    public const int MaxUpcomingPerPatient = 3;
+
+    // Serialises bookings per doctor within this process; the serializable transaction covers other instances.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim> Locks = new();
+
+    private readonly AppDbContext _db;
+    public BookingRepository(AppDbContext db) { _db = db; }
+
+    private static string Fmt(TimeOnly t) => t.ToString("HH:mm");
+
+    private static AvailabilityWindowDto ToDto(DoctorAvailability a) =>
+        new(a.Id, a.DayOfWeek, Fmt(a.StartTime), Fmt(a.EndTime));
+
+    public async Task<AvailabilityDto> GetAvailabilityAsync(string doctorId)
+    {
+        var windows = (await _db.DoctorAvailabilities.Where(a => a.DoctorId == doctorId).ToListAsync())
+            .OrderBy(a => a.DayOfWeek).ThenBy(a => a.StartTime).Select(ToDto).ToList();
+        var blocked = (await _db.DoctorBlockedDates.Where(b => b.DoctorId == doctorId).ToListAsync())
+            .OrderBy(b => b.Date).Select(b => new BlockedDateDto(b.Id, b.Date, b.Label)).ToList();
+        return new AvailabilityDto(windows, blocked);
+    }
+
+    public async Task<IEnumerable<AvailabilityWindowDto>> ReplaceWeeklyAsync(
+        string doctorId, IEnumerable<(DayOfWeek Day, TimeOnly Start, TimeOnly End)> windows)
+    {
+        var existing = await _db.DoctorAvailabilities.Where(a => a.DoctorId == doctorId).ToListAsync();
+        _db.DoctorAvailabilities.RemoveRange(existing);
+        var added = windows.Select(w => new DoctorAvailability
+            { DoctorId = doctorId, DayOfWeek = w.Day, StartTime = w.Start, EndTime = w.End }).ToList();
+        await _db.DoctorAvailabilities.AddRangeAsync(added);
+        await _db.SaveChangesAsync();
+        return added.OrderBy(a => a.DayOfWeek).ThenBy(a => a.StartTime).Select(ToDto).ToList();
+    }
+
+    public async Task<BlockedDateDto?> AddBlockedDateAsync(string doctorId, DateOnly date, string? label)
+    {
+        if (await _db.DoctorBlockedDates.AnyAsync(b => b.DoctorId == doctorId && b.Date == date)) return null;
+        var entity = new DoctorBlockedDate { DoctorId = doctorId, Date = date, Label = label };
+        _db.DoctorBlockedDates.Add(entity);
+        await _db.SaveChangesAsync();
+        return new BlockedDateDto(entity.Id, entity.Date, entity.Label);
+    }
+
+    public async Task<bool> RemoveBlockedDateAsync(string doctorId, int id)
+    {
+        var entity = await _db.DoctorBlockedDates.FirstOrDefaultAsync(b => b.Id == id && b.DoctorId == doctorId);
+        if (entity == null) return false;
+        _db.DoctorBlockedDates.Remove(entity);
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
+    /// <summary>Slot starts allowed by availability, blocked dates, lead time and horizon (not yet checked for clashes).</summary>
+    private async Task<List<DateTime>> CandidateSlotsAsync(string doctorId, DateOnly from, DateOnly to)
+    {
+        var now = DateTime.UtcNow;
+        var earliest = now.AddMinutes(LeadMinutes);
+        var latestDate = DateOnly.FromDateTime(now.AddDays(HorizonDays));
+        var windows = await _db.DoctorAvailabilities.Where(a => a.DoctorId == doctorId).ToListAsync();
+        var blocked = (await _db.DoctorBlockedDates.Where(b => b.DoctorId == doctorId).Select(b => b.Date).ToListAsync()).ToHashSet();
+
+        var slots = new List<DateTime>();
+        for (var d = from; d <= to && d <= latestDate; d = d.AddDays(1))
+        {
+            if (blocked.Contains(d)) continue;
+            foreach (var w in windows.Where(w => w.DayOfWeek == d.DayOfWeek))
+                for (var t = w.StartTime; t.AddMinutes(SlotMinutes) <= w.EndTime && t.AddMinutes(SlotMinutes) > t; t = t.AddMinutes(SlotMinutes))
+                {
+                    var start = DateTime.SpecifyKind(d.ToDateTime(t), DateTimeKind.Utc);
+                    if (start >= earliest) slots.Add(start);
+                }
+        }
+        return slots.OrderBy(s => s).ToList();
+    }
+
+    private static bool Overlaps(DateTime start, List<(DateTime Start, int Minutes)> busy) =>
+        busy.Any(b => b.Start < start.AddMinutes(SlotMinutes) && b.Start.AddMinutes(b.Minutes) > start);
+
+    private async Task<List<(DateTime Start, int Minutes)>> BusyAsync(Func<IQueryable<Appointment>, IQueryable<Appointment>> scope, DateOnly from, DateOnly to)
+    {
+        var lo = DateTime.SpecifyKind(from.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc).AddDays(-1);
+        var hi = DateTime.SpecifyKind(to.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc).AddDays(2);
+        var rows = await scope(_db.Appointments.Where(a => a.Status != AppointmentStatus.Cancelled && a.ScheduledAt >= lo && a.ScheduledAt < hi))
+            .Select(a => new { a.ScheduledAt, a.DurationMinutes }).ToListAsync();
+        return rows.Select(r => (r.ScheduledAt, r.DurationMinutes)).ToList();
+    }
+
+    public async Task<IEnumerable<BookingSlotDto>> GetOpenSlotsAsync(Patient patient, DateOnly from, DateOnly to)
+    {
+        var candidates = await CandidateSlotsAsync(patient.DoctorId, from, to);
+        var doctorBusy = await BusyAsync(q => q.Where(a => a.DoctorId == patient.DoctorId), from, to);
+        var patientBusy = await BusyAsync(q => q.Where(a => a.PatientId == patient.Id), from, to);
+        return candidates.Where(s => !Overlaps(s, doctorBusy) && !Overlaps(s, patientBusy))
+            .Select(s => new BookingSlotDto(s, SlotMinutes)).ToList();
+    }
+
+    public async Task<(BookingOutcome Outcome, PortalAppointmentDto? Appointment)> BookAsync(
+        Patient patient, DateTime startsAt, string? reason)
+    {
+        var start = startsAt.Kind == DateTimeKind.Utc ? startsAt : startsAt.ToUniversalTime();
+        var gate = Locks.GetOrAdd(patient.DoctorId, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync();
+        try
+        {
+            var strategy = _db.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
+            {
+                await using var tx = _db.Database.IsRelational()
+                    ? await _db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable)
+                    : null;
+
+                var day = DateOnly.FromDateTime(start);
+                var candidates = await CandidateSlotsAsync(patient.DoctorId, day, day);
+                if (!candidates.Contains(start)) return (BookingOutcome.NotAvailable, (PortalAppointmentDto?)null);
+
+                var now = DateTime.UtcNow;
+                var upcoming = await _db.Appointments.CountAsync(a =>
+                    a.PatientId == patient.Id && a.Status != AppointmentStatus.Cancelled && a.ScheduledAt >= now);
+                if (upcoming >= MaxUpcomingPerPatient) return (BookingOutcome.LimitReached, null);
+
+                var doctorBusy = await BusyAsync(q => q.Where(a => a.DoctorId == patient.DoctorId), day, day);
+                var patientBusy = await BusyAsync(q => q.Where(a => a.PatientId == patient.Id), day, day);
+                if (Overlaps(start, doctorBusy) || Overlaps(start, patientBusy)) return (BookingOutcome.Conflict, null);
+
+                var appt = new Appointment
+                {
+                    PatientId = patient.Id, DoctorId = patient.DoctorId, ScheduledAt = start,
+                    DurationMinutes = SlotMinutes, Type = AppointmentType.Consultation,
+                    Status = AppointmentStatus.Pending, Reason = reason
+                };
+                _db.Appointments.Add(appt);
+                await _db.SaveChangesAsync();
+                if (tx != null) await tx.CommitAsync();
+                return (BookingOutcome.Booked, new PortalAppointmentDto(appt.Id, appt.ScheduledAt, appt.DurationMinutes,
+                    appt.Type.ToString(), appt.Status.ToString(), appt.Reason, appt.Location));
+            });
+        }
+        finally { gate.Release(); }
+    }
+}

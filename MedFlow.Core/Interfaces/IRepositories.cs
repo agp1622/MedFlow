@@ -96,3 +96,16 @@ public interface IPortalInvitationRepository
     Task RevokeAsync(Patient patient);
     Task<string> GetPortalStatusAsync(Patient patient);
 }
+
+public interface IBookingRepository
+{
+    Task<AvailabilityDto> GetAvailabilityAsync(string doctorId);
+    Task<IEnumerable<AvailabilityWindowDto>> ReplaceWeeklyAsync(string doctorId, IEnumerable<(DayOfWeek Day, TimeOnly Start, TimeOnly End)> windows);
+    /// <summary>Returns null when the date is already blocked.</summary>
+    Task<BlockedDateDto?> AddBlockedDateAsync(string doctorId, DateOnly date, string? label);
+    Task<bool> RemoveBlockedDateAsync(string doctorId, int id);
+    /// <summary>Open slots of the patient's doctor between the two dates (inclusive).</summary>
+    Task<IEnumerable<BookingSlotDto>> GetOpenSlotsAsync(Patient patient, DateOnly from, DateOnly to);
+    /// <summary>Atomically re-validates the slot and creates a Pending appointment.</summary>
+    Task<(BookingOutcome Outcome, PortalAppointmentDto? Appointment)> BookAsync(Patient patient, DateTime startsAt, string? reason);
+}
