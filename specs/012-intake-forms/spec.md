@@ -14,7 +14,7 @@
 
 - Q: Does the doctor accept or reject a submission as a whole, or per field? → A: As a whole (accept applies all intake fields; reject applies none).
 - Q: How are current medications and past history stored, given the patient record has no dedicated fields? → A: Appended to the patient's Notes as a dated "Intake" block on accept (existing notes never overwritten); other fields overwrite their record counterparts.
-- Q: May a patient hold more than one pending submission? → A: No. Issuing a new link supersedes the old one, and a pending submission blocks nothing but is decided independently; at most one successful submission per link.
+- Q: May a patient hold more than one pending submission? → A: Each link accepts exactly one submission. Issuing a new link supersedes the old one, and a patient may end up with several submissions over time, each decided independently.
 - Q: Rate limit on the public endpoints? → A: Conservative per-IP limit (10 requests per 15 minutes) on the public form routes.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -46,7 +46,7 @@ The patient opens the emailed link (no account or sign-in required), fills in de
 
 **Acceptance Scenarios**:
 
-1. **Given** a valid link, **When** the patient opens it, **Then** they see the form pre-filled with nothing from the patient record other than their first name for greeting.
+1. **Given** a valid link, **When** the patient opens it, **Then** they see an empty form greeting them by first name; no other stored patient data is shown.
 2. **Given** a completed form with consent ticked and a typed signature, **When** they submit, **Then** the submission is saved as pending doctor review and the patient sees a confirmation.
 3. **Given** missing required fields, consent not ticked, or a signature that is blank, **When** they submit, **Then** they see field-level errors and nothing is saved.
 4. **Given** an expired, used, revoked or unknown link, **When** it is opened or submitted, **Then** the patient sees one generic "link is not valid" message that does not reveal whether a patient or email exists.

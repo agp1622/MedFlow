@@ -25,7 +25,7 @@
 **Test**: valid submit stores Pending with consent; validation limits; invalid/expired/used/superseded links identical 404; record unchanged.
 
 - [ ] T011 [US2] Public `GET/POST /api/intake/{token}` in `MedFlow.Api/Controllers/IntakeController.cs` (anonymous, rate limited, uniform 404, server timestamp, consent version constant, atomic single use)
-- [ ] T012 [US2] Tests in `MedFlow.Api.Tests/IntakeTests.cs`: submit ok + consent fields, missing consent/signature 400, over-length 400, future DOB 400, uniform 404 for unknown/expired/used/superseded, double submit only one succeeds, record unchanged
+- [ ] T012 [US2] Tests in `MedFlow.Api.Tests/IntakeTests.cs`: submit ok + consent fields, missing consent/signature 400, over-length 400, future DOB 400, uniform 404 for unknown/expired/used/superseded, double submit only one succeeds, rate limit returns 429 after the configured limit, record unchanged
 - [ ] T013 [P] [US2] Client types in `medflow-client/src/types/` and `intakeApi` in `medflow-client/src/api/services.ts`
 - [ ] T014 [US2] Public intake page with react-hook-form+zod in `medflow-client/src/pages/IntakePages.tsx`; route `/intake/:token` (unauthenticated) in `medflow-client/src/App.tsx`
 
