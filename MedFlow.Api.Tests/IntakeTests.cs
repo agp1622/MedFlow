@@ -38,7 +38,7 @@ public class IntakeTests : IClassFixture<TestApiFactory>
     private async Task AssertInvalidLink(HttpResponseMessage res)
     {
         Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
-        Assert.Equal("This link is invalid or has expired.",
+        Assert.Equal("Este enlace no es válido o ha caducado.",
             (await res.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
     }
 

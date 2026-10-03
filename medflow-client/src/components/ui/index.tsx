@@ -1,9 +1,11 @@
 import { avatarColor, initials, statusClass, displayEnum } from '@/utils/format'
 import { Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 export { PasswordInput } from './PasswordInput'
 
 // ── Badge ─────────────────────────────────────────────────────────────────────
 export function Badge({ status }: { status: string }) {
+  useTranslation() // re-render when the language changes
   return (
     <span className={`badge ${statusClass(status)}`}>
       {displayEnum(status)}
@@ -53,17 +55,18 @@ export function EmptyState({ title, description, action }: EmptyStateProps) {
 // ── Pagination ────────────────────────────────────────────────────────────────
 interface PaginationProps { page: number; totalPages: number; onPage: (p: number) => void }
 export function Pagination({ page, totalPages, onPage }: PaginationProps) {
+  const { t } = useTranslation()
   if (totalPages <= 1) return null
   return (
     <div className="flex flex-wrap items-center justify-center gap-1 py-4 px-2">
-      <button className="btn-ghost px-3 py-1.5 text-sm" disabled={page === 1} onClick={() => onPage(page - 1)}>← Prev</button>
+      <button className="btn-ghost px-3 py-1.5 text-sm" disabled={page === 1} onClick={() => onPage(page - 1)}>{t('common.prev')}</button>
       {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => i + 1).map(p => (
         <button key={p} onClick={() => onPage(p)}
           className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${p === page ? 'bg-primary-600 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
           {p}
         </button>
       ))}
-      <button className="btn-ghost px-3 py-1.5 text-sm" disabled={page === totalPages} onClick={() => onPage(page + 1)}>Next →</button>
+      <button className="btn-ghost px-3 py-1.5 text-sm" disabled={page === totalPages} onClick={() => onPage(page + 1)}>{t('common.next')}</button>
     </div>
   )
 }
@@ -85,11 +88,12 @@ export function StatCard({ icon, label, value, sub, color = 'text-primary-600' }
 
 // ── SearchInput ───────────────────────────────────────────────────────────────
 interface SearchInputProps { value: string; onChange: (v: string) => void; placeholder?: string }
-export function SearchInput({ value, onChange, placeholder = 'Search...' }: SearchInputProps) {
+export function SearchInput({ value, onChange, placeholder }: SearchInputProps) {
+  const { t } = useTranslation()
   return (
     <div className="relative w-full sm:w-auto">
       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
-      <input className="input pl-8 pr-3 h-9 w-full sm:w-56" placeholder={placeholder}
+      <input className="input pl-8 pr-3 h-9 w-full sm:w-56" placeholder={placeholder ?? t('common.searchPlaceholder')}
         value={value} onChange={e => onChange(e.target.value)} />
     </div>
   )

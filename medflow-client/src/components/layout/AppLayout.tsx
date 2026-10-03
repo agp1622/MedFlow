@@ -1,23 +1,26 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
+import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 import {
   LayoutDashboard, Users, CalendarDays, Pill, CreditCard, LogOut, Plus, Menu, X, ClipboardList, Clock, FileText
 } from 'lucide-react'
 
 const NAV = [
-  { to: '/',              icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/patients',      icon: Users,           label: 'Patients' },
-  { to: '/intake',        icon: ClipboardList,   label: 'Intake forms' },
-  { to: '/appointments',  icon: CalendarDays,    label: 'Appointments' },
-  { to: '/availability',  icon: Clock,           label: 'Availability' },
-  { to: '/prescriptions', icon: Pill,            label: 'Prescriptions' },
-  { to: '/billing',       icon: CreditCard,      label: 'Billing' },
-  { to: '/templates',     icon: FileText,        label: 'Note Templates' },
-]
+  { to: '/',              icon: LayoutDashboard, label: 'nav.dashboard' },
+  { to: '/patients',      icon: Users,           label: 'nav.patients' },
+  { to: '/intake',        icon: ClipboardList,   label: 'nav.intake' },
+  { to: '/appointments',  icon: CalendarDays,    label: 'nav.appointments' },
+  { to: '/availability',  icon: Clock,           label: 'nav.availability' },
+  { to: '/prescriptions', icon: Pill,            label: 'nav.prescriptions' },
+  { to: '/billing',       icon: CreditCard,      label: 'nav.billing' },
+  { to: '/templates',     icon: FileText,        label: 'nav.templates' },
+] as const
 
 export function AppLayout() {
+  const { t } = useTranslation()
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
 
@@ -53,9 +56,9 @@ export function AppLayout() {
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-bold text-sm">✚</div>
             <span className="text-white font-bold text-lg tracking-tight">MedFlow</span>
           </div>
-          <p className="text-navy-500 text-xs mt-1 pl-[42px]">Patient Management</p>
+          <p className="text-navy-500 text-xs mt-1 pl-[42px]">{t('app.tagline')}</p>
           <button type="button" className="lg:hidden absolute top-4 right-3 p-2 text-white/70 hover:text-white"
-            aria-label="Close navigation" onClick={() => setNavOpen(false)}>
+            aria-label={t('nav.close')} onClick={() => setNavOpen(false)}>
             <X size={18} />
           </button>
         </div>
@@ -72,7 +75,7 @@ export function AppLayout() {
                 }`
               }>
               <Icon size={16} />
-              {label}
+              {t(label)}
             </NavLink>
           ))}
         </nav>
@@ -84,16 +87,17 @@ export function AppLayout() {
               {user?.firstName?.[0]}{user?.lastName?.[0]}
             </div>
             <div className="min-w-0">
-              <p className="text-[#C8D8E8] text-xs font-semibold truncate">Dr. {user?.firstName} {user?.lastName}</p>
+              <p className="text-[#C8D8E8] text-xs font-semibold truncate">{t('layout.doctorPrefix')} {user?.firstName} {user?.lastName}</p>
               <p className="text-[#4A6280] text-xs truncate">{user?.specialty}</p>
             </div>
           </div>
           <div className="flex items-center justify-between">
             <button onClick={handleLogout} className="flex items-center gap-2 text-[#4A6280] hover:text-red-400 text-xs transition-colors px-1 py-1">
-              <LogOut size={13} /> Sign out
+              <LogOut size={13} /> {t('layout.signOut')}
             </button>
             <ThemeToggle />
           </div>
+          <LanguageSwitcher className="mt-3" />
         </div>
       </aside>
 
@@ -102,7 +106,7 @@ export function AppLayout() {
         {/* Mobile top bar */}
         <div className="lg:hidden flex items-center gap-3 bg-navy-800 px-3 h-14 flex-shrink-0">
           <button type="button" className="p-2.5 -ml-1 text-white/90 hover:text-white"
-            aria-label="Open navigation" aria-expanded={navOpen} aria-controls="app-navigation"
+            aria-label={t('nav.open')} aria-expanded={navOpen} aria-controls="app-navigation"
             onClick={() => setNavOpen(true)}>
             <Menu size={20} />
           </button>

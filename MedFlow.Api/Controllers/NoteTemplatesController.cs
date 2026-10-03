@@ -1,3 +1,4 @@
+using MedFlow.Api.Localization;
 using MedFlow.Api.Extensions;
 using MedFlow.Core;
 using MedFlow.Core.DTOs;
@@ -36,7 +37,7 @@ public class NoteTemplatesController : ControllerBase
         var doctorId = User.GetUserId();
         var (name, error) = Validate(req.Name, req.Body);
         if (error != null) return BadRequest(new { message = error });
-        if (await IsDuplicate(doctorId, name!, null)) return Conflict(new { message = "A template with this name already exists." });
+        if (await IsDuplicate(doctorId, name!, null)) return Conflict(new { message = this.T("Template.Duplicate") });
 
         var created = await _templates.AddAsync(new NoteTemplate { DoctorId = doctorId, Name = name!, Body = req.Body });
         return Ok(ToDto(created));
@@ -50,7 +51,7 @@ public class NoteTemplatesController : ControllerBase
         if (template == null) return NotFound();
         var (name, error) = Validate(req.Name, req.Body);
         if (error != null) return BadRequest(new { message = error });
-        if (await IsDuplicate(doctorId, name!, id)) return Conflict(new { message = "A template with this name already exists." });
+        if (await IsDuplicate(doctorId, name!, id)) return Conflict(new { message = this.T("Template.Duplicate") });
 
         template.Name = name!;
         template.Body = req.Body;
@@ -72,13 +73,13 @@ public class NoteTemplatesController : ControllerBase
         => name.Equals(BuiltInName, StringComparison.OrdinalIgnoreCase)
            || await _templates.NameExistsAsync(doctorId, name, excludeId);
 
-    private static (string? Name, string? Error) Validate(string? name, string? body)
+    private (string? Name, string? Error) Validate(string? name, string? body)
     {
         var trimmed = name?.Trim();
-        if (string.IsNullOrEmpty(trimmed)) return (null, "Name is required.");
-        if (trimmed.Length > MaxNameLength) return (null, $"Name must be at most {MaxNameLength} characters.");
-        if (string.IsNullOrWhiteSpace(body)) return (null, "Body is required.");
-        if (body.Length > MaxBodyLength) return (null, $"Body must be at most {MaxBodyLength} characters.");
+        if (string.IsNullOrEmpty(trimmed)) return (null, this.T("Template.NameRequired"));
+        if (trimmed.Length > MaxNameLength) return (null, this.T("Template.NameMax", MaxNameLength));
+        if (string.IsNullOrWhiteSpace(body)) return (null, this.T("Template.BodyRequired"));
+        if (body.Length > MaxBodyLength) return (null, this.T("Template.BodyMax", MaxBodyLength));
         return (trimmed, null);
     }
 
