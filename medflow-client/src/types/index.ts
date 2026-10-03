@@ -207,6 +207,26 @@ export interface DashboardStatsDto {
   recentPatients: PatientSummaryDto[]
 }
 
+// ── Reports (per signed-in doctor) ────────────────────────────────────────────
+export type ReportPeriod = 'Day' | 'Week' | 'Month'
+export interface ReportQuery { from?: string; to?: string; period?: ReportPeriod }
+export interface RevenuePoint { periodStart: string; revenue: number; invoicesPaid: number }
+export interface RevenueReport { from: string; to: string; period: ReportPeriod; totalRevenue: number; invoicesPaid: number; series: RevenuePoint[] }
+export interface VisitsPoint { periodStart: string; visits: number }
+export interface VisitsReport { from: string; to: string; period: ReportPeriod; totalVisits: number; series: VisitsPoint[] }
+export interface NoShowPoint { periodStart: string; completed: number; noShows: number; rate: number | null }
+export interface NoShowReport { from: string; to: string; period: ReportPeriod; completed: number; noShows: number; rate: number | null; series: NoShowPoint[] }
+export type ArBucketKey = 'current' | '1-30' | '31-60' | '61-90' | '90+'
+export interface ArBucketDto { bucket: ArBucketKey; invoices: number; amount: number }
+export interface ArInvoiceDto {
+  invoiceId: number; invoiceNumber: string; patientName: string; invoiceDate: string
+  dueDate?: string | null; daysPastDue: number; bucket: ArBucketKey; balance: number
+}
+export interface ArAgingReport {
+  asOf: string; totalOutstanding: number; openInvoices: number
+  buckets: ArBucketDto[]; invoices: PagedResult<ArInvoiceDto>
+}
+
 // ── Appointment reminders ─────────────────────────────────────────────────────
 export type ReminderAction = 'Confirm' | 'Cancel'
 export interface ReminderLookupDto {

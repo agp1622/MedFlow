@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi, clinicalApi, labsApi, intakeApi, noteTemplatesApi, availabilityApi, auditApi } from '@/api/services'
-import type { QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest, SaveAllergyRequest, SaveProblemRequest, SaveMedicationRequest, SaveLabOrderRequest, SaveLabResultRequest, IntakeStatus, CreateNoteTemplateRequest, AuditLogQuery } from '@/types'
+import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi, clinicalApi, labsApi, intakeApi, noteTemplatesApi, availabilityApi, auditApi, reportsApi } from '@/api/services'
+import type { ReportQuery, QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest, SaveAllergyRequest, SaveProblemRequest, SaveMedicationRequest, SaveLabOrderRequest, SaveLabResultRequest, IntakeStatus, CreateNoteTemplateRequest, AuditLogQuery } from '@/types'
 import toast from 'react-hot-toast'
 import i18n from '@/i18n'
 
@@ -32,6 +32,16 @@ export const QK = {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export const useDashboard = () =>
   useQuery({ queryKey: QK.dashboard, queryFn: dashboardApi.getStats, staleTime: 60_000 })
+
+// ── Reports ───────────────────────────────────────────────────────────────────
+export const useRevenueReport = (q: ReportQuery, enabled = true) =>
+  useQuery({ queryKey: ['reports', 'revenue', q], queryFn: () => reportsApi.revenue(q), enabled })
+export const useVisitsReport = (q: ReportQuery, enabled = true) =>
+  useQuery({ queryKey: ['reports', 'visits', q], queryFn: () => reportsApi.visits(q), enabled })
+export const useNoShowReport = (q: ReportQuery, enabled = true) =>
+  useQuery({ queryKey: ['reports', 'no-shows', q], queryFn: () => reportsApi.noShows(q), enabled })
+export const useArAgingReport = (page: number, enabled = true) =>
+  useQuery({ queryKey: ['reports', 'ar-aging', page], queryFn: () => reportsApi.arAging(page, 20), enabled })
 
 // ── Patients ──────────────────────────────────────────────────────────────────
 export const usePatients = (q?: QueryParams) =>
