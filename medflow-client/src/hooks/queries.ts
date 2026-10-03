@@ -228,6 +228,7 @@ export const useUploadAttachment = () => {
       qc.invalidateQueries({ queryKey: QK.attachments(vars.patientId) })
       toast.success(i18n.t('toasts.fileUploaded'))
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here; narrowing would change call signatures
     onError: (err: any) => {
       const d = err?.response?.data
       toast.error(typeof d === 'string' && d ? d : d?.message || d?.title || i18n.t('toasts.fileUploadFailed'))
@@ -275,6 +276,7 @@ export const useSetNoteSharing = () => {
 }
 
 // ── Portal invitations (doctor) ───────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here; narrowing would change call signatures
 const apiError = (err: any, fallback: string) => {
   const d = err?.response?.data
   return d?.errors?.[0] || d?.error || fallback
