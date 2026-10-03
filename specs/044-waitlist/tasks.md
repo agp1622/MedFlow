@@ -46,3 +46,7 @@
 ## Phase 7: Polish
 
 - [X] T024 Run build, tests, lint, `dotnet ef migrations has-pending-model-changes`; update quickstart notes
+
+## Phase 8: Convergence
+
+- [X] T025 Document the `Waitlist:*` and `RateLimiting:WaitlistOfferPermitLimit` settings in README.md per plan: Design notes (partial)
