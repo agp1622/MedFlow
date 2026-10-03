@@ -211,6 +211,14 @@ public class MedicalNotesController : ControllerBase
     public async Task<ActionResult<IEnumerable<MedicalNoteDto>>> GetByPatient(int patientId)
         => Ok(await _notes.GetByPatientAsync(patientId, User.GetUserId()));
 
+    // Copy-forward source: the caller's own latest note for the patient. 404 for none/unknown patient alike.
+    [HttpGet("patient/{patientId:int}/latest")]
+    public async Task<ActionResult<CopyForwardDto>> GetLatest(int patientId)
+    {
+        var latest = await _notes.GetLatestForPatientAsync(patientId, User.GetUserId());
+        return latest == null ? NotFound() : Ok(latest);
+    }
+
     [HttpPost]
     public async Task<ActionResult<MedicalNoteDto>> Create([FromBody] CreateMedicalNoteRequest req)
     {

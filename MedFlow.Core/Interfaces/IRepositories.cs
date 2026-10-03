@@ -58,6 +58,14 @@ public interface IMedicalNoteRepository : IRepository<MedicalNote>
 {
     Task<IEnumerable<MedicalNoteDto>> GetByPatientAsync(int patientId, string doctorId);
     Task<MedicalNote?> GetWithOwnerCheckAsync(int id, string doctorId);
+    Task<CopyForwardDto?> GetLatestForPatientAsync(int patientId, string doctorId);
+}
+
+public interface INoteTemplateRepository : IRepository<NoteTemplate>
+{
+    Task<PagedResult<NoteTemplateDto>> GetPagedAsync(string doctorId, QueryParams query);
+    Task<NoteTemplate?> GetWithOwnerCheckAsync(int id, string doctorId);
+    Task<bool> NameExistsAsync(string doctorId, string name, int? excludeId = null);
 }
 
 public interface IPatientAttachmentRepository : IRepository<PatientAttachment>
