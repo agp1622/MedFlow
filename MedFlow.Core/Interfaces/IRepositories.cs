@@ -185,3 +185,17 @@ public interface IReminderProcessor
     /// <summary>Sends every reminder that is due. Returns the number of emails sent.</summary>
     Task<int> ProcessDueAsync(CancellationToken ct = default);
 }
+
+public interface ILabOrderRepository
+{
+    Task<bool> OwnsPatientAsync(int patientId, string doctorId);
+    Task<LabSummaryDto> GetSummaryAsync(int patientId, string doctorId);
+    Task<LabOrder?> GetOrderAsync(int orderId, int patientId, string doctorId);
+    Task<int> CountOrdersAsync(int patientId, string doctorId);
+    Task<LabOrderDto> AddOrderAsync(LabOrder order);
+    Task<LabOrderDto> SaveOrderAsync(LabOrder order);
+    Task DeleteOrderAsync(LabOrder order);
+    Task<LabOrderDto> AddResultAsync(LabOrder order, LabResult result);
+    Task<LabOrderDto> SaveResultAsync(LabOrder order, LabResult result);
+    Task<LabOrderDto> RemoveResultAsync(LabOrder order, LabResult result);
+}

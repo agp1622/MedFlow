@@ -110,6 +110,13 @@ public static class Messages
         ["Template.BodyRequired"] = ("El contenido es obligatorio.", "Body is required."),
         ["Template.BodyMax"] = ("El contenido debe tener como máximo {0} caracteres.", "Body must be at most {0} characters."),
 
+        // Lab orders and results
+        ["Lab.DateFuture"] = ("La fecha del pedido no puede ser futura.", "The order date cannot be in the future."),
+        ["Lab.RangeOrder"] = ("El límite inferior del rango de referencia no puede ser mayor que el superior.", "The reference range low cannot be greater than the high."),
+        ["Lab.OrderLimit"] = ("Un paciente puede tener como máximo {0} pedidos de laboratorio.", "A patient can have at most {0} lab orders."),
+        ["Lab.ResultLimit"] = ("Un pedido puede tener como máximo {0} resultados.", "An order can have at most {0} results."),
+        ["Lab.Cancelled"] = ("Este pedido está cancelado y no se puede modificar.", "This order is cancelled and cannot be changed."),
+
         // Appointment response (public)
         ["Response.Invalid"] = ("Este enlace no es válido.", "This link is not valid."),
         ["Response.Closed"] = ("Esta cita ya no se puede modificar.", "This appointment can no longer be changed."),
