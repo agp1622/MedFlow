@@ -16,11 +16,13 @@ public class AppointmentsController : ControllerBase
 {
     private readonly IAppointmentRepository _appointments;
     private readonly IReminderRepository _reminders;
+    private readonly IAuditService _audit;
 
-    public AppointmentsController(IAppointmentRepository appointments, IReminderRepository reminders)
+    public AppointmentsController(IAppointmentRepository appointments, IReminderRepository reminders, IAuditService audit)
     {
         _appointments = appointments;
         _reminders = reminders;
+        _audit = audit;
     }
 
     [HttpGet]
@@ -37,13 +39,17 @@ public class AppointmentsController : ControllerBase
 
     [HttpGet("patient/{patientId:int}")]
     public async Task<ActionResult<IEnumerable<AppointmentDto>>> GetByPatient(int patientId)
-        => Ok(await _appointments.GetByPatientAsync(patientId, User.GetUserId()));
+    {
+        if (!await this.AuditAsync(_audit, patientId, AuditAction.View, AuditItemKind.Appointment, null)) return NotFound();
+        return Ok(await _appointments.GetByPatientAsync(patientId, User.GetUserId()));
+    }
 
     [HttpGet("{id:int}")]
     public async Task<ActionResult<AppointmentDto>> GetById(int id)
     {
         var appt = await _appointments.GetByIdAsync(id);
         if (appt == null) return NotFound();
+        if (!await this.AuditAsync(_audit, appt.PatientId, AuditAction.View, AuditItemKind.Appointment, appt.Id)) return NotFound();
         return Ok(appt);
     }
 
@@ -58,6 +64,7 @@ public class AppointmentsController : ControllerBase
     public async Task<ActionResult<AppointmentDto>> Create([FromBody] CreateAppointmentRequest req)
     {
         var doctorId = User.GetUserId();
+        if (!await this.AuditAsync(_audit, req.PatientId, AuditAction.Change, AuditItemKind.Appointment, null)) return NotFound();
         var appt = new Appointment
         {
             PatientId = req.PatientId,
@@ -79,6 +86,7 @@ public class AppointmentsController : ControllerBase
         var appt = await _appointments.GetByIdAsync(id);
         if (appt == null) return NotFound();
 
+        var before = AuditDiff.Snapshot(appt);
         appt.ScheduledAt = req.ScheduledAt;
         appt.DurationMinutes = req.DurationMinutes;
         appt.Type = req.Type;
@@ -87,6 +95,8 @@ public class AppointmentsController : ControllerBase
         appt.Notes = req.Notes;
         appt.Location = req.Location;
 
+        // Recording saves the in-memory edit together with the event
+        if (!await this.AuditAsync(_audit, appt.PatientId, AuditAction.Change, AuditItemKind.Appointment, appt.Id, AuditDiff.Changed(before, appt))) return NotFound();
         await _appointments.UpdateAsync(appt);
         return NoContent();
     }
@@ -96,7 +106,9 @@ public class AppointmentsController : ControllerBase
     {
         var appt = await _appointments.GetByIdAsync(id);
         if (appt == null) return NotFound();
+        var before = AuditDiff.Snapshot(appt);
         appt.Status = status;
+        if (!await this.AuditAsync(_audit, appt.PatientId, AuditAction.Change, AuditItemKind.Appointment, appt.Id, AuditDiff.Changed(before, appt))) return NotFound();
         await _appointments.UpdateAsync(appt);
         return NoContent();
     }
@@ -104,7 +116,9 @@ public class AppointmentsController : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
-        if (!await _appointments.ExistsAsync(id)) return NotFound();
+        var appt = await _appointments.GetByIdAsync(id);
+        if (appt == null) return NotFound();
+        if (!await this.AuditAsync(_audit, appt.PatientId, AuditAction.Change, AuditItemKind.Appointment, id)) return NotFound();
         await _appointments.DeleteAsync(id);
         return NoContent();
     }

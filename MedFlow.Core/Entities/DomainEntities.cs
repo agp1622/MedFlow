@@ -96,6 +96,13 @@ public class MedicalNote : BaseEntity
     public bool SharedWithPatient { get; set; }
 }
 
+public class NoteTemplate : BaseEntity
+{
+    public string DoctorId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Body { get; set; } = string.Empty;
+}
+
 public class PatientAttachment : BaseEntity
 {
     public int PatientId { get; set; }

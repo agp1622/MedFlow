@@ -1,6 +1,7 @@
 using MedFlow.Core;
 using MedFlow.Api.Extensions;
 using MedFlow.Core.DTOs;
+using MedFlow.Core.Enums;
 using MedFlow.Core.Entities;
 using MedFlow.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -15,6 +16,7 @@ public class AttachmentsController : ControllerBase
 {
     private readonly IPatientAttachmentRepository _attachments;
     private readonly IWebHostEnvironment _env;
+    private readonly IAuditService _audit;
 
     private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -32,15 +34,19 @@ public class AttachmentsController : ControllerBase
 
     private const long MaxFileSize = 50 * 1024 * 1024; // 50 MB
 
-    public AttachmentsController(IPatientAttachmentRepository attachments, IWebHostEnvironment env)
+    public AttachmentsController(IPatientAttachmentRepository attachments, IWebHostEnvironment env, IAuditService audit)
     {
         _attachments = attachments;
         _env = env;
+        _audit = audit;
     }
 
     [HttpGet("patient/{patientId:int}")]
     public async Task<ActionResult<IEnumerable<PatientAttachmentDto>>> GetByPatient(int patientId)
-        => Ok(await _attachments.GetByPatientAsync(patientId, User.GetUserId()));
+    {
+        if (!await this.AuditAsync(_audit, patientId, AuditAction.View, AuditItemKind.Attachment, null)) return NotFound();
+        return Ok(await _attachments.GetByPatientAsync(patientId, User.GetUserId()));
+    }
 
     [HttpPost]
     [RequestSizeLimit(52_428_800)] // 50 MB
@@ -60,6 +66,8 @@ public class AttachmentsController : ControllerBase
             return BadRequest($"File type '{file.ContentType}' is not allowed.");
 
         var doctorId = User.GetUserId();
+        // Checked before anything is written to disk
+        if (!await this.AuditAsync(_audit, patientId, AuditAction.Change, AuditItemKind.Attachment, null)) return NotFound();
         var storedFileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
         var uploadDir = Path.Combine(_env.ContentRootPath, "wwwroot", "uploads", "attachments", patientId.ToString());
         Directory.CreateDirectory(uploadDir);
@@ -92,6 +100,7 @@ public class AttachmentsController : ControllerBase
     {
         var attachment = await _attachments.GetWithOwnerCheckAsync(id, User.GetUserId());
         if (attachment == null) return NotFound();
+        if (!await this.AuditAsync(_audit, attachment.PatientId, AuditAction.View, AuditItemKind.Attachment, attachment.Id)) return NotFound();
 
         var filePath = Path.Combine(_env.ContentRootPath, "wwwroot", "uploads", "attachments",
             attachment.PatientId.ToString(), attachment.StoredFileName);
@@ -108,6 +117,7 @@ public class AttachmentsController : ControllerBase
     {
         var attachment = await _attachments.GetWithOwnerCheckAsync(id, User.GetUserId());
         if (attachment == null) return NotFound();
+        if (!await this.AuditAsync(_audit, attachment.PatientId, AuditAction.View, AuditItemKind.Attachment, attachment.Id)) return NotFound();
 
         var filePath = Path.Combine(_env.ContentRootPath, "wwwroot", "uploads", "attachments",
             attachment.PatientId.ToString(), attachment.StoredFileName);
@@ -125,6 +135,7 @@ public class AttachmentsController : ControllerBase
     {
         var attachment = await _attachments.GetWithOwnerCheckAsync(id, User.GetUserId());
         if (attachment == null) return NotFound();
+        if (!await this.AuditAsync(_audit, attachment.PatientId, AuditAction.Change, AuditItemKind.Attachment, attachment.Id, new[] { "SharedWithPatient" })) return NotFound();
         await _attachments.SetSharingAsync(attachment, req.Shared);
         return Ok(new PatientAttachmentDto(attachment.Id, attachment.PatientId, attachment.FileName,
             attachment.ContentType, attachment.FileSize, attachment.Category, attachment.Description,
@@ -136,6 +147,7 @@ public class AttachmentsController : ControllerBase
     {
         var attachment = await _attachments.GetWithOwnerCheckAsync(id, User.GetUserId());
         if (attachment == null) return NotFound();
+        if (!await this.AuditAsync(_audit, attachment.PatientId, AuditAction.Change, AuditItemKind.Attachment, id)) return NotFound();
 
         // Delete file from disk
         var filePath = Path.Combine(_env.ContentRootPath, "wwwroot", "uploads", "attachments",

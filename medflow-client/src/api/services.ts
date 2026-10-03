@@ -9,12 +9,14 @@ import type {
   InvoiceDto, CreateInvoiceRequest, UpdateInvoiceRequest,
   VitalSignDto, CreateVitalSignRequest,
   MedicalNoteDto, CreateMedicalNoteRequest,
+  NoteTemplateDto, CreateNoteTemplateRequest, UpdateNoteTemplateRequest, CopyForwardDto,
   PatientAttachmentDto,
   AcceptInvitationRequest, InvitationResult,
   PortalProfileDto, PortalAppointmentDto, PortalPrescriptionDto, PortalInvoiceDto,
   PortalAttachmentDto, PortalNoteDto,
   ReminderLookupDto, ReminderLogDto, ReminderAction,
-  DashboardStatsDto, AppointmentStatus
+  DashboardStatsDto, AppointmentStatus,
+  AuditEventDto, AuditLogQuery
 } from '@/types'
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -41,6 +43,12 @@ export const patientsApi = {
   delete:   (id: number)      => api.delete(`/patients/${id}`),
   invite:   (id: number)      => api.post<InvitationResult>(`/patients/${id}/portal-invitation`).then(r => r.data),
   revokePortalAccess: (id: number) => api.delete(`/patients/${id}/portal-access`),
+}
+
+// ── Audit log ─────────────────────────────────────────────────────────────────
+export const auditApi = {
+  getByPatient: (patientId: number, q?: AuditLogQuery) =>
+    api.get<PagedResult<AuditEventDto>>(`/patients/${patientId}/audit-log`, { params: q }).then(r => r.data),
 }
 
 // ── Appointments ──────────────────────────────────────────────────────────────
@@ -93,8 +101,18 @@ export const vitalsApi = {
 export const notesApi = {
   getByPatient: (patientId: number) => api.get<MedicalNoteDto[]>(`/medicalnotes/patient/${patientId}`).then(r => r.data),
   create:       (data: CreateMedicalNoteRequest) => api.post<MedicalNoteDto>('/medicalnotes', data).then(r => r.data),
+  getLatest:    (patientId: number) => api.get<CopyForwardDto>(`/medicalnotes/patient/${patientId}/latest`).then(r => r.data),
   delete:       (id: number)        => api.delete(`/medicalnotes/${id}`),
   setSharing:   (id: number, shared: boolean) => api.put<MedicalNoteDto>(`/medicalnotes/${id}/sharing`, { shared }).then(r => r.data),
+}
+
+// ── Note Templates ────────────────────────────────────────────────────────────
+export const noteTemplatesApi = {
+  getAll:    (params?: QueryParams) => api.get<PagedResult<NoteTemplateDto>>('/notetemplates', { params }).then(r => r.data),
+  getBuiltIn: () => api.get<NoteTemplateDto[]>('/notetemplates/builtin').then(r => r.data),
+  create:    (data: CreateNoteTemplateRequest) => api.post<NoteTemplateDto>('/notetemplates', data).then(r => r.data),
+  update:    (id: number, data: UpdateNoteTemplateRequest) => api.put<NoteTemplateDto>(`/notetemplates/${id}`, data).then(r => r.data),
+  delete:    (id: number) => api.delete(`/notetemplates/${id}`),
 }
 
 // ── Attachments ───────────────────────────────────────────────────────────────

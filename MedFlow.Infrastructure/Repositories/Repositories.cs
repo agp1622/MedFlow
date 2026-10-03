@@ -319,6 +319,39 @@ public class MedicalNoteRepository : Repository<MedicalNote>, IMedicalNoteReposi
 
     public async Task<MedicalNote?> GetWithOwnerCheckAsync(int id, string doctorId) =>
         await _db.MedicalNotes.FirstOrDefaultAsync(n => n.Id == id && n.DoctorId == doctorId);
+
+    public async Task<CopyForwardDto?> GetLatestForPatientAsync(int patientId, string doctorId) =>
+        await _db.MedicalNotes
+            .Where(n => n.PatientId == patientId && n.DoctorId == doctorId)
+            .OrderByDescending(n => n.NoteDate).ThenByDescending(n => n.Id)
+            .Select(n => new CopyForwardDto(n.Id, n.Content, n.VisitType, n.NoteDate))
+            .FirstOrDefaultAsync();
+}
+
+// ── NoteTemplate Repository ───────────────────────────────────────────────────
+public class NoteTemplateRepository : Repository<NoteTemplate>, INoteTemplateRepository
+{
+    public NoteTemplateRepository(AppDbContext db) : base(db) { }
+
+    public async Task<PagedResult<NoteTemplateDto>> GetPagedAsync(string doctorId, QueryParams q)
+    {
+        var page = Math.Max(1, q.Page);
+        var size = Math.Clamp(q.PageSize, 1, 100);
+        var query = _db.NoteTemplates.Where(t => t.DoctorId == doctorId);
+        var total = await query.CountAsync();
+        var items = await query.OrderBy(t => t.Name)
+            .Skip((page - 1) * size).Take(size)
+            .Select(t => new NoteTemplateDto(t.Id, t.Name, t.Body, false, t.UpdatedAt))
+            .ToListAsync();
+        return new PagedResult<NoteTemplateDto>(items, total, page, size);
+    }
+
+    public async Task<NoteTemplate?> GetWithOwnerCheckAsync(int id, string doctorId) =>
+        await _db.NoteTemplates.FirstOrDefaultAsync(t => t.Id == id && t.DoctorId == doctorId);
+
+    public async Task<bool> NameExistsAsync(string doctorId, string name, int? excludeId = null) =>
+        await _db.NoteTemplates.AnyAsync(t => t.DoctorId == doctorId
+            && t.Id != excludeId && t.Name.ToLower() == name.ToLower());
 }
 
 // ── Dashboard Repository ──────────────────────────────────────────────────────
