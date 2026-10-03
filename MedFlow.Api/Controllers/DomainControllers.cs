@@ -199,7 +199,10 @@ public class InvoicesController : ControllerBase
             InvoiceDate = DateTime.UtcNow
         };
         var created = await _invoices.AddAsync(invoice);
-        return CreatedAtAction(nameof(GetByPatient), new { patientId = created.PatientId }, created);
+        var dto = new InvoiceDto(created.Id, created.PatientId, patient.FullName, created.AppointmentId, created.InvoiceNumber,
+            created.ServiceDescription, created.Amount, created.PaidAmount, created.Status.ToString(),
+            created.InvoiceDate, created.DueDate, created.PaidDate, created.Notes, created.CreatedAt);
+        return CreatedAtAction(nameof(GetByPatient), new { patientId = created.PatientId }, dto);
     }
 
     [HttpPut("{id:int}")]

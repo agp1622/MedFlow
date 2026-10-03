@@ -60,7 +60,6 @@ public static class Messages
         ["Staff.LastOwner"] = ("Debe quedar al menos un propietario activo en la clínica.", "The clinic must keep at least one active owner."),
         ["Staff.NameRequired"] = ("Indique nombre y apellido.", "Provide a first and last name."),
         ["Clinic.NameRequired"] = ("Indique el nombre de la clínica (máximo 200 caracteres).", "Provide the clinic name (at most 200 characters)."),
-        ["Staff.Email.Subject"] = ("Le invitan a unirse a una clínica en MedFlow", "You're invited to join a clinic on MedFlow"),
 
         // Availability
         ["Availability.MaxWindows"] = ("Indique como máximo {0} franjas.", "Provide at most {0} windows."),

@@ -1,6 +1,6 @@
 namespace MedFlow.Core.DTOs;
 
-// ── Reports (per signed-in doctor; there is no clinic layer yet) ──────────────
+// ── Reports (clinic-wide for Owners, own data for Doctors) ──────────────
 public enum ReportPeriod { Day, Week, Month }
 
 public record RevenuePoint(DateOnly PeriodStart, decimal Revenue, int InvoicesPaid);
