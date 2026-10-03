@@ -73,7 +73,6 @@ public class LabOrderRepository : ILabOrderRepository
         result.IsDeleted = true;
         Rederive(order);
         await _db.SaveChangesAsync();
-        order.Results = order.Results.Where(r => !r.IsDeleted).ToList();
         return ToDto(order);
     }
 
