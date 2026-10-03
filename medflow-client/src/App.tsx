@@ -9,6 +9,7 @@ import { DashboardPage } from '@/pages/DashboardPage'
 import { PatientsPage, PatientDetailPage } from '@/pages/PatientsPage'
 import { NoteTemplatesPage } from '@/pages/NoteTemplatesPage'
 import { AppointmentsPage } from '@/pages/AppointmentsPage'
+import { IntakeFormPage, IntakeListPage, IntakeReviewPage } from '@/pages/IntakePages'
 import { AvailabilityPage } from '@/pages/AvailabilityPage'
 import { PrescriptionsPage, BillingPage } from '@/pages/BillingPrescriptionsPages'
 
@@ -44,6 +45,9 @@ export default function App() {
       {/* Not wrapped in PublicRoute: opening an invitation link must work even if someone is signed in */}
       <Route path="/accept-invite" element={<AcceptInvitePage />} />
 
+      {/* Public, token-gated intake form: no account needed, works whether or not someone is signed in */}
+      <Route path="/intake/:token" element={<IntakeFormPage />} />
+
       {/* Public: opened from the reminder email, authorised by its token only */}
       <Route path="/appointment-response" element={<AppointmentResponsePage />} />
 
@@ -55,6 +59,8 @@ export default function App() {
         <Route index element={<DashboardPage />} />
         <Route path="patients" element={<PatientsPage />} />
         <Route path="patients/:id" element={<PatientDetailPage />} />
+        <Route path="intake" element={<IntakeListPage />} />
+        <Route path="intake/review/:id" element={<IntakeReviewPage />} />
         <Route path="appointments" element={<AppointmentsPage />} />
         <Route path="availability" element={<AvailabilityPage />} />
         <Route path="prescriptions" element={<PrescriptionsPage />} />

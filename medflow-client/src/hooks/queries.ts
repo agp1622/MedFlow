@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, noteTemplatesApi, attachmentsApi, portalApi, availabilityApi, auditApi } from '@/api/services'
-import type { QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest, CreateNoteTemplateRequest, AuditLogQuery } from '@/types'
+import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi, intakeApi, noteTemplatesApi, availabilityApi, auditApi } from '@/api/services'
+import type { QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest, IntakeStatus, CreateNoteTemplateRequest, AuditLogQuery } from '@/types'
 import toast from 'react-hot-toast'
 
 // Keys
@@ -22,6 +22,8 @@ export const QK = {
   attachments: (pid: number) => ['attachments', pid],
   auditLog: (pid: number, q?: AuditLogQuery) => ['audit-log', pid, q],
   portal: (section: string) => ['portal', section],
+  intakeList: (status?: IntakeStatus, page?: number) => ['intake', 'list', status, page],
+  intake: (id: number) => ['intake', id],
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -308,6 +310,34 @@ export const usePortalPrescriptions = () => useQuery({ queryKey: QK.portal('pres
 export const usePortalInvoices = () => useQuery({ queryKey: QK.portal('invoices'), queryFn: portalApi.invoices })
 export const usePortalAttachments = () => useQuery({ queryKey: QK.portal('attachments'), queryFn: portalApi.attachments })
 export const usePortalNotes = () => useQuery({ queryKey: QK.portal('notes'), queryFn: portalApi.notes })
+
+// ── Intake forms (doctor) ─────────────────────────────────────────────────────
+export const useSendIntakeLink = () =>
+  useMutation({
+    mutationFn: (patientId: number) => intakeApi.sendLink(patientId),
+    onSuccess: () => toast.success('Intake form sent'),
+    onError: (err) => toast.error(apiError(err, 'Failed to send intake form')),
+  })
+
+export const useIntakeSubmissions = (status?: IntakeStatus, page = 1) =>
+  useQuery({ queryKey: QK.intakeList(status, page), queryFn: () => intakeApi.list({ status, page, pageSize: 20 }) })
+
+export const useIntakeSubmission = (id: number) =>
+  useQuery({ queryKey: QK.intake(id), queryFn: () => intakeApi.getById(id), enabled: id > 0 })
+
+export const useDecideIntake = (id: number) => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ accept, reason }: { accept: boolean; reason?: string }) =>
+      accept ? intakeApi.accept(id) : intakeApi.reject(id, reason),
+    onSuccess: (_, v) => {
+      qc.invalidateQueries({ queryKey: ['intake'] })
+      qc.invalidateQueries({ queryKey: ['patients'] })
+      toast.success(v.accept ? 'Answers added to the patient record' : 'Submission rejected')
+    },
+    onError: (err) => toast.error(apiError(err, 'Could not save your decision')),
+  })
+}
 
 // ── Availability (doctor) ─────────────────────────────────────────────────────
 export const useAvailability = () => useQuery({ queryKey: ['availability'], queryFn: availabilityApi.get })

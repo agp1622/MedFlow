@@ -201,6 +201,33 @@ export interface PortalNoteDto {
   id: number; doctorName: string; visitType?: string; content: string; noteDate: string
 }
 
+// ── Intake forms ──────────────────────────────────────────────────────────────
+export type IntakeStatus = 'Pending' | 'Accepted' | 'Rejected'
+export interface IntakeFormInfo { firstName: string; consentVersion: string; consentText: string }
+export interface IntakeSubmitRequest {
+  firstName: string; lastName: string; dateOfBirth: string; gender: Gender; phone: string
+  address?: string; city?: string; state?: string; zipCode?: string
+  insuranceProvider?: string; insurancePolicyNumber?: string
+  primaryCondition?: string; allergies?: string
+  currentMedications?: string; pastHistory?: string; additionalNotes?: string
+  consentAgreed: boolean; signatureName: string
+}
+export interface IntakeSubmissionSummary {
+  id: number; patientId: number; patientName: string; status: IntakeStatus; submittedAt: string
+}
+export interface IntakeAnswers {
+  firstName: string; lastName: string; dateOfBirth: string; gender: string; phone: string
+  address?: string | null; city?: string | null; state?: string | null; zipCode?: string | null
+  insuranceProvider?: string | null; insurancePolicyNumber?: string | null
+  primaryCondition?: string | null; allergies?: string | null
+  currentMedications?: string | null; pastHistory?: string | null; additionalNotes?: string | null
+}
+export interface IntakeSubmissionDetail {
+  id: number; patientId: number; status: IntakeStatus; submittedAt: string
+  answers: IntakeAnswers; current: IntakeAnswers | null
+  consent: { consentVersion: string; consentAgreed: boolean; signatureName: string; signedAt: string }
+  decidedAt?: string | null; rejectionReason?: string | null
+
 // ── Online booking ────────────────────────────────────────────────────────────
 export type WeekDay = 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday'
 export interface AvailabilityWindowInput { dayOfWeek: WeekDay; startTime: string; endTime: string }

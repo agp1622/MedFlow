@@ -49,6 +49,7 @@ public class TestApiFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("Jwt__Audience", "MedFlowTests");
         Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", "Server=unused;Database=unused");
         Environment.SetEnvironmentVariable("RateLimiting__AcceptInvitationPermitLimit", "1000");
+        Environment.SetEnvironmentVariable("RateLimiting__IntakePermitLimit", "1000");
         Environment.SetEnvironmentVariable("RateLimiting__AppointmentResponsePermitLimit", "1000");
     }
 
