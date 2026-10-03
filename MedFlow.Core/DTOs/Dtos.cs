@@ -189,18 +189,18 @@ public record MedicationDto(int Id, string Name, string? Dosage, string? Frequen
 public record ClinicalSummaryDto(IEnumerable<AllergyDto> Allergies, IEnumerable<ProblemDto> Problems, IEnumerable<MedicationDto> Medications);
 
 public record SaveAllergyRequest(
-    [property: Required, StringLength(200)] string Substance,
-    [property: StringLength(500)] string? Reaction,
-    [property: Required] AllergySeverity? Severity);
+    [Required, StringLength(200)] string Substance,
+    [StringLength(500)] string? Reaction,
+    [Required] AllergySeverity? Severity);
 
 public record SaveProblemRequest(
-    [property: Required, StringLength(200)] string Description,
-    [property: Required, StringLength(16), RegularExpression(@"^\s*[A-Za-z][0-9][A-Za-z0-9](\.[A-Za-z0-9]{1,4})?\s*$", ErrorMessage = "Enter a valid ICD-10 code such as E11.9.")] string Icd10Code,
-    [property: Required] ProblemStatus? Status,
+    [Required, StringLength(200)] string Description,
+    [Required, StringLength(16), RegularExpression(@"^\s*[A-Za-z][0-9][A-Za-z0-9](\.[A-Za-z0-9]{1,4})?\s*$", ErrorMessage = "Enter a valid ICD-10 code such as E11.9.")] string Icd10Code,
+    [Required] ProblemStatus? Status,
     DateOnly? OnsetDate);
 
 public record SaveMedicationRequest(
-    [property: Required, StringLength(200)] string Name,
-    [property: StringLength(100)] string? Dosage,
-    [property: StringLength(100)] string? Frequency,
-    [property: StringLength(500)] string? Notes);
+    [Required, StringLength(200)] string Name,
+    [StringLength(100)] string? Dosage,
+    [StringLength(100)] string? Frequency,
+    [StringLength(500)] string? Notes);
