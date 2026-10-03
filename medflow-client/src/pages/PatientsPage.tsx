@@ -7,14 +7,16 @@ import {
   usePatients, usePatient, useCreatePatient, useDeletePatient,
   usePatientAppointments, usePatientPrescriptions, usePatientInvoices,
   usePatientVitals, usePatientNotes, useCreateNote, useDeleteNote,
-  useSetNoteSharing, useInvitePatient, useRevokePortalAccess,
+  useSetNoteSharing, useNoteTemplates, useCopyForward, useInvitePatient, useRevokePortalAccess,
 } from '@/hooks/queries'
 import { PageHeader } from '@/components/layout/AppLayout'
 import { Avatar, Badge, SearchInput, PageSpinner, EmptyState, Pagination, Spinner } from '@/components/ui'
 import { fmt, bloodTypeDisplay, displayEnum } from '@/utils/format'
+import toast from 'react-hot-toast'
 import { ArrowLeft, Trash2, Plus } from 'lucide-react'
 import { ShareToggle } from '@/components/sharing/ShareToggle'
 import { AttachmentsTab } from '@/components/attachments/AttachmentsTab'
+import { AuditLogTab } from '@/components/audit/AuditLogTab'
 import type { CreatePatientRequest } from '@/types'
 
 // ── Patient List ──────────────────────────────────────────────────────────────
@@ -86,7 +88,7 @@ export function PatientsPage() {
 }
 
 // ── Patient Detail ────────────────────────────────────────────────────────────
-const TABS = ['Overview', 'Appointments', 'Prescriptions', 'Invoices', 'Notes', 'Attachments'] as const
+const TABS = ['Overview', 'Appointments', 'Prescriptions', 'Invoices', 'Notes', 'Attachments', 'Audit log'] as const
 type Tab = typeof TABS[number]
 
 export function PatientDetailPage() {
@@ -160,6 +162,7 @@ export function PatientDetailPage() {
         {tab === 'Invoices'      && <InvTab patientId={patientId} />}
         {tab === 'Notes'         && <NotesTab patientId={patientId} />}
         {tab === 'Attachments'   && <AttachmentsTab patientId={patientId} />}
+        {tab === 'Audit log'     && <AuditLogTab patientId={patientId} />}
       </div>
     </div>
   )
@@ -288,6 +291,23 @@ function NotesTab({ patientId }: { patientId: number }) {
   const setSharing = useSetNoteSharing()
   const [content, setContent] = useState('')
   const [visitType, setVisitType] = useState('')
+  const { data: templates } = useNoteTemplates()
+  const copyForward = useCopyForward()
+
+  // Never silently discard what the doctor has already typed.
+  const applyText = (text: string) => {
+    if (content.trim() && !window.confirm('Replace the text you have already entered?')) return
+    setContent(text)
+  }
+  const handlePick = (id: string) => {
+    const t = templates?.find(x => String(x.id) === id)
+    if (t) applyText(t.body)
+  }
+  const handleCopyForward = () =>
+    copyForward.mutate(patientId, {
+      onSuccess: n => { applyText(n.content); if (n.visitType && !visitType) setVisitType(n.visitType) },
+      onError: () => toast.error('No previous note to copy for this patient'),
+    })
 
   const handleAdd = () => {
     if (!content.trim()) return
@@ -301,7 +321,16 @@ function NotesTab({ patientId }: { patientId: number }) {
       <div className="card p-4 space-y-3">
         <p className="font-semibold text-gray-800 text-sm">Add Note</p>
         <input className="input" placeholder="Visit type (e.g. Follow-up)" value={visitType} onChange={e => setVisitType(e.target.value)} />
-        <textarea className="input resize-none" rows={3} placeholder="Clinical notes..." value={content} onChange={e => setContent(e.target.value)} />
+        <div className="flex flex-wrap gap-2">
+          <select className="input w-auto" value="" aria-label="Insert template" onChange={e => handlePick(e.target.value)}>
+            <option value="">Use template...</option>
+            {templates?.map(t => <option key={`${t.isBuiltIn}-${t.id}`} value={t.id}>{t.name}</option>)}
+          </select>
+          <button type="button" className="btn-ghost" onClick={handleCopyForward} disabled={copyForward.isPending}>
+            Copy from last visit
+          </button>
+        </div>
+        <textarea className="input resize-none" rows={8} placeholder="Clinical notes..." value={content} onChange={e => setContent(e.target.value)} />
         <button className="btn-primary" onClick={handleAdd} disabled={createNote.isPending || !content.trim()}>
           {createNote.isPending ? <Spinner className="w-4 h-4" /> : <><Plus size={14} /> Save Note</>}
         </button>

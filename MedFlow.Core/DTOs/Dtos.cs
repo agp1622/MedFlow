@@ -144,6 +144,12 @@ public record MedicalNoteDto(
 
 public record CreateMedicalNoteRequest(int PatientId, string Content, string? VisitType);
 
+// ── NoteTemplate ──────────────────────────────────────────────────────────────
+public record NoteTemplateDto(int Id, string Name, string Body, bool IsBuiltIn, DateTime? UpdatedAt);
+public record CreateNoteTemplateRequest(string Name, string Body);
+public record UpdateNoteTemplateRequest(string Name, string Body);
+public record CopyForwardDto(int NoteId, string Content, string? VisitType, DateTime NoteDate);
+
 // ── PatientAttachment ────────────────────────────────────────────────────────
 public record PatientAttachmentDto(
     int Id, int PatientId, string FileName, string ContentType,
@@ -192,3 +198,19 @@ public record AvailabilityDto(IEnumerable<AvailabilityWindowDto> Windows, IEnume
 public record BookingSlotDto(DateTime StartsAt, int DurationMinutes);
 public record BookAppointmentRequest(DateTime StartsAt, string? Reason);
 public enum BookingOutcome { Booked, NotAvailable, Conflict, LimitReached }
+
+// ── Appointment reminders ─────────────────────────────────────────────────────
+public record ReminderTokenRequest(string Token);
+public record ReminderRespondRequest(string Token, ReminderAction Action);
+public record ReminderLookupDto(
+    DateTime AppointmentAt, int DurationMinutes, string DoctorName, string? Location,
+    string Status, bool CanRespond
+);
+public record ReminderDeliveryDto(DateTime AttemptedAt, string Channel, string Outcome, string? Reason);
+public record ReminderLogDto(string Response, DateTime? RespondedAt, IEnumerable<ReminderDeliveryDto> Deliveries);
+
+// ── Audit log ─────────────────────────────────────────────────────────────────
+public record AuditEventDto(int Id, DateTime OccurredAt, string ActorUserId, string ActorName, string ActorRole,
+    string Action, string ItemKind, int? ItemId, string[] ChangedFields);
+public record AuditLogQuery(AuditAction? Action = null, string? Actor = null, DateTime? From = null,
+    DateTime? To = null, int Page = 1, int PageSize = 20);

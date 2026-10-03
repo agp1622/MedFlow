@@ -2,10 +2,12 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { LoginPage, RegisterPage, ForgotPasswordPage, ResetPasswordPage, AcceptInvitePage } from '@/pages/AuthPages'
+import { AppointmentResponsePage } from '@/pages/AppointmentResponsePage'
 import { PortalLayout } from '@/components/layout/PortalLayout'
 import { PortalPage } from '@/pages/PortalPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { PatientsPage, PatientDetailPage } from '@/pages/PatientsPage'
+import { NoteTemplatesPage } from '@/pages/NoteTemplatesPage'
 import { AppointmentsPage } from '@/pages/AppointmentsPage'
 import { AvailabilityPage } from '@/pages/AvailabilityPage'
 import { PrescriptionsPage, BillingPage } from '@/pages/BillingPrescriptionsPages'
@@ -42,6 +44,9 @@ export default function App() {
       {/* Not wrapped in PublicRoute: opening an invitation link must work even if someone is signed in */}
       <Route path="/accept-invite" element={<AcceptInvitePage />} />
 
+      {/* Public: opened from the reminder email, authorised by its token only */}
+      <Route path="/appointment-response" element={<AppointmentResponsePage />} />
+
       <Route path="portal" element={<PatientRoute><PortalLayout /></PatientRoute>}>
         <Route index element={<PortalPage />} />
       </Route>
@@ -53,6 +58,7 @@ export default function App() {
         <Route path="appointments" element={<AppointmentsPage />} />
         <Route path="availability" element={<AvailabilityPage />} />
         <Route path="prescriptions" element={<PrescriptionsPage />} />
+        <Route path="templates" element={<NoteTemplatesPage />} />
         <Route path="billing" element={<BillingPage />} />
       </Route>
 

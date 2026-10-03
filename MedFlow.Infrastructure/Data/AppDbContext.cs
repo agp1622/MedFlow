@@ -17,11 +17,16 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<VitalSign> VitalSigns => Set<VitalSign>();
     public DbSet<MedicalNote> MedicalNotes => Set<MedicalNote>();
+    public DbSet<NoteTemplate> NoteTemplates => Set<NoteTemplate>();
     public DbSet<PatientAttachment> PatientAttachments => Set<PatientAttachment>();
     public DbSet<PortalInvitation> PortalInvitations => Set<PortalInvitation>();
     public DbSet<PortalAccessLog> PortalAccessLogs => Set<PortalAccessLog>();
     public DbSet<DoctorAvailability> DoctorAvailabilities => Set<DoctorAvailability>();
     public DbSet<DoctorBlockedDate> DoctorBlockedDates => Set<DoctorBlockedDate>();
+
+    public DbSet<AppointmentReminder> AppointmentReminders => Set<AppointmentReminder>();
+    public DbSet<ReminderDelivery> ReminderDeliveries => Set<ReminderDelivery>();
+    public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -34,6 +39,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<Invoice>().HasQueryFilter(i => !i.IsDeleted);
         builder.Entity<VitalSign>().HasQueryFilter(v => !v.IsDeleted);
         builder.Entity<MedicalNote>().HasQueryFilter(n => !n.IsDeleted);
+        builder.Entity<NoteTemplate>().HasQueryFilter(t => !t.IsDeleted);
         builder.Entity<PatientAttachment>().HasQueryFilter(a => !a.IsDeleted);
 
         // Patient
@@ -129,6 +135,15 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        // NoteTemplate
+        builder.Entity<NoteTemplate>(e =>
+        {
+            e.Property(t => t.DoctorId).HasMaxLength(450).IsRequired();
+            e.Property(t => t.Name).HasMaxLength(100).IsRequired();
+            e.Property(t => t.Body).HasMaxLength(5000).IsRequired();
+            e.HasIndex(t => t.DoctorId);
+        });
+
         // VitalSign
         builder.Entity<VitalSign>(e =>
         {
@@ -163,6 +178,23 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.Property(i => i.TokenHash).HasMaxLength(64);
         });
 
+        // AppointmentReminder / ReminderDelivery (no navigations: Appointment has a soft-delete query filter)
+        builder.Entity<AppointmentReminder>(e =>
+        {
+            e.HasIndex(r => r.TokenHash);
+            e.HasIndex(r => new { r.AppointmentId, r.ScheduledAt });
+            e.Property(r => r.TokenHash).HasMaxLength(64);
+            e.Property(r => r.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(r => r.Response).HasConversion<string>().HasMaxLength(20);
+        });
+        builder.Entity<ReminderDelivery>(e =>
+        {
+            e.HasIndex(d => d.AppointmentId);
+            e.Property(d => d.Channel).HasMaxLength(20);
+            e.Property(d => d.Outcome).HasConversion<string>().HasMaxLength(20);
+            e.Property(d => d.Reason).HasMaxLength(200);
+        });
+
         // PortalAccessLog
         builder.Entity<PortalAccessLog>(e =>
         {
@@ -170,10 +202,27 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.Property(l => l.ResourceType).HasMaxLength(50);
             e.Property(l => l.Action).HasMaxLength(50);
         });
+
+        // AuditEvent (append-only; no FK to Patient so events outlive soft-deleted patients)
+        builder.Entity<AuditEvent>(e =>
+        {
+            e.HasIndex(a => new { a.PatientId, a.OccurredAt });
+            e.Property(a => a.DoctorId).HasMaxLength(450);
+            e.Property(a => a.ActorUserId).HasMaxLength(450);
+            e.Property(a => a.ActorName).HasMaxLength(200);
+            e.Property(a => a.ActorRole).HasMaxLength(20);
+            e.Property(a => a.Action).HasConversion<string>().HasMaxLength(20);
+            e.Property(a => a.ItemKind).HasConversion<string>().HasMaxLength(30);
+            e.Property(a => a.ChangedFields).HasMaxLength(500);
+        });
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken ct = default)
     {
+        // Audit events are append-only: refuse any attempt to edit or remove one
+        if (ChangeTracker.Entries<AuditEvent>().Any(e => e.State is EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("Audit events are immutable.");
+
         var entries = ChangeTracker.Entries()
             .Where(e => e.Entity is BaseEntity && e.State is EntityState.Added or EntityState.Modified);
 

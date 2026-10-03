@@ -2,7 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import {
-  LayoutDashboard, Users, CalendarDays, Pill, CreditCard, LogOut, Plus, Clock
+  LayoutDashboard, Users, CalendarDays, Pill, CreditCard, LogOut, Plus, Clock, FileText
 } from 'lucide-react'
 
 const NAV = [
@@ -12,6 +12,7 @@ const NAV = [
   { to: '/availability',  icon: Clock,           label: 'Availability' },
   { to: '/prescriptions', icon: Pill,            label: 'Prescriptions' },
   { to: '/billing',       icon: CreditCard,      label: 'Billing' },
+  { to: '/templates',     icon: FileText,        label: 'Note Templates' },
 ]
 
 export function AppLayout() {

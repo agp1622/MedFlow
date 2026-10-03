@@ -1,3 +1,4 @@
+using MedFlow.Core.Enums;
 using MedFlow.Core.DTOs;
 using MedFlow.Core.Entities;
 
@@ -58,6 +59,14 @@ public interface IMedicalNoteRepository : IRepository<MedicalNote>
 {
     Task<IEnumerable<MedicalNoteDto>> GetByPatientAsync(int patientId, string doctorId);
     Task<MedicalNote?> GetWithOwnerCheckAsync(int id, string doctorId);
+    Task<CopyForwardDto?> GetLatestForPatientAsync(int patientId, string doctorId);
+}
+
+public interface INoteTemplateRepository : IRepository<NoteTemplate>
+{
+    Task<PagedResult<NoteTemplateDto>> GetPagedAsync(string doctorId, QueryParams query);
+    Task<NoteTemplate?> GetWithOwnerCheckAsync(int id, string doctorId);
+    Task<bool> NameExistsAsync(string doctorId, string name, int? excludeId = null);
 }
 
 public interface IPatientAttachmentRepository : IRepository<PatientAttachment>
@@ -108,4 +117,21 @@ public interface IBookingRepository
     Task<IEnumerable<BookingSlotDto>> GetOpenSlotsAsync(Patient patient, DateOnly from, DateOnly to);
     /// <summary>Atomically re-validates the slot and creates a Pending appointment.</summary>
     Task<(BookingOutcome Outcome, PortalAppointmentDto? Appointment)> BookAsync(Patient patient, DateTime startsAt, string? reason);
+}
+
+public enum ReminderRespondResult { Ok, Invalid, Closed }
+
+public interface IReminderRepository
+{
+    /// <summary>Takes the raw emailed token. Null for any unknown, expired, stale or tampered token (callers must not distinguish).</summary>
+    Task<ReminderLookupDto?> LookupAsync(string token);
+    Task<(ReminderRespondResult Result, ReminderLookupDto? Dto)> RespondAsync(string token, ReminderAction action);
+    /// <summary>Null when the appointment does not belong to the doctor.</summary>
+    Task<ReminderLogDto?> GetLogAsync(int appointmentId, string doctorId);
+}
+
+public interface IReminderProcessor
+{
+    /// <summary>Sends every reminder that is due. Returns the number of emails sent.</summary>
+    Task<int> ProcessDueAsync(CancellationToken ct = default);
 }

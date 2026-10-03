@@ -9,13 +9,16 @@ import type {
   InvoiceDto, CreateInvoiceRequest, UpdateInvoiceRequest,
   VitalSignDto, CreateVitalSignRequest,
   MedicalNoteDto, CreateMedicalNoteRequest,
+  NoteTemplateDto, CreateNoteTemplateRequest, UpdateNoteTemplateRequest, CopyForwardDto,
   PatientAttachmentDto,
   AcceptInvitationRequest, InvitationResult,
   PortalProfileDto, PortalAppointmentDto, PortalPrescriptionDto, PortalInvoiceDto,
   PortalAttachmentDto, PortalNoteDto,
   AvailabilityDto, AvailabilityWindowDto, SetWeeklyAvailabilityRequest, BlockedDateDto, CreateBlockedDateRequest,
   BookingSlotDto, BookAppointmentRequest,
-  DashboardStatsDto, AppointmentStatus
+  ReminderLookupDto, ReminderLogDto, ReminderAction,
+  DashboardStatsDto, AppointmentStatus,
+  AuditEventDto, AuditLogQuery
 } from '@/types'
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -44,6 +47,12 @@ export const patientsApi = {
   revokePortalAccess: (id: number) => api.delete(`/patients/${id}/portal-access`),
 }
 
+// ── Audit log ─────────────────────────────────────────────────────────────────
+export const auditApi = {
+  getByPatient: (patientId: number, q?: AuditLogQuery) =>
+    api.get<PagedResult<AuditEventDto>>(`/patients/${patientId}/audit-log`, { params: q }).then(r => r.data),
+}
+
 // ── Appointments ──────────────────────────────────────────────────────────────
 export const appointmentsApi = {
   getAll:       (q?: QueryParams) => api.get<PagedResult<AppointmentDto>>('/appointments', { params: q }).then(r => r.data),
@@ -54,6 +63,14 @@ export const appointmentsApi = {
   update:       (id: number, data: UpdateAppointmentRequest) => api.put(`/appointments/${id}`, data),
   updateStatus: (id: number, status: AppointmentStatus) => api.patch(`/appointments/${id}/status`, status, { headers: { 'Content-Type': 'application/json' } }),
   delete:       (id: number) => api.delete(`/appointments/${id}`),
+  getReminders: (id: number) => api.get<ReminderLogDto>(`/appointments/${id}/reminders`).then(r => r.data),
+}
+
+// ── Appointment response (public, token from the reminder email) ──────────────
+export const appointmentResponseApi = {
+  lookup:  (token: string) => api.post<ReminderLookupDto>('/appointment-response/lookup', { token }).then(r => r.data),
+  respond: (token: string, action: ReminderAction) =>
+    api.post<ReminderLookupDto>('/appointment-response/respond', { token, action }).then(r => r.data),
 }
 
 // ── Prescriptions ─────────────────────────────────────────────────────────────
@@ -86,8 +103,18 @@ export const vitalsApi = {
 export const notesApi = {
   getByPatient: (patientId: number) => api.get<MedicalNoteDto[]>(`/medicalnotes/patient/${patientId}`).then(r => r.data),
   create:       (data: CreateMedicalNoteRequest) => api.post<MedicalNoteDto>('/medicalnotes', data).then(r => r.data),
+  getLatest:    (patientId: number) => api.get<CopyForwardDto>(`/medicalnotes/patient/${patientId}/latest`).then(r => r.data),
   delete:       (id: number)        => api.delete(`/medicalnotes/${id}`),
   setSharing:   (id: number, shared: boolean) => api.put<MedicalNoteDto>(`/medicalnotes/${id}/sharing`, { shared }).then(r => r.data),
+}
+
+// ── Note Templates ────────────────────────────────────────────────────────────
+export const noteTemplatesApi = {
+  getAll:    (params?: QueryParams) => api.get<PagedResult<NoteTemplateDto>>('/notetemplates', { params }).then(r => r.data),
+  getBuiltIn: () => api.get<NoteTemplateDto[]>('/notetemplates/builtin').then(r => r.data),
+  create:    (data: CreateNoteTemplateRequest) => api.post<NoteTemplateDto>('/notetemplates', data).then(r => r.data),
+  update:    (id: number, data: UpdateNoteTemplateRequest) => api.put<NoteTemplateDto>(`/notetemplates/${id}`, data).then(r => r.data),
+  delete:    (id: number) => api.delete(`/notetemplates/${id}`),
 }
 
 // ── Attachments ───────────────────────────────────────────────────────────────
