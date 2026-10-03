@@ -1,3 +1,4 @@
+using MedFlow.Api.Localization;
 using MedFlow.Core;
 using MedFlow.Api.Extensions;
 using MedFlow.Core.DTOs;
@@ -57,13 +58,13 @@ public class AttachmentsController : ControllerBase
         [FromForm] string? description)
     {
         if (file == null || file.Length == 0)
-            return BadRequest("No file uploaded.");
+            return BadRequest(this.T("Attachment.NoFile"));
 
         if (file.Length > MaxFileSize)
-            return BadRequest("File exceeds the 50 MB size limit.");
+            return BadRequest(this.T("Attachment.TooLarge"));
 
         if (!AllowedContentTypes.Contains(file.ContentType))
-            return BadRequest($"File type '{file.ContentType}' is not allowed.");
+            return BadRequest(this.T("Attachment.TypeNotAllowed", file.ContentType));
 
         var doctorId = User.GetUserId();
         // Checked before anything is written to disk
@@ -106,7 +107,7 @@ public class AttachmentsController : ControllerBase
             attachment.PatientId.ToString(), attachment.StoredFileName);
 
         if (!System.IO.File.Exists(filePath))
-            return NotFound("File not found on disk.");
+            return NotFound(this.T("Attachment.Missing"));
 
         var bytes = await System.IO.File.ReadAllBytesAsync(filePath);
         return File(bytes, attachment.ContentType, attachment.FileName);
@@ -123,7 +124,7 @@ public class AttachmentsController : ControllerBase
             attachment.PatientId.ToString(), attachment.StoredFileName);
 
         if (!System.IO.File.Exists(filePath))
-            return NotFound("File not found on disk.");
+            return NotFound(this.T("Attachment.Missing"));
 
         var bytes = await System.IO.File.ReadAllBytesAsync(filePath);
         // Inline content disposition for in-browser preview

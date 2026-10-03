@@ -1,4 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+import i18n from '@/i18n'
 import { usePatientAttachments, useUploadAttachment, useDeleteAttachment, useSetAttachmentSharing } from '@/hooks/queries'
 import { ShareToggle } from '@/components/sharing/ShareToggle'
 import { attachmentsApi } from '@/api/services'
@@ -11,7 +13,11 @@ import {
 import toast from 'react-hot-toast'
 import type { PatientAttachmentDto } from '@/types'
 
+// Stored category values are sent to the API as-is; only their labels are translated
 const CATEGORIES = ['Test Result', 'Photo', 'Video', 'Document', 'Other'] as const
+const CATEGORY_KEYS = { 'Test Result': 'testResult', Photo: 'photo', Video: 'video', Document: 'document', Other: 'other' } as const
+const categoryLabel = (c: string) =>
+  c in CATEGORY_KEYS ? i18n.t(`attachments.categories.${CATEGORY_KEYS[c as keyof typeof CATEGORY_KEYS]}`) : c
 
 const MAX_SIZE = 50 * 1024 * 1024 // 50 MB
 
@@ -29,7 +35,7 @@ function filterFiles(files: File[]): File[] {
   const ok = files.filter(f => ALLOWED_TYPES.has(f.type) && f.size <= MAX_SIZE)
   const rejected = files.filter(f => !ok.includes(f))
   if (rejected.length > 0)
-    toast.error(`Skipped ${rejected.map(f => f.name).join(', ')}: unsupported type or over 50 MB`)
+    toast.error(i18n.t('attachments.skipped', { files: rejected.map(f => f.name).join(', ') }))
   return ok
 }
 
@@ -38,7 +44,7 @@ function formatFileSize(bytes: number): string {
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
+  return `${new Intl.NumberFormat(i18n.language === 'es' ? 'es' : 'en-US', { maximumFractionDigits: 1 }).format(bytes / Math.pow(k, i))} ${sizes[i]}`
 }
 
 function getFileIcon(contentType: string) {
@@ -75,6 +81,7 @@ function canPreview(contentType: string) {
 
 // ── Main Tab ──────────────────────────────────────────────────────────────────
 export function AttachmentsTab({ patientId }: { patientId: number }) {
+  const { t } = useTranslation()
   const { data, isLoading } = usePatientAttachments(patientId)
   const uploadMutation = useUploadAttachment()
   const deleteMutation = useDeleteAttachment()
@@ -136,7 +143,7 @@ export function AttachmentsTab({ patientId }: { patientId: number }) {
   }
 
   const handleDelete = (id: number) => {
-    if (confirm('Delete this attachment?')) {
+    if (confirm(t('attachments.confirmDelete'))) {
       deleteMutation.mutate({ id, patientId })
     }
   }
@@ -165,10 +172,10 @@ export function AttachmentsTab({ patientId }: { patientId: number }) {
           </div>
           <div className="text-center">
             <p className="font-semibold text-gray-700">
-              {dragging ? 'Drop files here' : 'Drag & drop files or click to browse'}
+              {dragging ? t('attachments.dropHere') : t('attachments.dragOrClick')}
             </p>
             <p className="text-xs text-gray-400 mt-1">
-              Images, Videos, PDFs, Documents — Max 50 MB per file
+              {t('attachments.hint')}
             </p>
           </div>
         </div>
@@ -186,11 +193,11 @@ export function AttachmentsTab({ patientId }: { patientId: number }) {
       {showUpload && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowUpload(false)}>
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-          <div className="relative bg-white rounded-2xl shadow-modal w-full max-w-md mx-4"
+          <div className="relative bg-white rounded-2xl shadow-modal w-full max-w-md mx-4 max-h-[90dvh] overflow-y-auto"
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h2 className="font-bold text-gray-900">Upload Files</h2>
-              <button className="btn-ghost p-1" onClick={() => setShowUpload(false)}>
+              <h2 className="font-bold text-gray-900">{t('attachments.uploadFiles')}</h2>
+              <button className="btn-ghost p-1" aria-label={t('common.close')} onClick={() => setShowUpload(false)}>
                 <X size={16} />
               </button>
             </div>
@@ -204,7 +211,7 @@ export function AttachmentsTab({ patientId }: { patientId: number }) {
                       <p className="text-sm font-medium text-gray-800 truncate">{f.name}</p>
                       <p className="text-xs text-gray-400">{formatFileSize(f.size)}</p>
                     </div>
-                    <button className="btn-ghost p-1" onClick={() =>
+                    <button className="btn-ghost p-1" aria-label={t('common.remove')} onClick={() =>
                       setSelectedFiles(prev => prev.filter((_, idx) => idx !== i))
                     }>
                       <X size={14} className="text-gray-400" />
@@ -215,26 +222,26 @@ export function AttachmentsTab({ patientId }: { patientId: number }) {
 
               {/* Category */}
               <div>
-                <label className="label">Category</label>
+                <label className="label">{t('attachments.category')}</label>
                 <select className="input" value={category} onChange={e => setCategory(e.target.value)}>
-                  <option value="">Select category...</option>
-                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  <option value="">{t('attachments.selectCategory')}</option>
+                  {CATEGORIES.map(c => <option key={c} value={c}>{categoryLabel(c)}</option>)}
                 </select>
               </div>
 
               {/* Description */}
               <div>
-                <label className="label">Description (optional)</label>
-                <input className="input" placeholder="Brief description..." value={description}
+                <label className="label">{t('attachments.description')}</label>
+                <input className="input" placeholder={t('attachments.descriptionPlaceholder')} value={description}
                   onChange={e => setDescription(e.target.value)} />
               </div>
 
               <div className="flex justify-end gap-3 pt-2">
-                <button className="btn-ghost" onClick={() => setShowUpload(false)}>Cancel</button>
+                <button className="btn-ghost" onClick={() => setShowUpload(false)}>{t('common.cancel')}</button>
                 <button className="btn-primary" onClick={handleUpload}
                   disabled={uploadMutation.isPending || selectedFiles.length === 0}>
                   {uploadMutation.isPending ? <Spinner className="w-4 h-4" /> : (
-                    <><Upload size={14} /> Upload {selectedFiles.length} file{selectedFiles.length !== 1 ? 's' : ''}</>
+                    <><Upload size={14} /> {t('attachments.upload', { count: selectedFiles.length })}</>
                   )}
                 </button>
               </div>
@@ -246,8 +253,8 @@ export function AttachmentsTab({ patientId }: { patientId: number }) {
       {/* File Grid */}
       {(!data || data.length === 0) ? (
         <EmptyState
-          title="No attachments yet"
-          description="Upload test results, photos, videos, or documents for this patient"
+          title={t('attachments.empty')}
+          description={t('attachments.emptyHint')}
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -302,7 +309,7 @@ export function AttachmentsTab({ patientId }: { patientId: number }) {
                   <span className="text-xs text-gray-400">{formatFileSize(file.fileSize)}</span>
                   {file.category && (
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${getCategoryColor(file.category)}`}>
-                      {file.category}
+                      {categoryLabel(file.category)}
                     </span>
                   )}
                 </div>
@@ -323,12 +330,12 @@ export function AttachmentsTab({ patientId }: { patientId: number }) {
                   {canPreview(file.contentType) && (
                     <button className="btn-ghost p-1.5 text-xs gap-1"
                       onClick={() => setPreviewFile(file)}>
-                      <Eye size={13} /> Preview
+                      <Eye size={13} /> {t('attachments.preview')}
                     </button>
                   )}
                   <button className="btn-ghost p-1.5 text-xs gap-1"
                     onClick={() => attachmentsApi.download(file.id, file.fileName)}>
-                    <Download size={13} /> Download
+                    <Download size={13} /> {t('attachments.download')}
                   </button>
                   <button className="btn-ghost p-1.5 text-xs gap-1 ml-auto text-red-400 hover:text-red-600 hover:bg-red-50"
                     onClick={() => handleDelete(file.id)}>
@@ -351,12 +358,13 @@ export function AttachmentsTab({ patientId }: { patientId: number }) {
 
 // ── Preview Modal ─────────────────────────────────────────────────────────────
 function FilePreviewModal({ file, onClose }: { file: PatientAttachmentDto; onClose: () => void }) {
+  const { t } = useTranslation()
   const previewUrl = attachmentsApi.getPreviewUrl(file.id)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div className="relative bg-white rounded-2xl shadow-modal w-full max-w-5xl mx-4 max-h-[92vh] flex flex-col overflow-hidden"
+      <div className="relative bg-white rounded-2xl shadow-modal w-full max-w-5xl mx-2 sm:mx-4 max-h-[92vh] max-h-[92dvh] flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}>
 
         {/* Header */}
@@ -369,7 +377,7 @@ function FilePreviewModal({ file, onClose }: { file: PatientAttachmentDto; onClo
                 <span className="text-xs text-gray-400">{formatFileSize(file.fileSize)}</span>
                 {file.category && (
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${getCategoryColor(file.category)}`}>
-                    {file.category}
+                    {categoryLabel(file.category)}
                   </span>
                 )}
                 <span className="text-xs text-gray-300">{fmt.relative(file.createdAt)}</span>
@@ -379,16 +387,16 @@ function FilePreviewModal({ file, onClose }: { file: PatientAttachmentDto; onClo
           <div className="flex items-center gap-2 flex-shrink-0 ml-4">
             <button className="btn-secondary text-xs"
               onClick={() => attachmentsApi.download(file.id, file.fileName)}>
-              <Download size={14} /> Download
+              <Download size={14} /> {t('attachments.download')}
             </button>
-            <button className="btn-ghost p-1.5" onClick={onClose}>
+            <button className="btn-ghost p-1.5" aria-label={t('common.close')} onClick={onClose}>
               <X size={18} />
             </button>
           </div>
         </div>
 
         {/* Preview content */}
-        <div className="flex-1 overflow-auto bg-gray-900/5 flex items-center justify-center p-4 min-h-[400px]">
+        <div className="flex-1 overflow-auto bg-gray-900/5 flex items-center justify-center p-4 min-h-[240px] sm:min-h-[400px]">
           {file.contentType.startsWith('image/') && (
             <img
               src={previewUrl}
@@ -404,7 +412,7 @@ function FilePreviewModal({ file, onClose }: { file: PatientAttachmentDto; onClo
               autoPlay={false}
               className="max-w-full max-h-[75vh] rounded-lg shadow-lg bg-black"
             >
-              Your browser does not support video playback.
+              {t('attachments.noVideo')}
             </video>
           )}
 
@@ -420,7 +428,7 @@ function FilePreviewModal({ file, onClose }: { file: PatientAttachmentDto; onClo
         {/* Description footer */}
         {file.description && (
           <div className="px-6 py-3 border-t border-border bg-gray-50 flex-shrink-0">
-            <p className="text-xs text-gray-500"><span className="font-semibold">Description:</span> {file.description}</p>
+            <p className="text-xs text-gray-500"><span className="font-semibold">{t('attachments.descriptionLabel')}</span> {file.description}</p>
           </div>
         )}
       </div>

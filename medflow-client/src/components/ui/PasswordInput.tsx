@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { InputHTMLAttributes } from 'react'
 import type { UseFormRegisterReturn } from 'react-hook-form'
 
@@ -7,6 +8,7 @@ interface PasswordInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>,
 }
 
 export function PasswordInput({ registration, className, ...rest }: PasswordInputProps) {
+  const { t } = useTranslation()
   const [visible, setVisible] = useState(false)
 
   return (
@@ -21,7 +23,7 @@ export function PasswordInput({ registration, className, ...rest }: PasswordInpu
         type="button"
         className="password-toggle-btn"
         onClick={() => setVisible(v => !v)}
-        aria-label={visible ? 'Hide password' : 'Show password'}
+        aria-label={visible ? t('auth.hidePassword') : t('auth.showPassword')}
         tabIndex={-1}
       >
         {visible ? <EyeOffIcon /> : <EyeIcon />}

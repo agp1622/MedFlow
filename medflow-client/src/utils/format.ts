@@ -1,18 +1,39 @@
 import { format, formatDistanceToNow, parseISO, isToday, isTomorrow } from 'date-fns'
+import { es as esLocale, enUS } from 'date-fns/locale'
+import type { Locale } from 'date-fns'
+import type { ParseKeys } from 'i18next'
+import i18n, { currentLanguage, DEFAULT_LANGUAGE } from '@/i18n'
+
+// Per-language formatting conventions. Registering a new language adds an entry here.
+interface LocaleConfig { dateFns: Locale; intl: string; shortDate: string }
+const LOCALES: Record<string, LocaleConfig> = {
+  es: { dateFns: esLocale, intl: 'es', shortDate: 'd MMM' },
+  en: { dateFns: enUS, intl: 'en-US', shortDate: 'MMM d' },
+}
+const localeConfig = (): LocaleConfig => LOCALES[currentLanguage()] ?? LOCALES[DEFAULT_LANGUAGE]
+
+// Currency stays US dollars; only the presentation follows the language
+const CURRENCY = 'USD'
 
 export const fmt = {
-  date: (d?: string | null) => d ? format(parseISO(d), 'MMM d, yyyy') : '—',
-  dateTime: (d?: string | null) => d ? format(parseISO(d), 'MMM d, yyyy h:mm a') : '—',
-  time: (d?: string | null) => d ? format(parseISO(d), 'h:mm a') : '—',
-  relative: (d?: string | null) => d ? formatDistanceToNow(parseISO(d), { addSuffix: true }) : '—',
-  currency: (n?: number | null) => n != null ? `$${n.toFixed(2)}` : '—',
+  date: (d?: string | null) => d ? format(parseISO(d), 'PP', { locale: localeConfig().dateFns }) : '—',
+  dateTime: (d?: string | null) => d ? format(parseISO(d), 'PP p', { locale: localeConfig().dateFns }) : '—',
+  time: (d?: string | null) => d ? format(parseISO(d), 'p', { locale: localeConfig().dateFns }) : '—',
+  relative: (d?: string | null) => d ? formatDistanceToNow(parseISO(d), { addSuffix: true, locale: localeConfig().dateFns }) : '—',
+  number: (n?: number | null) => n != null ? new Intl.NumberFormat(localeConfig().intl).format(n) : '—',
+  currency: (n?: number | null) => n != null
+    ? new Intl.NumberFormat(localeConfig().intl, { style: 'currency', currency: CURRENCY }).format(n)
+    : '—',
   dateShort: (d?: string | null) => {
     if (!d) return '—'
     const date = parseISO(d)
-    if (isToday(date)) return 'Today'
-    if (isTomorrow(date)) return 'Tomorrow'
-    return format(date, 'MMM d')
+    if (isToday(date)) return i18n.t('common.today')
+    if (isTomorrow(date)) return i18n.t('common.tomorrow')
+    const cfg = localeConfig()
+    return format(date, cfg.shortDate, { locale: cfg.dateFns })
   },
+  /** Date-time for ISO strings that carry an offset (audit timestamps). */
+  timestamp: (d?: string | null) => d ? format(new Date(d), 'PP p', { locale: localeConfig().dateFns }) : '—',
 }
 
 type StatusVariant = 'green' | 'yellow' | 'red' | 'gray' | 'blue'
@@ -36,9 +57,11 @@ const VARIANT_CLASSES: Record<StatusVariant, string> = {
 export const statusClass = (status: string) =>
   VARIANT_CLASSES[STATUS_COLORS[status] ?? 'gray']
 
+/** Label for a system-defined value (status, type, weekday). Stored values are never changed. */
 export const displayEnum = (s: string) =>
-  s.replace(/([A-Z])/g, ' $1').trim()
+  i18n.t(`enums.${s}` as ParseKeys, { defaultValue: s.replace(/([A-Z])/g, ' $1').trim() })
 
+// Blood group notation is the same in every language
 export const bloodTypeDisplay: Record<string, string> = {
   APos: 'A+', ANeg: 'A−', BPos: 'B+', BNeg: 'B−',
   ABPos: 'AB+', ABNeg: 'AB−', OPos: 'O+', ONeg: 'O−', Unknown: '?'

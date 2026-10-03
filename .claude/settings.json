@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh pr merge:*)",
+      "Bash(gh api -X PUT repos/agp1622/MedFlow/pulls/*/merge:*)",
+      "Bash(git push origin claude/*)"
+    ]
+  }
+}

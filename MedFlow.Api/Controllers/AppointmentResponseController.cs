@@ -1,3 +1,4 @@
+using MedFlow.Api.Localization;
 using MedFlow.Core.DTOs;
 using MedFlow.Core.Enums;
 using MedFlow.Core.Interfaces;
@@ -14,7 +15,6 @@ namespace MedFlow.Api.Controllers;
 [EnableRateLimiting("appointment-response")]
 public class AppointmentResponseController : ControllerBase
 {
-    private const string InvalidMessage = "This link is not valid.";
     private readonly IReminderRepository _reminders;
 
     public AppointmentResponseController(IReminderRepository reminders) => _reminders = reminders;
@@ -23,7 +23,7 @@ public class AppointmentResponseController : ControllerBase
     public async Task<ActionResult<ReminderLookupDto>> Lookup([FromBody] ReminderTokenRequest req)
     {
         var dto = await _reminders.LookupAsync(req.Token);
-        return dto == null ? NotFound(new { error = InvalidMessage }) : Ok(dto);
+        return dto == null ? NotFound(new { error = this.T("Response.Invalid") }) : Ok(dto);
     }
 
     [HttpPost("respond")]
@@ -33,8 +33,8 @@ public class AppointmentResponseController : ControllerBase
         return result switch
         {
             ReminderRespondResult.Ok => Ok(dto),
-            ReminderRespondResult.Closed => Conflict(new { error = "This appointment can no longer be changed." }),
-            _ => NotFound(new { error = InvalidMessage })
+            ReminderRespondResult.Closed => Conflict(new { error = this.T("Response.Closed") }),
+            _ => NotFound(new { error = this.T("Response.Invalid") })
         };
     }
 }
