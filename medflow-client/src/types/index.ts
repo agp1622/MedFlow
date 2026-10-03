@@ -201,6 +201,17 @@ export interface PortalNoteDto {
   id: number; doctorName: string; visitType?: string; content: string; noteDate: string
 }
 
+// ── Online booking ────────────────────────────────────────────────────────────
+export type WeekDay = 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday'
+export interface AvailabilityWindowInput { dayOfWeek: WeekDay; startTime: string; endTime: string }
+export interface AvailabilityWindowDto extends AvailabilityWindowInput { id: number }
+export interface BlockedDateDto { id: number; date: string; label?: string }
+export interface AvailabilityDto { windows: AvailabilityWindowDto[]; blockedDates: BlockedDateDto[] }
+export interface SetWeeklyAvailabilityRequest { windows: AvailabilityWindowInput[] }
+export interface CreateBlockedDateRequest { date: string; label?: string }
+export interface BookingSlotDto { startsAt: string; durationMinutes: number }
+export interface BookAppointmentRequest { startsAt: string; reason?: string }
+
 // ── Audit log ─────────────────────────────────────────────────────────────────
 export type AuditAction = 'View' | 'Change'
 export interface AuditEventDto {

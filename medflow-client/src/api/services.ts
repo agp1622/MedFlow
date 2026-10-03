@@ -14,6 +14,8 @@ import type {
   AcceptInvitationRequest, InvitationResult,
   PortalProfileDto, PortalAppointmentDto, PortalPrescriptionDto, PortalInvoiceDto,
   PortalAttachmentDto, PortalNoteDto,
+  AvailabilityDto, AvailabilityWindowDto, SetWeeklyAvailabilityRequest, BlockedDateDto, CreateBlockedDateRequest,
+  BookingSlotDto, BookAppointmentRequest,
   ReminderLookupDto, ReminderLogDto, ReminderAction,
   DashboardStatsDto, AppointmentStatus,
   AuditEventDto, AuditLogQuery
@@ -166,6 +168,10 @@ export const portalApi = {
   invoices:      () => api.get<PortalInvoiceDto[]>('/portal/invoices').then(r => r.data),
   attachments:   () => api.get<PortalAttachmentDto[]>('/portal/attachments').then(r => r.data),
   notes:         () => api.get<PortalNoteDto[]>('/portal/notes').then(r => r.data),
+  bookingSlots:  (from: string, to: string) =>
+    api.get<BookingSlotDto[]>('/portal/booking/slots', { params: { from, to } }).then(r => r.data),
+  book:          (data: BookAppointmentRequest) =>
+    api.post<PortalAppointmentDto>('/portal/booking', data).then(r => r.data),
   // Header-authenticated blob download: no token ever goes into a URL
   downloadAttachment: async (id: number, fileName: string) => {
     const response = await api.get(`/portal/attachments/${id}/download`, { responseType: 'blob' })
@@ -178,4 +184,14 @@ export const portalApi = {
     link.remove()
     window.URL.revokeObjectURL(url)
   },
+}
+
+// ── Availability (doctor) ─────────────────────────────────────────────────────
+export const availabilityApi = {
+  get:             () => api.get<AvailabilityDto>('/availability').then(r => r.data),
+  setWeekly:       (data: SetWeeklyAvailabilityRequest) =>
+    api.put<AvailabilityWindowDto[]>('/availability/weekly', data).then(r => r.data),
+  addBlockedDate:  (data: CreateBlockedDateRequest) =>
+    api.post<BlockedDateDto>('/availability/blocked-dates', data).then(r => r.data),
+  removeBlockedDate: (id: number) => api.delete(`/availability/blocked-dates/${id}`),
 }

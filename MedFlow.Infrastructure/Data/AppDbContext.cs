@@ -21,6 +21,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<PatientAttachment> PatientAttachments => Set<PatientAttachment>();
     public DbSet<PortalInvitation> PortalInvitations => Set<PortalInvitation>();
     public DbSet<PortalAccessLog> PortalAccessLogs => Set<PortalAccessLog>();
+    public DbSet<DoctorAvailability> DoctorAvailabilities => Set<DoctorAvailability>();
+    public DbSet<DoctorBlockedDate> DoctorBlockedDates => Set<DoctorBlockedDate>();
+
     public DbSet<AppointmentReminder> AppointmentReminders => Set<AppointmentReminder>();
     public DbSet<ReminderDelivery> ReminderDeliveries => Set<ReminderDelivery>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
@@ -64,6 +67,20 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         {
             e.HasIndex(d => d.UserId).IsUnique();
             e.Ignore(d => d.FullName);
+        });
+
+        // Online booking
+        builder.Entity<DoctorAvailability>(e =>
+        {
+            e.HasQueryFilter(a => !a.IsDeleted);
+            e.HasIndex(a => new { a.DoctorId, a.DayOfWeek });
+            e.Property(a => a.DayOfWeek).HasConversion<string>();
+        });
+        builder.Entity<DoctorBlockedDate>(e =>
+        {
+            e.HasQueryFilter(b => !b.IsDeleted);
+            e.HasIndex(b => new { b.DoctorId, b.Date });
+            e.Property(b => b.Label).HasMaxLength(200);
         });
 
         // Appointment

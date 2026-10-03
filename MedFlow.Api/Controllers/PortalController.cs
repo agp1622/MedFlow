@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace MedFlow.Api.Controllers;
 
 /// <summary>
-/// Read-only patient portal. The patient is ALWAYS resolved from the authenticated user,
+/// Patient portal (read-only except online booking). The patient is ALWAYS resolved from the authenticated user,
 /// never from a client-supplied id, so a patient can only ever reach their own records.
 /// </summary>
 [ApiController]
@@ -19,12 +19,14 @@ namespace MedFlow.Api.Controllers;
 public class PortalController : ControllerBase
 {
     private readonly IPortalRepository _portal;
+    private readonly IBookingRepository _booking;
     private readonly IWebHostEnvironment _env;
     private readonly IAuditService _audit;
 
-    public PortalController(IPortalRepository portal, IWebHostEnvironment env, IAuditService audit)
+    public PortalController(IPortalRepository portal, IBookingRepository booking, IWebHostEnvironment env, IAuditService audit)
     {
         _portal = portal;
+        _booking = booking;
         _env = env;
         _audit = audit;
     }
@@ -117,5 +119,34 @@ public class PortalController : ControllerBase
         if (notes.Count > 0)
             await _portal.LogAccessAsync(patient.Id, "Note", notes.Select(n => n.Id), "View");
         return Ok(notes);
+    }
+
+    [HttpGet("booking/slots")]
+    public async Task<IActionResult> Slots([FromQuery] DateOnly from, [FromQuery] DateOnly to)
+    {
+        var patient = await ResolvePatientAsync();
+        if (patient == null) return Unavailable();
+        if (to < from || to.DayNumber - from.DayNumber > 30)
+            return BadRequest(new { error = "Choose a date range of at most 31 days." });
+        return Ok(await _booking.GetOpenSlotsAsync(patient, from, to));
+    }
+
+    [HttpPost("booking")]
+    public async Task<IActionResult> Book([FromBody] BookAppointmentRequest req)
+    {
+        var patient = await ResolvePatientAsync();
+        if (patient == null) return Unavailable();
+        var reason = string.IsNullOrWhiteSpace(req.Reason) ? null : req.Reason.Trim();
+        if (reason is { Length: > 500 })
+            return BadRequest(new { error = "Reason must be at most 500 characters." });
+
+        var (outcome, appt) = await _booking.BookAsync(patient, req.StartsAt, reason);
+        return outcome switch
+        {
+            BookingOutcome.Booked => Created("/api/portal/appointments", appt),
+            BookingOutcome.NotAvailable => BadRequest(new { error = "That time is not available for booking." }),
+            BookingOutcome.LimitReached => Conflict(new { error = "You have reached the limit of upcoming appointments." }),
+            _ => Conflict(new { error = "That time is no longer available." })
+        };
     }
 }
