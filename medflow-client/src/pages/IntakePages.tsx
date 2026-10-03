@@ -100,6 +100,7 @@ export function IntakeFormPage() {
     )
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here; narrowing would change call signatures
   const resp = (submit.error as any)?.response
   const serverErrors: string[] = resp?.data?.errors ?? []
   const linkGone = resp?.status === 404

@@ -22,6 +22,7 @@ export function AppointmentResponsePage() {
     onSuccess: () => lookup.refetch(),
   })
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here; narrowing would change call signatures
   const closedError = (respond.error as any)?.response?.status === 409
   const invalid = !token || lookup.isError
 

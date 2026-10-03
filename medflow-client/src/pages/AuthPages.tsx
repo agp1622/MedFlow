@@ -46,6 +46,7 @@ export function LoginPage() {
   const googleMutation = useMutation({
     mutationFn: authApi.googleLogin,
     onSuccess: (data) => { login(data.token, data.user); navigate('/') },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here; narrowing would change call signatures
     onError: (err: any) => {
       const data = err?.response?.data
       if (data?.code === 'patient_account') setAudience('patient')
@@ -207,6 +208,7 @@ export function ForgotPasswordPage() {
   const mutation = useMutation({
     mutationFn: authApi.forgotPassword,
     onSuccess: (data) => setMessage(data.message),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here; narrowing would change call signatures
     onError: (err: any) => toast.error(
       err?.response?.status === 429 ? 'Too many requests. Please try again later.' : 'Something went wrong. Please try again.'),
   })
@@ -255,6 +257,7 @@ export function ResetPasswordPage() {
   const mutation = useMutation({
     mutationFn: (d: ResetForm) => authApi.resetPassword({ email, token, ...d }),
     onSuccess: () => setDone(true),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here; narrowing would change call signatures
     onError: (err: any) => {
       const data = err?.response?.data
       if (data?.error) setLinkError(data.error)
@@ -306,6 +309,7 @@ export function AcceptInvitePage() {
   const mutation = useMutation({
     mutationFn: (d: ResetForm) => authApi.acceptInvitation({ token, email, password: d.newPassword, confirmPassword: d.confirmPassword }),
     onSuccess: (data) => { login(data.token, data.user); navigate('/portal') },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here; narrowing would change call signatures
     onError: (err: any) => {
       const data = err?.response?.data
       if (data?.error) setLinkError(data.error)
