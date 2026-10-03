@@ -164,6 +164,22 @@ export interface ClinicalSummaryDto {
 export interface SaveAllergyRequest { substance: string; reaction?: string; severity: AllergySeverity }
 export interface SaveProblemRequest { description: string; icd10Code: string; status: ProblemStatus; onsetDate?: string }
 export interface SaveMedicationRequest { name: string; dosage?: string; frequency?: string; notes?: string }
+// ── Lab orders and results ───────────────────────────────────────────────────
+export type LabOrderStatus = 'Ordered' | 'Completed' | 'Cancelled'
+export type LabFlag = 'None' | 'Low' | 'High'
+export interface LabResultDto {
+  id: number; analyteName: string; value: number; unit?: string | null
+  referenceLow?: number | null; referenceHigh?: number | null; flag: LabFlag
+}
+export interface LabOrderDto {
+  id: number; testName: string; notes?: string | null; orderedDate: string; status: LabOrderStatus
+  results: LabResultDto[]; abnormalCount: number; createdAt: string; updatedAt: string
+}
+export interface LabSummaryDto { orders: LabOrderDto[]; abnormalCount: number }
+export interface SaveLabOrderRequest { testName: string; notes?: string; orderedDate?: string }
+export interface SaveLabResultRequest {
+  analyteName: string; value: number; unit?: string; referenceLow?: number; referenceHigh?: number
+}
 // ── NoteTemplate ──────────────────────────────────────────────────────────────
 export interface NoteTemplateDto {
   id: number; name: string; body: string; isBuiltIn: boolean; updatedAt?: string

@@ -13,6 +13,7 @@ import type {
   PatientAttachmentDto,
   ClinicalSummaryDto, AllergyDto, ProblemDto, MedicationDto,
   SaveAllergyRequest, SaveProblemRequest, SaveMedicationRequest,
+  LabSummaryDto, LabOrderDto, SaveLabOrderRequest, SaveLabResultRequest,
   AcceptInvitationRequest, InvitationResult,
   PortalProfileDto, PortalAppointmentDto, PortalPrescriptionDto, PortalInvoiceDto,
   PortalAttachmentDto, PortalNoteDto,
@@ -111,6 +112,19 @@ export const notesApi = {
   getLatest:    (patientId: number) => api.get<CopyForwardDto>(`/medicalnotes/patient/${patientId}/latest`).then(r => r.data),
   delete:       (id: number)        => api.delete(`/medicalnotes/${id}`),
   setSharing:   (id: number, shared: boolean) => api.put<MedicalNoteDto>(`/medicalnotes/${id}/sharing`, { shared }).then(r => r.data),
+}
+
+// ── Lab orders and results ────────────────────────────────────────────────────
+const labs = (patientId: number) => `/patients/${patientId}/labs`
+export const labsApi = {
+  getAll:       (patientId: number) => api.get<LabSummaryDto>(labs(patientId)).then(r => r.data),
+  createOrder:  (patientId: number, data: SaveLabOrderRequest) => api.post<LabOrderDto>(labs(patientId), data).then(r => r.data),
+  updateOrder:  (patientId: number, id: number, data: SaveLabOrderRequest) => api.put<LabOrderDto>(`${labs(patientId)}/${id}`, data).then(r => r.data),
+  cancelOrder:  (patientId: number, id: number) => api.post<LabOrderDto>(`${labs(patientId)}/${id}/cancel`).then(r => r.data),
+  deleteOrder:  (patientId: number, id: number) => api.delete(`${labs(patientId)}/${id}`),
+  addResult:    (patientId: number, orderId: number, data: SaveLabResultRequest) => api.post<LabOrderDto>(`${labs(patientId)}/${orderId}/results`, data).then(r => r.data),
+  updateResult: (patientId: number, orderId: number, id: number, data: SaveLabResultRequest) => api.put<LabOrderDto>(`${labs(patientId)}/${orderId}/results/${id}`, data).then(r => r.data),
+  deleteResult: (patientId: number, orderId: number, id: number) => api.delete<LabOrderDto>(`${labs(patientId)}/${orderId}/results/${id}`).then(r => r.data),
 }
 
 // ── Clinical lists ────────────────────────────────────────────────────────────
