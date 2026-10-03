@@ -227,6 +227,7 @@ export interface IntakeSubmissionDetail {
   answers: IntakeAnswers; current: IntakeAnswers | null
   consent: { consentVersion: string; consentAgreed: boolean; signatureName: string; signedAt: string }
   decidedAt?: string | null; rejectionReason?: string | null
+}
 
 // ── Online booking ────────────────────────────────────────────────────────────
 export type WeekDay = 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday'
