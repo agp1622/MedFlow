@@ -15,6 +15,7 @@ import { fmt, bloodTypeDisplay, displayEnum } from '@/utils/format'
 import { ArrowLeft, Trash2, Plus } from 'lucide-react'
 import { ShareToggle } from '@/components/sharing/ShareToggle'
 import { AttachmentsTab } from '@/components/attachments/AttachmentsTab'
+import { AuditLogTab } from '@/components/audit/AuditLogTab'
 import type { CreatePatientRequest } from '@/types'
 
 // ── Patient List ──────────────────────────────────────────────────────────────
@@ -86,7 +87,7 @@ export function PatientsPage() {
 }
 
 // ── Patient Detail ────────────────────────────────────────────────────────────
-const TABS = ['Overview', 'Appointments', 'Prescriptions', 'Invoices', 'Notes', 'Attachments'] as const
+const TABS = ['Overview', 'Appointments', 'Prescriptions', 'Invoices', 'Notes', 'Attachments', 'Audit log'] as const
 type Tab = typeof TABS[number]
 
 export function PatientDetailPage() {
@@ -160,6 +161,7 @@ export function PatientDetailPage() {
         {tab === 'Invoices'      && <InvTab patientId={patientId} />}
         {tab === 'Notes'         && <NotesTab patientId={patientId} />}
         {tab === 'Attachments'   && <AttachmentsTab patientId={patientId} />}
+        {tab === 'Audit log'     && <AuditLogTab patientId={patientId} />}
       </div>
     </div>
   )

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi } from '@/api/services'
-import type { QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest } from '@/types'
+import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi, auditApi } from '@/api/services'
+import type { QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest, AuditLogQuery } from '@/types'
 import toast from 'react-hot-toast'
 
 // Keys
@@ -19,6 +19,7 @@ export const QK = {
   vitals: (pid: number) => ['vitals', pid],
   notes: (pid: number) => ['notes', pid],
   attachments: (pid: number) => ['attachments', pid],
+  auditLog: (pid: number, q?: AuditLogQuery) => ['audit-log', pid, q],
   portal: (section: string) => ['portal', section],
 }
 
@@ -274,3 +275,7 @@ export const usePortalPrescriptions = () => useQuery({ queryKey: QK.portal('pres
 export const usePortalInvoices = () => useQuery({ queryKey: QK.portal('invoices'), queryFn: portalApi.invoices })
 export const usePortalAttachments = () => useQuery({ queryKey: QK.portal('attachments'), queryFn: portalApi.attachments })
 export const usePortalNotes = () => useQuery({ queryKey: QK.portal('notes'), queryFn: portalApi.notes })
+
+// ── Audit log ─────────────────────────────────────────────────────────────────
+export const useAuditLog = (patientId: number, q?: AuditLogQuery) =>
+  useQuery({ queryKey: QK.auditLog(patientId, q), queryFn: () => auditApi.getByPatient(patientId, q), enabled: patientId > 0 })

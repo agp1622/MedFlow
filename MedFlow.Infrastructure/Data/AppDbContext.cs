@@ -20,6 +20,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<PatientAttachment> PatientAttachments => Set<PatientAttachment>();
     public DbSet<PortalInvitation> PortalInvitations => Set<PortalInvitation>();
     public DbSet<PortalAccessLog> PortalAccessLogs => Set<PortalAccessLog>();
+    public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -154,10 +155,27 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.Property(l => l.ResourceType).HasMaxLength(50);
             e.Property(l => l.Action).HasMaxLength(50);
         });
+
+        // AuditEvent (append-only; no FK to Patient so events outlive soft-deleted patients)
+        builder.Entity<AuditEvent>(e =>
+        {
+            e.HasIndex(a => new { a.PatientId, a.OccurredAt });
+            e.Property(a => a.DoctorId).HasMaxLength(450);
+            e.Property(a => a.ActorUserId).HasMaxLength(450);
+            e.Property(a => a.ActorName).HasMaxLength(200);
+            e.Property(a => a.ActorRole).HasMaxLength(20);
+            e.Property(a => a.Action).HasConversion<string>().HasMaxLength(20);
+            e.Property(a => a.ItemKind).HasConversion<string>().HasMaxLength(30);
+            e.Property(a => a.ChangedFields).HasMaxLength(500);
+        });
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken ct = default)
     {
+        // Audit events are append-only: refuse any attempt to edit or remove one
+        if (ChangeTracker.Entries<AuditEvent>().Any(e => e.State is EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("Audit events are immutable.");
+
         var entries = ChangeTracker.Entries()
             .Where(e => e.Entity is BaseEntity && e.State is EntityState.Added or EntityState.Modified);
 

@@ -19,10 +19,12 @@ public class PortalInvitationsController : ControllerBase
     private readonly IEmailSender _email;
     private readonly IConfiguration _config;
     private readonly ILogger<PortalInvitationsController> _logger;
+    private readonly IAuditService _audit;
 
     public PortalInvitationsController(IPatientRepository patients, IPortalInvitationRepository invitations,
-        IEmailSender email, IConfiguration config, ILogger<PortalInvitationsController> logger)
+        IEmailSender email, IConfiguration config, ILogger<PortalInvitationsController> logger, IAuditService audit)
     {
+        _audit = audit;
         _patients = patients;
         _invitations = invitations;
         _email = email;
@@ -44,6 +46,7 @@ public class PortalInvitationsController : ControllerBase
         if (patient.PortalUserId != null)
             return BadRequest(new { errors = new[] { "Patient already has portal access." } });
 
+        if (!await this.AuditAsync(_audit, patientId, AuditAction.Change, AuditItemKind.PortalAccess, null)) return NotFound();
         var (token, expiresAt) = await _invitations.CreateAsync(patient);
 
         var frontendUrl = (_config.GetSection("AllowedOrigins").Get<string[]>()?.FirstOrDefault()
@@ -76,6 +79,7 @@ public class PortalInvitationsController : ControllerBase
     {
         var patient = await _patients.GetWithDetailsAsync(patientId, User.GetUserId());
         if (patient == null) return NotFound();
+        if (!await this.AuditAsync(_audit, patientId, AuditAction.Change, AuditItemKind.PortalAccess, null)) return NotFound();
         await _invitations.RevokeAsync(patient);
         return NoContent();
     }
