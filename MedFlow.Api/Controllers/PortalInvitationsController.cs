@@ -1,3 +1,4 @@
+using MedFlow.Api.Authorization;
 using MedFlow.Api.Localization;
 using System.Net;
 using MedFlow.Api.Extensions;
@@ -12,7 +13,7 @@ namespace MedFlow.Api.Controllers;
 
 [ApiController]
 [Route("api/patients/{patientId:int}")]
-[Authorize(Roles = Roles.Doctor)]
+[HasPermission(Permission.PortalInvite)]
 public class PortalInvitationsController : ControllerBase
 {
     private readonly IPatientRepository _patients;
@@ -36,7 +37,7 @@ public class PortalInvitationsController : ControllerBase
     [HttpPost("portal-invitation")]
     public async Task<ActionResult<InvitationResultDto>> Invite(int patientId)
     {
-        var patient = await _patients.GetWithDetailsAsync(patientId, User.GetUserId());
+        var patient = await _patients.GetWithDetailsAsync(patientId, this.GetScope());
         if (patient == null) return NotFound();
 
         if (string.IsNullOrWhiteSpace(patient.Email) ||
@@ -78,7 +79,7 @@ public class PortalInvitationsController : ControllerBase
     [HttpDelete("portal-access")]
     public async Task<IActionResult> Revoke(int patientId)
     {
-        var patient = await _patients.GetWithDetailsAsync(patientId, User.GetUserId());
+        var patient = await _patients.GetWithDetailsAsync(patientId, this.GetScope());
         if (patient == null) return NotFound();
         if (!await this.AuditAsync(_audit, patientId, AuditAction.Change, AuditItemKind.PortalAccess, null)) return NotFound();
         await _invitations.RevokeAsync(patient);

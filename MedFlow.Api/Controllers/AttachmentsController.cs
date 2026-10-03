@@ -1,3 +1,4 @@
+using MedFlow.Api.Authorization;
 using MedFlow.Api.Localization;
 using MedFlow.Core;
 using MedFlow.Api.Extensions;
@@ -12,7 +13,7 @@ namespace MedFlow.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = Roles.Doctor)]
+[HasPermission(Permission.ClinicRead)]
 public class AttachmentsController : ControllerBase
 {
     private readonly IPatientAttachmentRepository _attachments;
@@ -43,13 +44,15 @@ public class AttachmentsController : ControllerBase
     }
 
     [HttpGet("patient/{patientId:int}")]
+    [HasPermission(Permission.AttachmentsRead)]
     public async Task<ActionResult<IEnumerable<PatientAttachmentDto>>> GetByPatient(int patientId)
     {
         if (!await this.AuditAsync(_audit, patientId, AuditAction.View, AuditItemKind.Attachment, null)) return NotFound();
-        return Ok(await _attachments.GetByPatientAsync(patientId, User.GetUserId()));
+        return Ok(await _attachments.GetByPatientAsync(patientId, this.GetScope()));
     }
 
     [HttpPost]
+    [HasPermission(Permission.AttachmentsWrite)]
     [RequestSizeLimit(52_428_800)] // 50 MB
     public async Task<ActionResult<PatientAttachmentDto>> Upload(
         [FromForm] IFormFile file,
@@ -67,6 +70,7 @@ public class AttachmentsController : ControllerBase
             return BadRequest(this.T("Attachment.TypeNotAllowed", file.ContentType));
 
         var doctorId = User.GetUserId();
+        var clinicId = this.GetScope().ClinicId;
         // Checked before anything is written to disk
         if (!await this.AuditAsync(_audit, patientId, AuditAction.Change, AuditItemKind.Attachment, null)) return NotFound();
         var storedFileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
@@ -81,6 +85,7 @@ public class AttachmentsController : ControllerBase
         {
             PatientId = patientId,
             DoctorId = doctorId,
+            ClinicId = clinicId,
             FileName = file.FileName,
             StoredFileName = storedFileName,
             ContentType = file.ContentType,
@@ -97,9 +102,10 @@ public class AttachmentsController : ControllerBase
     }
 
     [HttpGet("{id:int}/download")]
+    [HasPermission(Permission.AttachmentsRead)]
     public async Task<IActionResult> Download(int id)
     {
-        var attachment = await _attachments.GetWithOwnerCheckAsync(id, User.GetUserId());
+        var attachment = await _attachments.GetInClinicAsync(id, this.GetScope().ClinicId);
         if (attachment == null) return NotFound();
         if (!await this.AuditAsync(_audit, attachment.PatientId, AuditAction.View, AuditItemKind.Attachment, attachment.Id)) return NotFound();
 
@@ -114,9 +120,10 @@ public class AttachmentsController : ControllerBase
     }
 
     [HttpGet("{id:int}/preview")]
+    [HasPermission(Permission.AttachmentsRead)]
     public async Task<IActionResult> Preview(int id)
     {
-        var attachment = await _attachments.GetWithOwnerCheckAsync(id, User.GetUserId());
+        var attachment = await _attachments.GetInClinicAsync(id, this.GetScope().ClinicId);
         if (attachment == null) return NotFound();
         if (!await this.AuditAsync(_audit, attachment.PatientId, AuditAction.View, AuditItemKind.Attachment, attachment.Id)) return NotFound();
 
@@ -132,9 +139,10 @@ public class AttachmentsController : ControllerBase
     }
 
     [HttpPut("{id:int}/sharing")]
+    [HasPermission(Permission.AttachmentsWrite)]
     public async Task<ActionResult<PatientAttachmentDto>> SetSharing(int id, [FromBody] SetSharingRequest req)
     {
-        var attachment = await _attachments.GetWithOwnerCheckAsync(id, User.GetUserId());
+        var attachment = await _attachments.GetInClinicAsync(id, this.GetScope().ClinicId);
         if (attachment == null) return NotFound();
         if (!await this.AuditAsync(_audit, attachment.PatientId, AuditAction.Change, AuditItemKind.Attachment, attachment.Id, new[] { "SharedWithPatient" })) return NotFound();
         await _attachments.SetSharingAsync(attachment, req.Shared);
@@ -144,9 +152,10 @@ public class AttachmentsController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
+    [HasPermission(Permission.AttachmentsWrite)]
     public async Task<IActionResult> Delete(int id)
     {
-        var attachment = await _attachments.GetWithOwnerCheckAsync(id, User.GetUserId());
+        var attachment = await _attachments.GetInClinicAsync(id, this.GetScope().ClinicId);
         if (attachment == null) return NotFound();
         if (!await this.AuditAsync(_audit, attachment.PatientId, AuditAction.Change, AuditItemKind.Attachment, id)) return NotFound();
 

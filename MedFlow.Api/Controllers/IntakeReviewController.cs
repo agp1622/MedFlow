@@ -1,3 +1,4 @@
+using MedFlow.Api.Authorization;
 using MedFlow.Api.Localization;
 using System.Net;
 using MedFlow.Api.Extensions;
@@ -11,7 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace MedFlow.Api.Controllers;
 
 [ApiController]
-[Authorize(Roles = Roles.Doctor)]
+[HasPermission(Permission.ClinicRead)]
 public class IntakeReviewController : ControllerBase
 {
     private readonly IPatientRepository _patients;
@@ -31,9 +32,10 @@ public class IntakeReviewController : ControllerBase
     }
 
     [HttpPost("api/patients/{patientId:int}/intake-link")]
+    [HasPermission(Permission.IntakeLinkSend)]
     public async Task<ActionResult<InvitationResultDto>> SendLink(int patientId)
     {
-        var patient = await _patients.GetWithDetailsAsync(patientId, User.GetUserId());
+        var patient = await _patients.GetWithDetailsAsync(patientId, this.GetScope());
         if (patient == null) return NotFound();
 
         if (string.IsNullOrWhiteSpace(patient.Email) ||
@@ -69,26 +71,30 @@ public class IntakeReviewController : ControllerBase
     }
 
     [HttpGet("api/intake-submissions")]
+    [HasPermission(Permission.IntakeReview)]
     public async Task<ActionResult<PagedResult<IntakeSubmissionSummaryDto>>> List(
         [FromQuery] IntakeStatus? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 20) =>
-        Ok(await _intake.GetPagedAsync(User.GetUserId(), status, page, pageSize));
+        Ok(await _intake.GetPagedAsync(this.GetScope(), status, page, pageSize));
 
     [HttpGet("api/intake-submissions/{id:int}")]
+    [HasPermission(Permission.IntakeReview)]
     public async Task<ActionResult<IntakeSubmissionDetailDto>> Get(int id)
     {
-        var dto = await _intake.GetDetailAsync(id, User.GetUserId());
+        var dto = await _intake.GetDetailAsync(id, this.GetScope());
         return dto == null ? NotFound() : Ok(dto);
     }
 
     [HttpPost("api/intake-submissions/{id:int}/accept")]
-    public async Task<IActionResult> Accept(int id) => Result(await _intake.DecideAsync(id, User.GetUserId(), true, null));
+    [HasPermission(Permission.IntakeReview)]
+    public async Task<IActionResult> Accept(int id) => Result(await _intake.DecideAsync(id, this.GetScope(), true, null));
 
     [HttpPost("api/intake-submissions/{id:int}/reject")]
+    [HasPermission(Permission.IntakeReview)]
     public async Task<IActionResult> Reject(int id, [FromBody] IntakeRejectRequest? req)
     {
         if (req?.Reason is { Length: > 500 })
             return BadRequest(new { errors = new[] { this.T("Error.ReasonMax", 500) } });
-        return Result(await _intake.DecideAsync(id, User.GetUserId(), false, req?.Reason));
+        return Result(await _intake.DecideAsync(id, this.GetScope(), false, req?.Reason));
     }
 
     private IActionResult Result(DecisionResult r) => r switch

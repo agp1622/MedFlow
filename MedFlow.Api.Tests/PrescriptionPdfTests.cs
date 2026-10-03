@@ -74,7 +74,7 @@ public class PrescriptionPdfTests : IClassFixture<TestApiFactory>
 
         var view = Assert.Single(await ViewsAsync(pid, id));
         Assert.Equal(d.UserId, view.ActorUserId);
-        Assert.Equal("Doctor", view.ActorRole);
+        Assert.Equal("Owner", view.ActorRole);
 
         await _f.ClientFor(d.Token).GetAsync($"/api/prescriptions/{id}/pdf");
         Assert.Equal(2, (await ViewsAsync(pid, id)).Count); // every print is logged
@@ -106,10 +106,12 @@ public class PrescriptionPdfTests : IClassFixture<TestApiFactory>
     {
         var (owner, pid) = await SetupAsync();
         var other = await _f.RegisterDoctorAsync($"doc-{Guid.NewGuid():N}@x.com");
-        var id = await SeedRxAsync(other.UserId, pid); // prescriber is "other", patient belongs to "owner"
+        // Every record belongs to one clinic: a prescription by a doctor of another clinic for this patient cannot be saved
+        await Assert.ThrowsAsync<InvalidOperationException>(() => SeedRxAsync(other.UserId, pid));
 
+        // ...and a normal prescription of the owner's clinic is invisible to the other clinic's doctor
+        var id = await SeedRxAsync(owner.UserId, pid);
         Assert.Equal(HttpStatusCode.NotFound, (await _f.ClientFor(other.Token).GetAsync($"/api/prescriptions/{id}/pdf")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await _f.ClientFor(owner.Token).GetAsync($"/api/prescriptions/{id}/pdf")).StatusCode);
         Assert.Empty(await ViewsAsync(pid, id));
     }
 
@@ -207,7 +209,9 @@ public class PrescriptionPdfTests : IClassFixture<TestApiFactory>
         var data = await _f.WithDbAsync(async db =>
         {
             var repo = new MedFlow.Infrastructure.Repositories.PrescriptionRepository(db);
-            return await repo.GetDocumentDataAsync(id, d.UserId);
+            // The repository is clinic-scoped now: use the doctor's own clinic
+            var clinicId = await db.ClinicMembers.Where(m => m.UserId == d.UserId).Select(m => m.ClinicId).FirstAsync();
+            return await repo.GetDocumentDataAsync(id, new MedFlow.Core.ClinicScope(clinicId, d.UserId, MedFlow.Core.ClinicRole.Owner));
         });
         Assert.NotNull(data);
         var all = string.Join("\n", Text(data!, out _));

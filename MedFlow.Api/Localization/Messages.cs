@@ -51,6 +51,17 @@ public static class Messages
             "This reset link is invalid or has expired. Please request a new one."),
         ["Auth.PasswordReset"] = ("Su contraseña se ha restablecido. Ya puede iniciar sesión.", "Your password has been reset. You can now sign in."),
 
+        // Clinic and staff
+        ["Staff.Invited"] = (
+            "Si el correo puede ser invitado, se ha enviado una invitación.",
+            "If the address can be invited, an invitation has been sent."),
+        ["Staff.EmailFailed"] = ("No se pudo enviar la invitación por correo. Inténtelo de nuevo.", "The invitation could not be emailed. Please try again."),
+        ["Staff.InvalidRole"] = ("El rol de la invitación debe ser Médico, Enfermería o Recepción.", "The invitation role must be Doctor, Nurse or Receptionist."),
+        ["Staff.LastOwner"] = ("Debe quedar al menos un propietario activo en la clínica.", "The clinic must keep at least one active owner."),
+        ["Staff.NameRequired"] = ("Indique nombre y apellido.", "Provide a first and last name."),
+        ["Clinic.NameRequired"] = ("Indique el nombre de la clínica (máximo 200 caracteres).", "Provide the clinic name (at most 200 characters)."),
+        ["Staff.Email.Subject"] = ("Le invitan a unirse a una clínica en MedFlow", "You're invited to join a clinic on MedFlow"),
+
         // Availability
         ["Availability.MaxWindows"] = ("Indique como máximo {0} franjas.", "Provide at most {0} windows."),
         ["Availability.WindowInvalid"] = ("Las franjas necesitan un día válido y horas de inicio y fin en formato HH:mm.", "Windows need a valid day and HH:mm start and end times."),

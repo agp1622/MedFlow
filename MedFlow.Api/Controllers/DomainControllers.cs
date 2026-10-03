@@ -1,4 +1,5 @@
 using MedFlow.Core;
+using MedFlow.Api.Authorization;
 using MedFlow.Api.Extensions;
 using MedFlow.Api.Localization;
 using MedFlow.Api.Services;
@@ -14,7 +15,7 @@ namespace MedFlow.Api.Controllers;
 // ── Prescriptions ─────────────────────────────────────────────────────────────
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = Roles.Doctor)]
+[HasPermission(Permission.ClinicRead)]
 public class PrescriptionsController : ControllerBase
 {
     private readonly IPrescriptionRepository _rx;
@@ -25,9 +26,10 @@ public class PrescriptionsController : ControllerBase
 
     /// <summary>Printable PDF. 404 (no body) when missing or not the caller's patient; audited as a View on success.</summary>
     [HttpGet("{id:int}/pdf")]
+    [HasPermission(Permission.PrescriptionsRead)]
     public async Task<IActionResult> GetPdf(int id)
     {
-        var data = await _rx.GetDocumentDataAsync(id, User.GetUserId());
+        var data = await _rx.GetDocumentDataAsync(id, this.GetScope());
         if (data == null) return NotFound();
         var pdf = _renderer.Render(data);
         if (!await this.AuditAsync(_audit, data.PatientId, AuditAction.View, AuditItemKind.Prescription, id)) return NotFound();
@@ -36,24 +38,28 @@ public class PrescriptionsController : ControllerBase
     }
 
     [HttpGet]
+    [HasPermission(Permission.PrescriptionsRead)]
     public async Task<ActionResult<PagedResult<PrescriptionDto>>> GetAll([FromQuery] QueryParams q)
-        => Ok(await _rx.GetPagedAsync(User.GetUserId(), q));
+        => Ok(await _rx.GetPagedAsync(this.GetScope(), q));
 
     [HttpGet("patient/{patientId:int}")]
+    [HasPermission(Permission.PrescriptionsRead)]
     public async Task<ActionResult<IEnumerable<PrescriptionDto>>> GetByPatient(int patientId)
     {
         if (!await this.AuditAsync(_audit, patientId, AuditAction.View, AuditItemKind.Prescription, null)) return NotFound();
-        return Ok(await _rx.GetByPatientAsync(patientId, User.GetUserId()));
+        return Ok(await _rx.GetByPatientAsync(patientId, this.GetScope()));
     }
 
     [HttpPost]
+    [HasPermission(Permission.PrescriptionsWrite)]
     public async Task<ActionResult<PrescriptionDto>> Create([FromBody] CreatePrescriptionRequest req)
     {
         if (!await this.AuditAsync(_audit, req.PatientId, AuditAction.Change, AuditItemKind.Prescription, null)) return NotFound();
         var rx = new Prescription
         {
             PatientId = req.PatientId,
-            DoctorId = User.GetUserId(),
+            DoctorId = User.GetUserId(), // the prescriber
+            ClinicId = this.GetScope().ClinicId,
             DrugName = req.DrugName,
             Dosage = req.Dosage,
             Frequency = req.Frequency,
@@ -68,9 +74,10 @@ public class PrescriptionsController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
+    [HasPermission(Permission.PrescriptionsWrite)]
     public async Task<IActionResult> Update(int id, [FromBody] UpdatePrescriptionRequest req)
     {
-        var rx = await _rx.GetByIdAsync(id);
+        var rx = await _rx.GetInClinicAsync(id, this.GetScope().ClinicId);
         if (rx == null) return NotFound();
         var before = AuditDiff.Snapshot(rx);
         rx.DrugName = req.DrugName;
@@ -86,9 +93,10 @@ public class PrescriptionsController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
+    [HasPermission(Permission.PrescriptionsWrite)]
     public async Task<IActionResult> Delete(int id)
     {
-        var rx = await _rx.GetByIdAsync(id);
+        var rx = await _rx.GetInClinicAsync(id, this.GetScope().ClinicId);
         if (rx == null) return NotFound();
         if (!await this.AuditAsync(_audit, rx.PatientId, AuditAction.Change, AuditItemKind.Prescription, id)) return NotFound();
         await _rx.DeleteAsync(id);
@@ -99,22 +107,27 @@ public class PrescriptionsController : ControllerBase
 // ── Invoices ──────────────────────────────────────────────────────────────────
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = Roles.Doctor)]
+[HasPermission(Permission.ClinicRead)]
 public class InvoicesController : ControllerBase
 {
     private readonly IInvoiceRepository _invoices;
+    private readonly IPatientRepository _patients;
+    private readonly IAppointmentRepository _appointments;
     private readonly IAuditService _audit;
-    public InvoicesController(IInvoiceRepository invoices, IAuditService audit) { _invoices = invoices; _audit = audit; }
+    public InvoicesController(IInvoiceRepository invoices, IPatientRepository patients, IAppointmentRepository appointments, IAuditService audit)
+    { _invoices = invoices; _patients = patients; _appointments = appointments; _audit = audit; }
 
     [HttpGet]
+    [HasPermission(Permission.InvoicesRead)]
     public async Task<ActionResult<PagedResult<InvoiceDto>>> GetAll([FromQuery] QueryParams q)
-        => Ok(await _invoices.GetPagedAsync(User.GetUserId(), q));
+        => Ok(await _invoices.GetPagedAsync(this.GetScope(), q));
 
     /// <summary>
     /// DRAFT claim worksheet under CMS-1500 (02/12) item numbers, as JSON (default) or CSV. It is not the official form,
     /// not an X12 837 file and not validated by any payer. 404 (no body) when missing or not the caller's; audited on success.
     /// </summary>
     [HttpGet("{id:int}/claim-export")]
+    [HasPermission(Permission.InvoicesRead)]
     public async Task<IActionResult> ClaimExport(int id, [FromQuery] string? format = null)
     {
         var fmt = string.IsNullOrWhiteSpace(format) ? "json" : format.Trim().ToLowerInvariant();
@@ -127,7 +140,7 @@ public class InvoicesController : ControllerBase
                 Instance = Request.Path
             });
 
-        var source = await _invoices.GetClaimSourceAsync(id, User.GetUserId());
+        var source = await _invoices.GetClaimSourceAsync(id, this.GetScope());
         if (source == null) return NotFound();
 
         var draft = ClaimDraftBuilder.Build(source);
@@ -148,21 +161,34 @@ public class InvoicesController : ControllerBase
     }
 
     [HttpGet("patient/{patientId:int}")]
+    [HasPermission(Permission.InvoicesRead)]
     public async Task<ActionResult<IEnumerable<InvoiceDto>>> GetByPatient(int patientId)
     {
         if (!await this.AuditAsync(_audit, patientId, AuditAction.View, AuditItemKind.Invoice, null)) return NotFound();
-        return Ok(await _invoices.GetByPatientAsync(patientId, User.GetUserId()));
+        return Ok(await _invoices.GetByPatientAsync(patientId, this.GetScope()));
     }
 
     [HttpPost]
+    [HasPermission(Permission.InvoicesWrite)]
     public async Task<ActionResult<InvoiceDto>> Create([FromBody] CreateInvoiceRequest req)
     {
-        var doctorId = User.GetUserId();
+        var scope = this.GetScope();
         if (!await this.AuditAsync(_audit, req.PatientId, AuditAction.Change, AuditItemKind.Invoice, null)) return NotFound();
+        // The linked appointment must be the same patient's, in this clinic
+        if (req.AppointmentId != null)
+        {
+            var appt = await _appointments.GetInClinicAsync(req.AppointmentId.Value, scope.ClinicId);
+            if (appt == null || appt.PatientId != req.PatientId) return NotFound();
+        }
+        // Billing doctor: the caller when they are a clinician, otherwise the patient's treating doctor
+        var patient = await _patients.GetInClinicAsync(req.PatientId, scope.ClinicId);
+        if (patient == null) return NotFound();
+        var doctorId = scope.IsClinician ? scope.UserId : patient.DoctorId;
         var invoice = new Invoice
         {
             PatientId = req.PatientId,
             DoctorId = doctorId,
+            ClinicId = scope.ClinicId,
             AppointmentId = req.AppointmentId,
             InvoiceNumber = await _invoices.GenerateInvoiceNumberAsync(),
             ServiceDescription = req.ServiceDescription,
@@ -177,9 +203,10 @@ public class InvoicesController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
+    [HasPermission(Permission.InvoicesWrite)]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateInvoiceRequest req)
     {
-        var inv = await _invoices.GetByIdAsync(id);
+        var inv = await _invoices.GetInClinicAsync(id, this.GetScope().ClinicId);
         if (inv == null) return NotFound();
         var before = AuditDiff.Snapshot(inv);
         inv.ServiceDescription = req.ServiceDescription;
@@ -196,9 +223,10 @@ public class InvoicesController : ControllerBase
     }
 
     [HttpPatch("{id:int}/mark-paid")]
+    [HasPermission(Permission.InvoicesWrite)]
     public async Task<IActionResult> MarkPaid(int id)
     {
-        var inv = await _invoices.GetByIdAsync(id);
+        var inv = await _invoices.GetInClinicAsync(id, this.GetScope().ClinicId);
         if (inv == null) return NotFound();
         var before = AuditDiff.Snapshot(inv);
         inv.Status = InvoiceStatus.Paid;
@@ -210,9 +238,10 @@ public class InvoicesController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
+    [HasPermission(Permission.InvoicesWrite)]
     public async Task<IActionResult> Delete(int id)
     {
-        var inv = await _invoices.GetByIdAsync(id);
+        var inv = await _invoices.GetInClinicAsync(id, this.GetScope().ClinicId);
         if (inv == null) return NotFound();
         if (!await this.AuditAsync(_audit, inv.PatientId, AuditAction.Change, AuditItemKind.Invoice, id)) return NotFound();
         await _invoices.DeleteAsync(id);
@@ -223,7 +252,7 @@ public class InvoicesController : ControllerBase
 // ── VitalSigns ────────────────────────────────────────────────────────────────
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = Roles.Doctor)]
+[HasPermission(Permission.ClinicRead)]
 public class VitalSignsController : ControllerBase
 {
     private readonly IVitalSignRepository _vitals;
@@ -231,28 +260,32 @@ public class VitalSignsController : ControllerBase
     public VitalSignsController(IVitalSignRepository vitals, IAuditService audit) { _vitals = vitals; _audit = audit; }
 
     [HttpGet("patient/{patientId:int}")]
+    [HasPermission(Permission.VitalsRead)]
     public async Task<ActionResult<IEnumerable<VitalSignDto>>> GetByPatient(int patientId)
     {
         if (!await this.AuditAsync(_audit, patientId, AuditAction.View, AuditItemKind.VitalSign, null)) return NotFound();
-        return Ok(await _vitals.GetByPatientAsync(patientId, User.GetUserId()));
+        return Ok(await _vitals.GetByPatientAsync(patientId, this.GetScope()));
     }
 
     [HttpGet("patient/{patientId:int}/latest")]
+    [HasPermission(Permission.VitalsRead)]
     public async Task<ActionResult<VitalSignDto>> GetLatest(int patientId)
     {
         if (!await this.AuditAsync(_audit, patientId, AuditAction.View, AuditItemKind.VitalSign, null)) return NotFound();
-        var v = await _vitals.GetLatestByPatientAsync(patientId);
+        var v = await _vitals.GetLatestByPatientAsync(patientId, this.GetScope());
         if (v == null) return NotFound();
         return Ok(v);
     }
 
     [HttpPost]
+    [HasPermission(Permission.VitalsWrite)]
     public async Task<ActionResult<VitalSignDto>> Create([FromBody] CreateVitalSignRequest req)
     {
         if (!await this.AuditAsync(_audit, req.PatientId, AuditAction.Change, AuditItemKind.VitalSign, null)) return NotFound();
         var vital = new VitalSign
         {
             PatientId = req.PatientId,
+            ClinicId = this.GetScope().ClinicId,
             BloodPressure = req.BloodPressure,
             HeartRate = req.HeartRate,
             Weight = req.Weight,
@@ -280,7 +313,7 @@ public class VitalSignsController : ControllerBase
 // ── MedicalNotes ──────────────────────────────────────────────────────────────
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = Roles.Doctor)]
+[HasPermission(Permission.ClinicRead)]
 public class MedicalNotesController : ControllerBase
 {
     private readonly IMedicalNoteRepository _notes;
@@ -288,28 +321,32 @@ public class MedicalNotesController : ControllerBase
     public MedicalNotesController(IMedicalNoteRepository notes, IAuditService audit) { _notes = notes; _audit = audit; }
 
     [HttpGet("patient/{patientId:int}")]
+    [HasPermission(Permission.NotesRead)]
     public async Task<ActionResult<IEnumerable<MedicalNoteDto>>> GetByPatient(int patientId)
     {
         if (!await this.AuditAsync(_audit, patientId, AuditAction.View, AuditItemKind.Note, null)) return NotFound();
-        return Ok(await _notes.GetByPatientAsync(patientId, User.GetUserId()));
+        return Ok(await _notes.GetByPatientAsync(patientId, this.GetScope()));
     }
 
-    // Copy-forward source: the caller's own latest note for the patient. 404 for none/unknown patient alike.
+    // Copy-forward source: the patient's latest note in the clinic. 404 for none/unknown patient alike.
     [HttpGet("patient/{patientId:int}/latest")]
+    [HasPermission(Permission.NotesRead)]
     public async Task<ActionResult<CopyForwardDto>> GetLatest(int patientId)
     {
-        var latest = await _notes.GetLatestForPatientAsync(patientId, User.GetUserId());
+        var latest = await _notes.GetLatestForPatientAsync(patientId, this.GetScope());
         return latest == null ? NotFound() : Ok(latest);
     }
 
     [HttpPost]
+    [HasPermission(Permission.NotesWrite)]
     public async Task<ActionResult<MedicalNoteDto>> Create([FromBody] CreateMedicalNoteRequest req)
     {
         if (!await this.AuditAsync(_audit, req.PatientId, AuditAction.Change, AuditItemKind.Note, null)) return NotFound();
         var note = new MedicalNote
         {
             PatientId = req.PatientId,
-            DoctorId = User.GetUserId(),
+            DoctorId = User.GetUserId(), // author (doctor, owner or nurse)
+            ClinicId = this.GetScope().ClinicId,
             Content = req.Content,
             VisitType = req.VisitType,
             NoteDate = DateTime.UtcNow
@@ -320,9 +357,10 @@ public class MedicalNotesController : ControllerBase
     }
 
     [HttpPut("{id:int}/sharing")]
+    [HasPermission(Permission.NotesManage)]
     public async Task<ActionResult<MedicalNoteDto>> SetSharing(int id, [FromBody] SetSharingRequest req)
     {
-        var note = await _notes.GetWithOwnerCheckAsync(id, User.GetUserId());
+        var note = await _notes.GetInClinicAsync(id, this.GetScope().ClinicId);
         if (note == null) return NotFound();
         var before = AuditDiff.Snapshot(note);
         note.SharedWithPatient = req.Shared;
@@ -333,9 +371,10 @@ public class MedicalNotesController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
+    [HasPermission(Permission.NotesManage)]
     public async Task<IActionResult> Delete(int id)
     {
-        var note = await _notes.GetByIdAsync(id);
+        var note = await _notes.GetInClinicAsync(id, this.GetScope().ClinicId);
         if (note == null) return NotFound();
         if (!await this.AuditAsync(_audit, note.PatientId, AuditAction.Change, AuditItemKind.Note, id)) return NotFound();
         await _notes.DeleteAsync(id);
@@ -346,13 +385,14 @@ public class MedicalNotesController : ControllerBase
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = Roles.Doctor)]
+[HasPermission(Permission.ClinicRead)]
 public class DashboardController : ControllerBase
 {
     private readonly IDashboardRepository _dashboard;
     public DashboardController(IDashboardRepository dashboard) => _dashboard = dashboard;
 
     [HttpGet]
+    [HasPermission(Permission.DashboardRead)]
     public async Task<ActionResult<DashboardStatsDto>> GetStats()
-        => Ok(await _dashboard.GetStatsAsync(User.GetUserId()));
+        => Ok(await _dashboard.GetStatsAsync(this.GetScope()));
 }

@@ -1,3 +1,4 @@
+using MedFlow.Api.Authorization;
 using MedFlow.Api.Localization;
 using System.Globalization;
 using MedFlow.Api.Extensions;
@@ -12,7 +13,7 @@ namespace MedFlow.Api.Controllers;
 /// <summary>Doctor-managed weekly availability and blocked dates. Always scoped to the caller.</summary>
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = Roles.Doctor)]
+[HasPermission(Permission.AvailabilityManage)]
 public class AvailabilityController : ControllerBase
 {
     private const int MaxWindows = 50;

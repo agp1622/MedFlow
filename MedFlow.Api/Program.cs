@@ -64,7 +64,15 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    // One policy per permission; the handler checks the caller's clinic role against the permission matrix
+    foreach (var permission in Enum.GetValues<MedFlow.Core.Permission>())
+        options.AddPolicy(MedFlow.Api.Authorization.HasPermissionAttribute.PolicyPrefix + permission,
+            policy => policy.RequireAuthenticatedUser()
+                .AddRequirements(new MedFlow.Api.Authorization.PermissionRequirement(permission)));
+});
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, MedFlow.Api.Authorization.PermissionAuthorizationHandler>();
 builder.Services.AddControllers()
     .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()))
     .ConfigureApiBehaviorOptions(options =>
@@ -134,6 +142,15 @@ builder.Services.AddRateLimiter(options =>
             _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = builder.Configuration.GetValue("RateLimiting:AcceptInvitationPermitLimit", 10),
+                Window = TimeSpan.FromMinutes(15),
+                QueueLimit = 0
+            }));
+    options.AddPolicy("staff-invitation", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = builder.Configuration.GetValue("RateLimiting:StaffInvitationPermitLimit", 10),
                 Window = TimeSpan.FromMinutes(15),
                 QueueLimit = 0
             }));

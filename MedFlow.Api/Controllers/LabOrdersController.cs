@@ -1,3 +1,4 @@
+using MedFlow.Api.Authorization;
 using MedFlow.Api.Extensions;
 using MedFlow.Api.Localization;
 using MedFlow.Core;
@@ -13,7 +14,7 @@ namespace MedFlow.Api.Controllers;
 /// <summary>Lab orders and manually entered results. Doctor-private, owner-scoped, audited.</summary>
 [ApiController]
 [Route("api/patients/{patientId:int}/labs")]
-[Authorize(Roles = Roles.Doctor)]
+[HasPermission(Permission.ClinicRead)]
 public class LabOrdersController : ControllerBase
 {
     public const int MaxOrdersPerPatient = 100;
@@ -24,30 +25,33 @@ public class LabOrdersController : ControllerBase
 
     public LabOrdersController(ILabOrderRepository labs, IAuditService audit) { _labs = labs; _audit = audit; }
 
-    private string DoctorId => User.GetUserId();
+    private string DoctorId => User.GetUserId(); // the author recorded on new orders
+    private ClinicScope Scope => this.GetScope();
     private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
     private static bool InFuture(DateOnly? d) => d.HasValue && d.Value > DateOnly.FromDateTime(DateTime.UtcNow);
     private Task<bool> Audit(int patientId, AuditAction action, int? orderId, IEnumerable<string>? fields = null) =>
         this.AuditAsync(_audit, patientId, action, AuditItemKind.LabOrder, orderId, fields);
 
     [HttpGet]
+    [HasPermission(Permission.LabsRead)]
     public async Task<ActionResult<LabSummaryDto>> GetAll(int patientId)
     {
         if (!await Audit(patientId, AuditAction.View, null)) return NotFound();
-        return Ok(await _labs.GetSummaryAsync(patientId, DoctorId));
+        return Ok(await _labs.GetSummaryAsync(patientId, Scope));
     }
 
     [HttpPost]
+    [HasPermission(Permission.LabsWrite)]
     public async Task<ActionResult<LabOrderDto>> Create(int patientId, [FromBody] SaveLabOrderRequest req)
     {
-        if (!await _labs.OwnsPatientAsync(patientId, DoctorId)) return NotFound();
+        if (!await _labs.OwnsPatientAsync(patientId, Scope)) return NotFound();
         if (InFuture(req.OrderedDate)) return BadRequest(new { message = this.T("Lab.DateFuture") });
-        if (await _labs.CountOrdersAsync(patientId, DoctorId) >= MaxOrdersPerPatient)
+        if (await _labs.CountOrdersAsync(patientId, Scope) >= MaxOrdersPerPatient)
             return BadRequest(new { message = this.T("Lab.OrderLimit", MaxOrdersPerPatient) });
 
         var dto = await _labs.AddOrderAsync(new LabOrder
         {
-            PatientId = patientId, DoctorId = DoctorId, TestName = req.TestName.Trim(), Notes = Clean(req.Notes),
+            PatientId = patientId, DoctorId = DoctorId, ClinicId = Scope.ClinicId, TestName = req.TestName.Trim(), Notes = Clean(req.Notes),
             OrderedDate = req.OrderedDate ?? DateOnly.FromDateTime(DateTime.UtcNow)
         });
         if (!await Audit(patientId, AuditAction.Change, dto.Id)) return NotFound();
@@ -55,9 +59,10 @@ public class LabOrdersController : ControllerBase
     }
 
     [HttpPut("{orderId:int}")]
+    [HasPermission(Permission.LabsWrite)]
     public async Task<ActionResult<LabOrderDto>> Update(int patientId, int orderId, [FromBody] SaveLabOrderRequest req)
     {
-        var order = await _labs.GetOrderAsync(orderId, patientId, DoctorId);
+        var order = await _labs.GetOrderAsync(orderId, patientId, Scope);
         if (order == null) return NotFound();
         if (order.Status == LabOrderStatus.Cancelled) return Conflict(new { message = this.T("Lab.Cancelled") });
         if (InFuture(req.OrderedDate)) return BadRequest(new { message = this.T("Lab.DateFuture") });
@@ -72,9 +77,10 @@ public class LabOrdersController : ControllerBase
     }
 
     [HttpPost("{orderId:int}/cancel")]
+    [HasPermission(Permission.LabsWrite)]
     public async Task<ActionResult<LabOrderDto>> Cancel(int patientId, int orderId)
     {
-        var order = await _labs.GetOrderAsync(orderId, patientId, DoctorId);
+        var order = await _labs.GetOrderAsync(orderId, patientId, Scope);
         if (order == null) return NotFound();
         if (order.Status == LabOrderStatus.Cancelled) return Conflict(new { message = this.T("Lab.Cancelled") });
 
@@ -85,9 +91,10 @@ public class LabOrdersController : ControllerBase
     }
 
     [HttpDelete("{orderId:int}")]
+    [HasPermission(Permission.LabsWrite)]
     public async Task<IActionResult> Delete(int patientId, int orderId)
     {
-        var order = await _labs.GetOrderAsync(orderId, patientId, DoctorId);
+        var order = await _labs.GetOrderAsync(orderId, patientId, Scope);
         if (order == null) return NotFound();
         await _labs.DeleteOrderAsync(order);
         if (!await Audit(patientId, AuditAction.Change, orderId)) return NotFound();
@@ -96,9 +103,10 @@ public class LabOrdersController : ControllerBase
 
     // ── Results ───────────────────────────────────────────────────────────────
     [HttpPost("{orderId:int}/results")]
+    [HasPermission(Permission.LabsWrite)]
     public async Task<ActionResult<LabOrderDto>> AddResult(int patientId, int orderId, [FromBody] SaveLabResultRequest req)
     {
-        var order = await _labs.GetOrderAsync(orderId, patientId, DoctorId);
+        var order = await _labs.GetOrderAsync(orderId, patientId, Scope);
         if (order == null) return NotFound();
         if (order.Status == LabOrderStatus.Cancelled) return Conflict(new { message = this.T("Lab.Cancelled") });
         if (RangeInvalid(req)) return BadRequest(new { message = this.T("Lab.RangeOrder") });
@@ -115,9 +123,10 @@ public class LabOrdersController : ControllerBase
     }
 
     [HttpPut("{orderId:int}/results/{resultId:int}")]
+    [HasPermission(Permission.LabsWrite)]
     public async Task<ActionResult<LabOrderDto>> UpdateResult(int patientId, int orderId, int resultId, [FromBody] SaveLabResultRequest req)
     {
-        var order = await _labs.GetOrderAsync(orderId, patientId, DoctorId);
+        var order = await _labs.GetOrderAsync(orderId, patientId, Scope);
         var result = order?.Results.FirstOrDefault(r => r.Id == resultId && !r.IsDeleted);
         if (order == null || result == null) return NotFound();
         if (order.Status == LabOrderStatus.Cancelled) return Conflict(new { message = this.T("Lab.Cancelled") });
@@ -135,9 +144,10 @@ public class LabOrdersController : ControllerBase
     }
 
     [HttpDelete("{orderId:int}/results/{resultId:int}")]
+    [HasPermission(Permission.LabsWrite)]
     public async Task<ActionResult<LabOrderDto>> RemoveResult(int patientId, int orderId, int resultId)
     {
-        var order = await _labs.GetOrderAsync(orderId, patientId, DoctorId);
+        var order = await _labs.GetOrderAsync(orderId, patientId, Scope);
         var result = order?.Results.FirstOrDefault(r => r.Id == resultId && !r.IsDeleted);
         if (order == null || result == null) return NotFound();
         if (order.Status == LabOrderStatus.Cancelled) return Conflict(new { message = this.T("Lab.Cancelled") });
