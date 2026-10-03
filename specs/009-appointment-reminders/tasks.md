@@ -16,19 +16,19 @@ Refs #9. Tests are included (repo rules require access control, isolation and va
 
 - [x] T008 [US1] Implement `ReminderProcessor` (eligibility, reschedule handling, skip without email, claim attempt, token generation, email send via IEmailSender, delivery log, bounded retry) in MedFlow.Infrastructure/Reminders/ReminderProcessor.cs and register in DependencyInjection.cs
 - [x] T009 [US1] Add `ReminderBackgroundService` (PeriodicTimer, scope per pass, swallow and log errors) in MedFlow.Api/Services/ReminderBackgroundService.cs and register in Program.cs
-- [ ] T010 [US1] Tests in MedFlow.Api.Tests/ReminderTests.cs: sent once and idempotent, outside window, closed/past statuses, no email skipped, failure then retry with max attempts, reschedule re-sends; update TestApiFactory to remove hosted services
+- [x] T010 [US1] Tests in MedFlow.Api.Tests/ReminderTests.cs: sent once and idempotent, outside window, closed/past statuses, no email skipped, failure then retry with max attempts, reschedule re-sends; update TestApiFactory to remove hosted services
 
 ## Phase 3: US2 Confirm or cancel from link (P1)
 
 - [x] T011 [US2] Implement `ReminderRepository` (lookup by token hash, respond rules) in MedFlow.Infrastructure/Repositories/Repositories.cs and register
 - [x] T012 [US2] Add anonymous `AppointmentResponseController` (lookup, respond, uniform 404, 409 closed) and rate-limit policy in MedFlow.Api/Controllers/AppointmentResponseController.cs and Program.cs
-- [ ] T013 [US2] Tests in ReminderTests.cs: confirm, cancel, cancelled cannot be re-confirmed, invalid/expired/tampered identical response, link cannot touch other appointments, lookup does not change state, stale token after reschedule
+- [x] T013 [US2] Tests in ReminderTests.cs: confirm, cancel, cancelled cannot be re-confirmed, invalid/expired/tampered identical response, link cannot touch other appointments, lookup does not change state, stale token after reschedule
 - [ ] T014 [US2] Client: types in medflow-client/src/types/index.ts, `appointmentResponseApi` in medflow-client/src/api/services.ts, public page medflow-client/src/pages/AppointmentResponsePage.tsx, route in medflow-client/src/App.tsx
 
 ## Phase 4: US3 Doctor delivery log (P2)
 
 - [x] T015 [US3] Add `GET /api/appointments/{id}/reminders` (owner-only, 404 otherwise) in MedFlow.Api/Controllers/AppointmentsController.cs using `IReminderRepository`
-- [ ] T016 [US3] Tests in ReminderTests.cs: owner sees log, other doctor 404, patient token rejected, anonymous 401
+- [x] T016 [US3] Tests in ReminderTests.cs: owner sees log, other doctor 404, patient token rejected, anonymous 401
 - [ ] T017 [US3] Client: `appointmentsApi.reminders`, query hook in medflow-client/src/hooks/queries.ts, display log and response in medflow-client/src/pages/AppointmentsPage.tsx
 
 ## Phase 5: Polish
