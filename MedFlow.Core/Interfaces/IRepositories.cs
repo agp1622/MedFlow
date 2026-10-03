@@ -131,6 +131,8 @@ public interface IIntakeRepository
 {
     /// <summary>Creates a link (superseding earlier unused ones) and returns the raw token.</summary>
     Task<(string Token, DateTime ExpiresAt)> CreateLinkAsync(Patient patient);
+    /// <summary>False when the patient already has a Pending/Accepted submission or a still-valid unused link.</summary>
+    Task<bool> NeedsLinkAsync(int patientId);
     /// <summary>Returns the link and patient for a valid (unused, unexpired, active patient, email unchanged) token.</summary>
     Task<(IntakeLink Link, Patient Patient)?> FindValidLinkAsync(string token);
     /// <summary>Consumes the link and stores the submission in one save; false if the link was already used.</summary>

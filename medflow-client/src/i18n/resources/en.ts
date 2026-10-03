@@ -301,7 +301,15 @@ export const en: Optional<typeof es> = {
     },
     tabs: {
       overview: 'Overview', appointments: 'Appointments', prescriptions: 'Prescriptions', invoices: 'Invoices',
-      notes: 'Notes', attachments: 'Attachments', audit: 'Audit log',
+      notes: 'Notes', attachments: 'Attachments', audit: 'Audit log', vitals: 'Vitals',
+    },
+    trends: {
+      title: 'Vitals trends',
+      range: { d30: 'Last 30 days', m6: 'Last 6 months', y1: 'Last year', all: 'All time', custom: 'Custom' },
+      from: 'From', to: 'To',
+      invalidRange: 'The end date must not be before the start date.',
+      noneInRange: 'No vitals recorded in this date range.',
+      systolic: 'Systolic', diastolic: 'Diastolic',
     },
     vitals: {
       title: 'Latest Vitals',
