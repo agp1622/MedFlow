@@ -163,6 +163,7 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
+builder.Services.AddScoped<MedFlow.Api.Services.BookingConfirmationService>();
 builder.Services.AddHostedService<MedFlow.Api.Services.ReminderBackgroundService>();
 
 var app = builder.Build();
