@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using MedFlow.Core.Enums;
 
 namespace MedFlow.Core.DTOs;
@@ -33,7 +34,9 @@ public record PatientDto(
     string? InsuranceProvider, string? InsurancePolicyNumber,
     DateTime? LastVisit, DateTime? NextAppointment,
     DateTime CreatedAt, DateTime UpdatedAt,
-    string PortalStatus = "NotInvited"
+    string PortalStatus = "NotInvited",
+    string? InsuranceGroupNumber = null, string? InsurancePayerId = null, string? InsuranceSubscriberName = null,
+    DateOnly? InsuranceSubscriberDateOfBirth = null, string? InsuranceSubscriberRelationship = null
 );
 
 public record PatientSummaryDto(
@@ -48,7 +51,9 @@ public record CreatePatientRequest(
     string Email, string Phone,
     string? Address, string? City, string? State, string? ZipCode,
     string? PrimaryCondition, string? Allergies, string? Notes,
-    string? InsuranceProvider, string? InsurancePolicyNumber
+    string? InsuranceProvider, string? InsurancePolicyNumber,
+    string? InsuranceGroupNumber = null, string? InsurancePayerId = null, string? InsuranceSubscriberName = null,
+    DateOnly? InsuranceSubscriberDateOfBirth = null, InsuranceRelationship? InsuranceSubscriberRelationship = null
 );
 
 public record UpdatePatientRequest(
@@ -57,7 +62,9 @@ public record UpdatePatientRequest(
     string Email, string Phone,
     string? Address, string? City, string? State, string? ZipCode,
     string? PrimaryCondition, string? Allergies, string? Notes,
-    string? InsuranceProvider, string? InsurancePolicyNumber
+    string? InsuranceProvider, string? InsurancePolicyNumber,
+    string? InsuranceGroupNumber = null, string? InsurancePayerId = null, string? InsuranceSubscriberName = null,
+    DateOnly? InsuranceSubscriberDateOfBirth = null, InsuranceRelationship? InsuranceSubscriberRelationship = null
 );
 
 // ── Appointment ───────────────────────────────────────────────────────────────
@@ -88,6 +95,15 @@ public record PrescriptionDto(
     int RefillsRemaining, string Status, DateTime CreatedAt
 );
 
+/// <summary>Everything printed on a prescription PDF; deliberately excludes email, insurance, allergies and notes.</summary>
+public record PrescriptionDocumentData(
+    int PrescriptionId, int PatientId,
+    string DoctorName, string Specialty, string? LicenseNumber, string? DoctorPhone,
+    string PatientName, DateOnly PatientDateOfBirth, string? PatientPhone, string? PatientAddress,
+    string DrugName, string Dosage, string Frequency, string? Instructions,
+    DateOnly IssuedDate, DateOnly ExpiryDate, int RefillsRemaining, PrescriptionStatus Status
+);
+
 public record CreatePrescriptionRequest(
     int PatientId, string DrugName, string Dosage, string Frequency,
     string? Instructions, DateOnly IssuedDate, DateOnly ExpiryDate,
@@ -108,6 +124,28 @@ public record InvoiceDto(
     string Status, DateTime InvoiceDate, DateTime? DueDate,
     DateTime? PaidDate, string? Notes, DateTime CreatedAt
 );
+
+/// <summary>Everything the claim draft is built from; null from the repository unless the invoice and its patient belong to the doctor.</summary>
+public record ClaimSourceData(
+    int InvoiceId, int PatientId, string InvoiceNumber, string InvoiceStatus, string ServiceDescription,
+    decimal Amount, DateTime InvoiceDate, DateTime? AppointmentDate,
+    string PatientFirstName, string PatientLastName, DateOnly PatientDateOfBirth, Gender PatientGender, string? PatientPhone,
+    string? Address, string? City, string? State, string? ZipCode,
+    string? InsuranceProvider, string? InsurancePolicyNumber, string? InsuranceGroupNumber, string? InsurancePayerId,
+    string? SubscriberName, DateOnly? SubscriberDateOfBirth, InsuranceRelationship? SubscriberRelationship,
+    string DoctorName, string? DoctorPhone);
+
+/// <summary>One CMS-1500 (02/12) item of the draft. Item is the form item number, "Carrier" or "-" (not a form item).</summary>
+public record ClaimItem(string Item, string Key, string? Value);
+public record ClaimMissing(string Item, string Key);
+public record ClaimDraft(IReadOnlyList<ClaimItem> Items, IReadOnlyList<ClaimMissing> Missing);
+
+public record ClaimItemDto(string Item, string Key, string Label, string? Value);
+public record ClaimMissingDto(string Item, string Key, string Label);
+/// <summary>Draft claim worksheet. Not an official CMS-1500 form, not an X12 837 file, not validated by any payer.</summary>
+public record ClaimDraftDto(
+    string Status, string Disclaimer, DateTime GeneratedAt, string InvoiceNumber, string InvoiceStatus,
+    IReadOnlyList<ClaimItemDto> Items, IReadOnlyList<ClaimMissingDto> Missing);
 
 public record CreateInvoiceRequest(
     int PatientId, int? AppointmentId,
@@ -187,6 +225,28 @@ public record PortalAttachmentDto(
     string? Category, string? Description, DateTime CreatedAt);
 public record PortalNoteDto(int Id, string DoctorName, string? VisitType, string Content, DateTime NoteDate);
 
+// ── Clinical lists (allergies, problems, medications) ─────────────────────────
+public record AllergyDto(int Id, string Substance, string? Reaction, string Severity, DateTime CreatedAt, DateTime UpdatedAt);
+public record ProblemDto(int Id, string Description, string Icd10Code, string Status, DateOnly? OnsetDate, DateTime CreatedAt, DateTime UpdatedAt);
+public record MedicationDto(int Id, string Name, string? Dosage, string? Frequency, string? Notes, DateTime CreatedAt, DateTime UpdatedAt);
+public record ClinicalSummaryDto(IEnumerable<AllergyDto> Allergies, IEnumerable<ProblemDto> Problems, IEnumerable<MedicationDto> Medications);
+
+public record SaveAllergyRequest(
+    [Required, StringLength(200)] string Substance,
+    [StringLength(500)] string? Reaction,
+    [Required] AllergySeverity? Severity);
+
+public record SaveProblemRequest(
+    [Required, StringLength(200)] string Description,
+    [Required, StringLength(16), RegularExpression(@"^\s*[A-Za-z][0-9][A-Za-z0-9](\.[A-Za-z0-9]{1,4})?\s*$", ErrorMessage = "Enter a valid ICD-10 code such as E11.9.")] string Icd10Code,
+    [Required] ProblemStatus? Status,
+    DateOnly? OnsetDate);
+
+public record SaveMedicationRequest(
+    [Required, StringLength(200)] string Name,
+    [StringLength(100)] string? Dosage,
+    [StringLength(100)] string? Frequency,
+    [StringLength(500)] string? Notes);
 // ── Intake forms ─────────────────────────────────────────────────────────────
 public record IntakeFormInfoDto(string FirstName, string ConsentVersion, string ConsentText);
 
@@ -241,3 +301,22 @@ public record AuditEventDto(int Id, DateTime OccurredAt, string ActorUserId, str
     string Action, string ItemKind, int? ItemId, string[] ChangedFields);
 public record AuditLogQuery(AuditAction? Action = null, string? Actor = null, DateTime? From = null,
     DateTime? To = null, int Page = 1, int PageSize = 20);
+
+// ── Lab orders and results (doctor-private) ───────────────────────────────────
+public record LabResultDto(int Id, string AnalyteName, decimal Value, string? Unit, decimal? ReferenceLow, decimal? ReferenceHigh, string Flag);
+public record LabOrderDto(
+    int Id, string TestName, string? Notes, DateOnly OrderedDate, string Status,
+    IEnumerable<LabResultDto> Results, int AbnormalCount, DateTime CreatedAt, DateTime UpdatedAt);
+public record LabSummaryDto(IEnumerable<LabOrderDto> Orders, int AbnormalCount);
+
+public record SaveLabOrderRequest(
+    [Required, StringLength(150)] string TestName,
+    [StringLength(1000)] string? Notes,
+    DateOnly? OrderedDate);
+
+public record SaveLabResultRequest(
+    [Required, StringLength(100)] string AnalyteName,
+    [Required, Range(-999999999.0, 999999999.0)] decimal? Value,
+    [StringLength(30)] string? Unit,
+    [Range(-999999999.0, 999999999.0)] decimal? ReferenceLow,
+    [Range(-999999999.0, 999999999.0)] decimal? ReferenceHigh);

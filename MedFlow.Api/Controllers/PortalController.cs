@@ -1,4 +1,6 @@
+using MedFlow.Api.Localization;
 using MedFlow.Api.Extensions;
+using MedFlow.Api.Services;
 using MedFlow.Core;
 using MedFlow.Core.DTOs;
 using MedFlow.Core.Entities;
@@ -22,9 +24,12 @@ public class PortalController : ControllerBase
     private readonly IBookingRepository _booking;
     private readonly IWebHostEnvironment _env;
     private readonly IAuditService _audit;
+    private readonly BookingConfirmationService _confirmation;
 
-    public PortalController(IPortalRepository portal, IBookingRepository booking, IWebHostEnvironment env, IAuditService audit)
+    public PortalController(IPortalRepository portal, IBookingRepository booking, IWebHostEnvironment env, IAuditService audit,
+        BookingConfirmationService confirmation)
     {
+        _confirmation = confirmation;
         _portal = portal;
         _booking = booking;
         _env = env;
@@ -42,7 +47,7 @@ public class PortalController : ControllerBase
     }
 
     private ObjectResult Unavailable() =>
-        StatusCode(StatusCodes.Status403Forbidden, new { error = "Portal access is unavailable." });
+        StatusCode(StatusCodes.Status403Forbidden, new { error = this.T("Portal.Unavailable") });
 
     [HttpGet("me")]
     public async Task<IActionResult> Me()
@@ -127,7 +132,7 @@ public class PortalController : ControllerBase
         var patient = await ResolvePatientAsync();
         if (patient == null) return Unavailable();
         if (to < from || to.DayNumber - from.DayNumber > 30)
-            return BadRequest(new { error = "Choose a date range of at most 31 days." });
+            return BadRequest(new { error = this.T("Portal.RangeMax") });
         return Ok(await _booking.GetOpenSlotsAsync(patient, from, to));
     }
 
@@ -138,15 +143,18 @@ public class PortalController : ControllerBase
         if (patient == null) return Unavailable();
         var reason = string.IsNullOrWhiteSpace(req.Reason) ? null : req.Reason.Trim();
         if (reason is { Length: > 500 })
-            return BadRequest(new { error = "Reason must be at most 500 characters." });
+            return BadRequest(new { error = this.T("Error.ReasonMax", 500) });
 
         var (outcome, appt) = await _booking.BookAsync(patient, req.StartsAt, reason);
+        if (outcome == BookingOutcome.Booked && appt != null)
+            await _confirmation.SendAsync(patient, appt); // never throws; the booking is already saved
+
         return outcome switch
         {
             BookingOutcome.Booked => Created("/api/portal/appointments", appt),
-            BookingOutcome.NotAvailable => BadRequest(new { error = "That time is not available for booking." }),
-            BookingOutcome.LimitReached => Conflict(new { error = "You have reached the limit of upcoming appointments." }),
-            _ => Conflict(new { error = "That time is no longer available." })
+            BookingOutcome.NotAvailable => BadRequest(new { error = this.T("Portal.NotAvailable") }),
+            BookingOutcome.LimitReached => Conflict(new { error = this.T("Portal.LimitReached") }),
+            _ => Conflict(new { error = this.T("Portal.SlotTaken") })
         };
     }
 }

@@ -1,5 +1,6 @@
 import axios from 'axios'
 import toast from 'react-hot-toast'
+import i18n, { currentLanguage } from '@/i18n'
 
 const api = axios.create({
   baseURL: '/api',
@@ -10,6 +11,8 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('medflow_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
+  // The API localizes its user-facing messages from this header
+  config.headers['Accept-Language'] = currentLanguage()
   return config
 })
 
@@ -24,7 +27,7 @@ api.interceptors.response.use(
       localStorage.removeItem('medflow_user')
       window.location.href = '/login'
     } else if (err.response?.status >= 500) {
-      toast.error('Server error. Please try again.')
+      toast.error(i18n.t('errors.server'))
     }
     return Promise.reject(err)
   }

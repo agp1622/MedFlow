@@ -1,3 +1,4 @@
+using MedFlow.Api.Localization;
 using System.Globalization;
 using MedFlow.Api.Extensions;
 using MedFlow.Core;
@@ -28,7 +29,7 @@ public class AvailabilityController : ControllerBase
     public async Task<IActionResult> SetWeekly([FromBody] SetWeeklyAvailabilityRequest req)
     {
         if (req.Windows == null || req.Windows.Count > MaxWindows)
-            return BadRequest(new { error = $"Provide at most {MaxWindows} windows." });
+            return BadRequest(new { error = this.T("Availability.MaxWindows", MaxWindows) });
 
         var parsed = new List<(DayOfWeek Day, TimeOnly Start, TimeOnly End)>();
         foreach (var w in req.Windows)
@@ -36,10 +37,10 @@ public class AvailabilityController : ControllerBase
             if (!Enum.IsDefined(w.DayOfWeek)
                 || !TimeOnly.TryParseExact(w.StartTime, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var s)
                 || !TimeOnly.TryParseExact(w.EndTime, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var e))
-                return BadRequest(new { error = "Windows need a valid day and HH:mm start and end times." });
-            if (e <= s) return BadRequest(new { error = "End time must be after start time." });
+                return BadRequest(new { error = this.T("Availability.WindowInvalid") });
+            if (e <= s) return BadRequest(new { error = this.T("Availability.EndAfterStart") });
             if (s.Minute % 30 != 0 || e.Minute % 30 != 0)
-                return BadRequest(new { error = "Times must be on 30-minute boundaries." });
+                return BadRequest(new { error = this.T("Availability.Boundaries") });
             parsed.Add((w.DayOfWeek, s, e));
         }
         foreach (var day in parsed.GroupBy(p => p.Day))
@@ -47,7 +48,7 @@ public class AvailabilityController : ControllerBase
             var ordered = day.OrderBy(p => p.Start).ToList();
             for (var i = 1; i < ordered.Count; i++)
                 if (ordered[i].Start < ordered[i - 1].End)
-                    return BadRequest(new { error = "Windows on the same day must not overlap." });
+                    return BadRequest(new { error = this.T("Availability.Overlap") });
         }
         return Ok(await _booking.ReplaceWeeklyAsync(User.GetUserId(), parsed));
     }
@@ -56,12 +57,12 @@ public class AvailabilityController : ControllerBase
     public async Task<IActionResult> AddBlockedDate([FromBody] CreateBlockedDateRequest req)
     {
         if (req.Date < DateOnly.FromDateTime(DateTime.UtcNow))
-            return BadRequest(new { error = "Blocked date cannot be in the past." });
+            return BadRequest(new { error = this.T("Availability.PastDate") });
         var label = string.IsNullOrWhiteSpace(req.Label) ? null : req.Label.Trim();
         if (label != null && label.Length > MaxLabel)
-            return BadRequest(new { error = $"Label must be at most {MaxLabel} characters." });
+            return BadRequest(new { error = this.T("Availability.LabelMax", MaxLabel) });
         var created = await _booking.AddBlockedDateAsync(User.GetUserId(), req.Date, label);
-        if (created == null) return BadRequest(new { error = "That date is already blocked." });
+        if (created == null) return BadRequest(new { error = this.T("Availability.AlreadyBlocked") });
         return Created($"/api/availability/blocked-dates/{created.Id}", created);
     }
 

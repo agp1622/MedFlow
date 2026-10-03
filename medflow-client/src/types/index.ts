@@ -50,10 +50,13 @@ export interface PatientDto {
   address?: string; city?: string; state?: string; zipCode?: string
   primaryCondition?: string; allergies?: string; notes?: string
   insuranceProvider?: string; insurancePolicyNumber?: string
+  insuranceGroupNumber?: string; insurancePayerId?: string; insuranceSubscriberName?: string
+  insuranceSubscriberDateOfBirth?: string; insuranceSubscriberRelationship?: InsuranceRelationship
   lastVisit?: string; nextAppointment?: string
   createdAt: string; updatedAt: string
   portalStatus?: PortalStatus
 }
+export type InsuranceRelationship = 'Self' | 'Spouse' | 'Child' | 'Other'
 export type PortalStatus = 'NotInvited' | 'Invited' | 'Active'
 export interface PatientSummaryDto {
   id: number; fullName: string; age: number; gender: string; bloodType: string
@@ -67,6 +70,8 @@ export interface CreatePatientRequest {
   address?: string; city?: string; state?: string; zipCode?: string
   primaryCondition?: string; allergies?: string; notes?: string
   insuranceProvider?: string; insurancePolicyNumber?: string
+  insuranceGroupNumber?: string; insurancePayerId?: string; insuranceSubscriberName?: string
+  insuranceSubscriberDateOfBirth?: string; insuranceSubscriberRelationship?: InsuranceRelationship
 }
 export type UpdatePatientRequest = CreatePatientRequest & { status: PatientStatus }
 
@@ -143,6 +148,43 @@ export interface CreateMedicalNoteRequest {
   patientId: number; content: string; visitType?: string
 }
 
+// ── Clinical lists (allergies, problems, medications) ────────────────────────
+export type AllergySeverity = 'Mild' | 'Moderate' | 'Severe' | 'LifeThreatening'
+export type ProblemStatus = 'Active' | 'Resolved'
+export interface AllergyDto {
+  id: number; substance: string; reaction?: string | null; severity: AllergySeverity
+  createdAt: string; updatedAt: string
+}
+export interface ProblemDto {
+  id: number; description: string; icd10Code: string; status: ProblemStatus
+  onsetDate?: string | null; createdAt: string; updatedAt: string
+}
+export interface MedicationDto {
+  id: number; name: string; dosage?: string | null; frequency?: string | null; notes?: string | null
+  createdAt: string; updatedAt: string
+}
+export interface ClinicalSummaryDto {
+  allergies: AllergyDto[]; problems: ProblemDto[]; medications: MedicationDto[]
+}
+export interface SaveAllergyRequest { substance: string; reaction?: string; severity: AllergySeverity }
+export interface SaveProblemRequest { description: string; icd10Code: string; status: ProblemStatus; onsetDate?: string }
+export interface SaveMedicationRequest { name: string; dosage?: string; frequency?: string; notes?: string }
+// ── Lab orders and results ───────────────────────────────────────────────────
+export type LabOrderStatus = 'Ordered' | 'Completed' | 'Cancelled'
+export type LabFlag = 'None' | 'Low' | 'High'
+export interface LabResultDto {
+  id: number; analyteName: string; value: number; unit?: string | null
+  referenceLow?: number | null; referenceHigh?: number | null; flag: LabFlag
+}
+export interface LabOrderDto {
+  id: number; testName: string; notes?: string | null; orderedDate: string; status: LabOrderStatus
+  results: LabResultDto[]; abnormalCount: number; createdAt: string; updatedAt: string
+}
+export interface LabSummaryDto { orders: LabOrderDto[]; abnormalCount: number }
+export interface SaveLabOrderRequest { testName: string; notes?: string; orderedDate?: string }
+export interface SaveLabResultRequest {
+  analyteName: string; value: number; unit?: string; referenceLow?: number; referenceHigh?: number
+}
 // ── NoteTemplate ──────────────────────────────────────────────────────────────
 export interface NoteTemplateDto {
   id: number; name: string; body: string; isBuiltIn: boolean; updatedAt?: string
@@ -168,6 +210,26 @@ export interface DashboardStatsDto {
   pendingInvoicesAmount: number; overdueInvoices: number
   todaySchedule: AppointmentDto[]
   recentPatients: PatientSummaryDto[]
+}
+
+// ── Reports (per signed-in doctor) ────────────────────────────────────────────
+export type ReportPeriod = 'Day' | 'Week' | 'Month'
+export interface ReportQuery { from?: string; to?: string; period?: ReportPeriod }
+export interface RevenuePoint { periodStart: string; revenue: number; invoicesPaid: number }
+export interface RevenueReport { from: string; to: string; period: ReportPeriod; totalRevenue: number; invoicesPaid: number; series: RevenuePoint[] }
+export interface VisitsPoint { periodStart: string; visits: number }
+export interface VisitsReport { from: string; to: string; period: ReportPeriod; totalVisits: number; series: VisitsPoint[] }
+export interface NoShowPoint { periodStart: string; completed: number; noShows: number; rate: number | null }
+export interface NoShowReport { from: string; to: string; period: ReportPeriod; completed: number; noShows: number; rate: number | null; series: NoShowPoint[] }
+export type ArBucketKey = 'current' | '1-30' | '31-60' | '61-90' | '90+'
+export interface ArBucketDto { bucket: ArBucketKey; invoices: number; amount: number }
+export interface ArInvoiceDto {
+  invoiceId: number; invoiceNumber: string; patientName: string; invoiceDate: string
+  dueDate?: string | null; daysPastDue: number; bucket: ArBucketKey; balance: number
+}
+export interface ArAgingReport {
+  asOf: string; totalOutstanding: number; openInvoices: number
+  buckets: ArBucketDto[]; invoices: PagedResult<ArInvoiceDto>
 }
 
 // ── Appointment reminders ─────────────────────────────────────────────────────
@@ -249,3 +311,6 @@ export interface AuditEventDto {
 export interface AuditLogQuery {
   action?: AuditAction; actor?: string; from?: string; to?: string; page?: number; pageSize?: number
 }
+
+// ── Claim export (DRAFT CMS-1500 data worksheet; not a CMS-1500 form, not an X12 837 file) ──
+export type ClaimExportFormat = 'json' | 'csv'

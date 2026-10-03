@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using MedFlow.Api.Localization;
 
 namespace MedFlow.Api.Middleware;
 
@@ -29,12 +30,13 @@ public class ErrorHandlingMiddleware
 
     private static Task HandleExceptionAsync(HttpContext context, Exception ex)
     {
+        // Exception text is internal and English only; users get a localized generic message of the same status
         var (statusCode, message) = ex switch
         {
-            KeyNotFoundException => (HttpStatusCode.NotFound, ex.Message),
-            UnauthorizedAccessException => (HttpStatusCode.Forbidden, "Access denied."),
-            ArgumentException => (HttpStatusCode.BadRequest, ex.Message),
-            _ => (HttpStatusCode.InternalServerError, "An unexpected error occurred.")
+            KeyNotFoundException => (HttpStatusCode.NotFound, Localizer.Get(context, "Error.NotFound")),
+            UnauthorizedAccessException => (HttpStatusCode.Forbidden, Localizer.Get(context, "Error.AccessDenied")),
+            ArgumentException => (HttpStatusCode.BadRequest, Localizer.Get(context, "Error.BadRequest")),
+            _ => (HttpStatusCode.InternalServerError, Localizer.Get(context, "Error.Unexpected"))
         };
 
         context.Response.ContentType = "application/json";

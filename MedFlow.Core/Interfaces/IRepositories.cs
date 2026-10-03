@@ -1,4 +1,3 @@
-using MedFlow.Core.Enums;
 using MedFlow.Core.DTOs;
 using MedFlow.Core.Entities;
 using MedFlow.Core.Enums;
@@ -38,6 +37,14 @@ public interface IPrescriptionRepository : IRepository<Prescription>
     Task<IEnumerable<PrescriptionDto>> GetByPatientAsync(int patientId, string doctorId);
     Task<int> GetExpiringCountAsync(string doctorId, int daysAhead = 30);
     Task UpdateExpiryStatusesAsync();
+    /// <summary>Data for the printable prescription; null unless the prescription and its patient belong to the doctor.</summary>
+    Task<PrescriptionDocumentData?> GetDocumentDataAsync(int id, string doctorId);
+}
+
+public interface IPrescriptionDocumentRenderer
+{
+    /// <summary>Renders a one-page PDF with a blank signature block (no electronic signature).</summary>
+    byte[] Render(PrescriptionDocumentData data);
 }
 
 public interface IInvoiceRepository : IRepository<Invoice>
@@ -48,6 +55,8 @@ public interface IInvoiceRepository : IRepository<Invoice>
     Task<int> GetOverdueCountAsync(string doctorId);
     Task UpdateOverdueStatusesAsync();
     Task<string> GenerateInvoiceNumberAsync();
+    /// <summary>Data for a claim draft; null unless the invoice and its patient both belong to the doctor.</summary>
+    Task<ClaimSourceData?> GetClaimSourceAsync(int id, string doctorId);
 }
 
 public interface IVitalSignRepository : IRepository<VitalSign>
@@ -107,10 +116,25 @@ public interface IPortalInvitationRepository
     Task<string> GetPortalStatusAsync(Patient patient);
 }
 
+public interface IPatientClinicalRepository
+{
+    /// <summary>True when the (non-deleted) patient exists and belongs to the doctor.</summary>
+    Task<bool> OwnsPatientAsync(int patientId, string doctorId);
+    Task<ClinicalSummaryDto> GetSummaryAsync(int patientId, string doctorId);
+    Task<T?> GetOwnedAsync<T>(int id, int patientId, string doctorId) where T : ClinicalEntry;
+    Task<int> CountAsync<T>(int patientId, string doctorId) where T : ClinicalEntry;
+    Task<bool> AllergyExistsAsync(int patientId, string doctorId, string substance, int? exceptId = null);
+    Task<T> AddAsync<T>(T entry) where T : ClinicalEntry;
+    Task UpdateAsync<T>(T entry) where T : ClinicalEntry;
+    Task DeleteAsync<T>(T entry) where T : ClinicalEntry;
+}
+
 public interface IIntakeRepository
 {
     /// <summary>Creates a link (superseding earlier unused ones) and returns the raw token.</summary>
     Task<(string Token, DateTime ExpiresAt)> CreateLinkAsync(Patient patient);
+    /// <summary>False when the patient already has a Pending/Accepted submission or a still-valid unused link.</summary>
+    Task<bool> NeedsLinkAsync(int patientId);
     /// <summary>Returns the link and patient for a valid (unused, unexpired, active patient, email unchanged) token.</summary>
     Task<(IntakeLink Link, Patient Patient)?> FindValidLinkAsync(string token);
     /// <summary>Consumes the link and stores the submission in one save; false if the link was already used.</summary>
@@ -147,8 +171,33 @@ public interface IReminderRepository
     Task<ReminderLogDto?> GetLogAsync(int appointmentId, string doctorId);
 }
 
+/// <summary>Report aggregates for one doctor (no clinic layer yet). Dates are inclusive UTC calendar days.</summary>
+public interface IReportRepository
+{
+    Task<RevenueReport> GetRevenueAsync(string doctorId, DateOnly from, DateOnly to, ReportPeriod period);
+    Task<VisitsReport> GetVisitsAsync(string doctorId, DateOnly from, DateOnly to, ReportPeriod period);
+    Task<NoShowReport> GetNoShowsAsync(string doctorId, DateOnly from, DateOnly to, ReportPeriod period);
+    Task<ArAgingReport> GetArAgingAsync(string doctorId, DateOnly asOf, int page, int pageSize);
+    /// <summary>Open invoices, oldest first, at most <paramref name="max"/> rows.</summary>
+    Task<IReadOnlyList<ArInvoiceDto>> GetArRowsAsync(string doctorId, DateOnly asOf, int max);
+}
+
 public interface IReminderProcessor
 {
     /// <summary>Sends every reminder that is due. Returns the number of emails sent.</summary>
     Task<int> ProcessDueAsync(CancellationToken ct = default);
+}
+
+public interface ILabOrderRepository
+{
+    Task<bool> OwnsPatientAsync(int patientId, string doctorId);
+    Task<LabSummaryDto> GetSummaryAsync(int patientId, string doctorId);
+    Task<LabOrder?> GetOrderAsync(int orderId, int patientId, string doctorId);
+    Task<int> CountOrdersAsync(int patientId, string doctorId);
+    Task<LabOrderDto> AddOrderAsync(LabOrder order);
+    Task<LabOrderDto> SaveOrderAsync(LabOrder order);
+    Task DeleteOrderAsync(LabOrder order);
+    Task<LabOrderDto> AddResultAsync(LabOrder order, LabResult result);
+    Task<LabOrderDto> SaveResultAsync(LabOrder order, LabResult result);
+    Task<LabOrderDto> RemoveResultAsync(LabOrder order, LabResult result);
 }

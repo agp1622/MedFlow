@@ -1,3 +1,4 @@
+using MedFlow.Api.Localization;
 using System.Net;
 using MedFlow.Api.Extensions;
 using MedFlow.Core;
@@ -40,11 +41,11 @@ public class PortalInvitationsController : ControllerBase
 
         if (string.IsNullOrWhiteSpace(patient.Email) ||
             !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(patient.Email))
-            return BadRequest(new { errors = new[] { "Patient has no email on file." } });
+            return BadRequest(new { errors = new[] { this.T("Invite.NoEmail") } });
         if (patient.Status != PatientStatus.Active)
-            return BadRequest(new { errors = new[] { "Only active patients can be invited." } });
+            return BadRequest(new { errors = new[] { this.T("Invite.OnlyActive") } });
         if (patient.PortalUserId != null)
-            return BadRequest(new { errors = new[] { "Patient already has portal access." } });
+            return BadRequest(new { errors = new[] { this.T("Invite.HasAccess") } });
 
         if (!await this.AuditAsync(_audit, patientId, AuditAction.Change, AuditItemKind.PortalAccess, null)) return NotFound();
         var (token, expiresAt) = await _invitations.CreateAsync(patient);
@@ -67,11 +68,11 @@ public class PortalInvitationsController : ControllerBase
         {
             _logger.LogError(ex, "Failed to send portal invitation for patient {PatientId}", patientId);
             return StatusCode(StatusCodes.Status502BadGateway,
-                new { error = "The invitation could not be emailed. Please try again." });
+                new { error = this.T("Invite.EmailFailed") });
         }
 
         _logger.LogInformation("Portal invitation sent for patient {PatientId}", patientId);
-        return Ok(new InvitationResultDto("Invitation sent.", expiresAt));
+        return Ok(new InvitationResultDto(this.T("Invite.Sent"), expiresAt));
     }
 
     [HttpDelete("portal-access")]

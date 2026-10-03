@@ -1,3 +1,4 @@
+using MedFlow.Api.Localization;
 using MedFlow.Api.Extensions;
 using MedFlow.Core;
 using MedFlow.Core.DTOs;
@@ -21,11 +22,11 @@ public class AuditLogController : ControllerBase
     public async Task<ActionResult<PagedResult<AuditEventDto>>> Get(int patientId, [FromQuery] AuditLogQuery q)
     {
         if (q.Page < 1 || q.PageSize < 1 || q.PageSize > MaxPageSize)
-            return BadRequest(new { error = $"Page must be at least 1 and page size between 1 and {MaxPageSize}." });
+            return BadRequest(new { error = this.T("Audit.PageRange", MaxPageSize) });
         if (q.From.HasValue && q.To.HasValue && q.From.Value.Date > q.To.Value.Date)
-            return BadRequest(new { error = "The start date must not be after the end date." });
+            return BadRequest(new { error = this.T("Audit.DateRange") });
         if (q.Actor is { Length: > 200 })
-            return BadRequest(new { error = "User filter is too long." });
+            return BadRequest(new { error = this.T("Audit.UserTooLong") });
 
         // Reading the log is itself recorded; a missing or foreign patient looks the same as no patient
         if (!await this.AuditAsync(_audit, patientId, AuditAction.View, AuditItemKind.AuditLog)) return NotFound();

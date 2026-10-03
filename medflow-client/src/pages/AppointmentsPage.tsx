@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { ParseKeys } from 'i18next'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -14,6 +16,7 @@ import { Trash2, CheckCircle, XCircle, Bell } from 'lucide-react'
 import type { CreateAppointmentRequest } from '@/types'
 
 export function AppointmentsPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -25,25 +28,25 @@ export function AppointmentsPage() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <PageHeader title="Appointments" subtitle={`${data?.totalCount ?? 0} total`}
-        action={{ label: 'New Appointment', onClick: () => setShowModal(true) }}>
-        <SearchInput value={search} onChange={v => { setSearch(v); setPage(1) }} placeholder="Search patients..." />
+      <PageHeader title={t('appointments.title')} subtitle={t('appointments.total', { count: data?.totalCount ?? 0 })}
+        action={{ label: t('appointments.new'), onClick: () => setShowModal(true) }}>
+        <SearchInput value={search} onChange={v => { setSearch(v); setPage(1) }} placeholder={t('patients.search')} />
       </PageHeader>
 
       {isLoading ? <PageSpinner /> : (
-        <div className="flex-1 overflow-auto px-8 py-6">
-          <div className="card overflow-hidden">
-            <table className="w-full">
+        <div className="flex-1 overflow-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+          <div className="card overflow-x-auto">
+            <table className="w-full min-w-[640px]">
               <thead>
                 <tr className="bg-gray-50 border-b border-border">
-                  {['Patient', 'Date', 'Time', 'Type', 'Duration', 'Reason', 'Status', 'Actions'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  {(['patient', 'date', 'time', 'type', 'duration', 'reason', 'status', 'actions'] as const).map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{t(`appointments.cols.${h}`)}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {data?.items.length === 0 && (
-                  <tr><td colSpan={8}><EmptyState title="No appointments" description="Schedule your first appointment" /></td></tr>
+                  <tr><td colSpan={8}><EmptyState title={t('appointments.empty')} description={t('appointments.emptyHint')} /></td></tr>
                 )}
                 {data?.items.map(a => (
                   <tr key={a.id} className="hover:bg-gray-50">
@@ -56,29 +59,29 @@ export function AppointmentsPage() {
                     <td className="px-4 py-3 text-sm text-gray-700">{fmt.date(a.scheduledAt)}</td>
                     <td className="px-4 py-3 text-sm font-bold text-primary-600">{fmt.time(a.scheduledAt)}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{displayEnum(a.type)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500">{a.durationMinutes}min</td>
+                    <td className="px-4 py-3 text-sm text-gray-500">{t('common.minutes', { count: a.durationMinutes })}</td>
                     <td className="px-4 py-3 text-sm text-gray-500 max-w-36 truncate">{a.reason ?? '—'}</td>
                     <td className="px-4 py-3"><Badge status={a.status} /></td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
                         {a.status === 'Pending' && (
-                          <button className="btn-secondary p-1.5" title="Confirm"
+                          <button className="btn-secondary p-1.5" title={t('appointments.confirm')}
                             onClick={() => updateStatus.mutate({ id: a.id, status: 'Confirmed' })}>
                             <CheckCircle size={14} />
                           </button>
                         )}
                         {(a.status === 'Pending' || a.status === 'Confirmed') && (
-                          <button className="btn-danger p-1.5" title="Cancel"
+                          <button className="btn-danger p-1.5" title={t('common.cancel')}
                             onClick={() => updateStatus.mutate({ id: a.id, status: 'Cancelled' })}>
                             <XCircle size={14} />
                           </button>
                         )}
-                        <button className="btn-ghost p-1.5" title="Reminder log"
+                        <button className="btn-ghost p-1.5" title={t('appointments.reminderLog')}
                           onClick={() => setRemindersFor(a.id)}>
                           <Bell size={14} className="text-gray-400" />
                         </button>
-                        <button className="btn-ghost p-1.5" title="Delete"
-                          onClick={() => { if (confirm('Delete appointment?')) deleteAppt.mutate(a.id) }}>
+                        <button className="btn-ghost p-1.5" title={t('common.delete')}
+                          onClick={() => { if (confirm(t('appointments.confirmDelete'))) deleteAppt.mutate(a.id) }}>
                           <Trash2 size={14} className="text-gray-400" />
                         </button>
                       </div>
@@ -99,22 +102,23 @@ export function AppointmentsPage() {
 
 // ── Reminder log ──────────────────────────────────────────────────────────────
 function ReminderLogModal({ id, onClose }: { id: number; onClose: () => void }) {
+  const { t } = useTranslation()
   const { data, isLoading } = useAppointmentReminders(id)
   return (
-    <Modal title="Reminder log" onClose={onClose}>
+    <Modal title={t('appointments.reminderLog')} onClose={onClose}>
       {isLoading || !data ? <PageSpinner /> : (
         <div className="space-y-4">
           <p className="text-sm text-gray-700">
-            Patient response: <strong>{data.response === 'None' ? 'No response yet' : data.response}</strong>
+            {t('appointments.patientResponse')} <strong>{data.response === 'None' ? t('appointments.noResponse') : displayEnum(data.response)}</strong>
             {data.respondedAt && <span className="text-gray-500"> ({fmt.date(data.respondedAt)} {fmt.time(data.respondedAt)})</span>}
           </p>
           {data.deliveries.length === 0 ? (
-            <p className="text-sm text-gray-500">No reminder has been attempted yet.</p>
+            <p className="text-sm text-gray-500">{t('appointments.noReminders')}</p>
           ) : (
             <ul className="divide-y divide-border">
               {data.deliveries.map((d, i) => (
                 <li key={i} className="py-2 text-sm flex justify-between gap-4">
-                  <span>{d.channel}: <strong>{d.outcome}</strong>{d.reason ? ` - ${d.reason}` : ''}</span>
+                  <span>{displayEnum(d.channel)}: <strong>{displayEnum(d.outcome)}</strong>{d.reason ? ` - ${d.reason}` : ''}</span>
                   <span className="text-gray-500 whitespace-nowrap">{fmt.date(d.attemptedAt)} {fmt.time(d.attemptedAt)}</span>
                 </li>
               ))}
@@ -128,8 +132,8 @@ function ReminderLogModal({ id, onClose }: { id: number; onClose: () => void }) 
 
 // ── New Appointment Modal ─────────────────────────────────────────────────────
 const apptSchema = z.object({
-  patientId: z.coerce.number().min(1, 'Select a patient'),
-  scheduledAt: z.string().min(1, 'Required'),
+  patientId: z.coerce.number().min(1, 'appointments.selectPatient'),
+  scheduledAt: z.string().min(1, 'validation.required'),
   durationMinutes: z.coerce.number().min(5).max(480),
   type: z.enum(['NewPatient','FollowUp','CheckUp','Consultation','LabReview','Emergency']),
   reason: z.string().optional(),
@@ -138,6 +142,7 @@ const apptSchema = z.object({
 type ApptForm = z.infer<typeof apptSchema>
 
 function NewAppointmentModal({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation()
   const { register, handleSubmit, formState: { errors } } = useForm<ApptForm>({
     resolver: zodResolver(apptSchema),
     defaultValues: { durationMinutes: 30, type: 'FollowUp' }
@@ -150,47 +155,47 @@ function NewAppointmentModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Modal title="Schedule Appointment" onClose={onClose}>
+    <Modal title={t('appointments.schedule')} onClose={onClose}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
-          <label className="label">Patient</label>
+          <label className="label">{t('appointments.form.patient')}</label>
           <select className="input" {...register('patientId')}>
-            <option value="">Select patient...</option>
+            <option value="">{t('appointments.form.selectPatient')}</option>
             {patients?.items.map(p => <option key={p.id} value={p.id}>{p.fullName}</option>)}
           </select>
-          {errors.patientId && <p className="text-red-500 text-xs mt-1">{errors.patientId.message}</p>}
+          {errors.patientId && <p className="text-red-500 text-xs mt-1">{t(errors.patientId.message as ParseKeys)}</p>}
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="label">Date & Time</label>
+            <label className="label">{t('appointments.form.dateTime')}</label>
             <input className="input" type="datetime-local" {...register('scheduledAt')} />
-            {errors.scheduledAt && <p className="text-red-500 text-xs mt-1">{errors.scheduledAt.message}</p>}
+            {errors.scheduledAt && <p className="text-red-500 text-xs mt-1">{t(errors.scheduledAt.message as ParseKeys)}</p>}
           </div>
           <div>
-            <label className="label">Duration (min)</label>
+            <label className="label">{t('appointments.form.duration')}</label>
             <input className="input" type="number" min={5} step={5} {...register('durationMinutes')} />
           </div>
         </div>
         <div>
-          <label className="label">Appointment Type</label>
+          <label className="label">{t('appointments.form.type')}</label>
           <select className="input" {...register('type')}>
-            {['NewPatient','FollowUp','CheckUp','Consultation','LabReview','Emergency'].map(t => (
-              <option key={t} value={t}>{displayEnum(t)}</option>
+            {['NewPatient','FollowUp','CheckUp','Consultation','LabReview','Emergency'].map(k => (
+              <option key={k} value={k}>{displayEnum(k)}</option>
             ))}
           </select>
         </div>
         <div>
-          <label className="label">Reason</label>
-          <input className="input" placeholder="Reason for visit..." {...register('reason')} />
+          <label className="label">{t('appointments.form.reason')}</label>
+          <input className="input" placeholder={t('appointments.form.reasonPlaceholder')} {...register('reason')} />
         </div>
         <div>
-          <label className="label">Location</label>
-          <input className="input" placeholder="Room / clinic location" {...register('location')} />
+          <label className="label">{t('appointments.form.location')}</label>
+          <input className="input" placeholder={t('appointments.form.locationPlaceholder')} {...register('location')} />
         </div>
         <div className="flex justify-end gap-3 pt-2">
-          <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn-ghost" onClick={onClose}>{t('common.cancel')}</button>
           <button type="submit" className="btn-primary" disabled={create.isPending}>
-            {create.isPending ? <Spinner className="w-4 h-4" /> : 'Schedule'}
+            {create.isPending ? <Spinner className="w-4 h-4" /> : t('appointments.form.submit')}
           </button>
         </div>
       </form>

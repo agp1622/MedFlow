@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi, intakeApi, noteTemplatesApi, availabilityApi, auditApi } from '@/api/services'
-import type { QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest, IntakeStatus, CreateNoteTemplateRequest, AuditLogQuery } from '@/types'
+import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi, clinicalApi, labsApi, intakeApi, noteTemplatesApi, availabilityApi, auditApi, reportsApi } from '@/api/services'
+import type { ReportQuery, QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest, SaveAllergyRequest, SaveProblemRequest, SaveMedicationRequest, SaveLabOrderRequest, SaveLabResultRequest, IntakeStatus, CreateNoteTemplateRequest, AuditLogQuery, ClaimExportFormat } from '@/types'
 import toast from 'react-hot-toast'
+import i18n from '@/i18n'
 
 // Keys
 export const QK = {
@@ -18,6 +19,8 @@ export const QK = {
   invoicesByPatient: (pid: number) => ['invoices', 'patient', pid],
   vitals: (pid: number) => ['vitals', pid],
   notes: (pid: number) => ['notes', pid],
+  clinical: (pid: number) => ['clinical', pid],
+  labs: (pid: number) => ['labs', pid],
   noteTemplates: ['noteTemplates'],
   attachments: (pid: number) => ['attachments', pid],
   auditLog: (pid: number, q?: AuditLogQuery) => ['audit-log', pid, q],
@@ -30,6 +33,16 @@ export const QK = {
 export const useDashboard = () =>
   useQuery({ queryKey: QK.dashboard, queryFn: dashboardApi.getStats, staleTime: 60_000 })
 
+// ── Reports ───────────────────────────────────────────────────────────────────
+export const useRevenueReport = (q: ReportQuery, enabled = true) =>
+  useQuery({ queryKey: ['reports', 'revenue', q], queryFn: () => reportsApi.revenue(q), enabled })
+export const useVisitsReport = (q: ReportQuery, enabled = true) =>
+  useQuery({ queryKey: ['reports', 'visits', q], queryFn: () => reportsApi.visits(q), enabled })
+export const useNoShowReport = (q: ReportQuery, enabled = true) =>
+  useQuery({ queryKey: ['reports', 'no-shows', q], queryFn: () => reportsApi.noShows(q), enabled })
+export const useArAgingReport = (page: number, enabled = true) =>
+  useQuery({ queryKey: ['reports', 'ar-aging', page], queryFn: () => reportsApi.arAging(page, 20), enabled })
+
 // ── Patients ──────────────────────────────────────────────────────────────────
 export const usePatients = (q?: QueryParams) =>
   useQuery({ queryKey: QK.patients(q), queryFn: () => patientsApi.getAll(q) })
@@ -41,8 +54,8 @@ export const useCreatePatient = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: CreatePatientRequest) => patientsApi.create(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['patients'] }); toast.success('Patient created') },
-    onError: () => toast.error('Failed to create patient'),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['patients'] }); toast.success(i18n.t('toasts.patientCreated')) },
+    onError: () => toast.error(i18n.t('toasts.patientCreateFailed')),
   })
 }
 
@@ -50,8 +63,8 @@ export const useUpdatePatient = (id: number) => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: UpdatePatientRequest) => patientsApi.update(id, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['patients'] }); toast.success('Patient updated') },
-    onError: () => toast.error('Failed to update patient'),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['patients'] }); toast.success(i18n.t('toasts.patientUpdated')) },
+    onError: () => toast.error(i18n.t('toasts.patientUpdateFailed')),
   })
 }
 
@@ -59,8 +72,8 @@ export const useDeletePatient = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => patientsApi.delete(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['patients'] }); toast.success('Patient removed') },
-    onError: () => toast.error('Failed to remove patient'),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['patients'] }); toast.success(i18n.t('toasts.patientRemoved')) },
+    onError: () => toast.error(i18n.t('toasts.patientRemoveFailed')),
   })
 }
 
@@ -84,8 +97,8 @@ export const useCreateAppointment = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: CreateAppointmentRequest) => appointmentsApi.create(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['appointments'] }); toast.success('Appointment scheduled') },
-    onError: () => toast.error('Failed to schedule appointment'),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['appointments'] }); toast.success(i18n.t('toasts.appointmentScheduled')) },
+    onError: () => toast.error(i18n.t('toasts.appointmentScheduleFailed')),
   })
 }
 
@@ -93,7 +106,7 @@ export const useUpdateAppointmentStatus = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, status }: { id: number; status: AppointmentStatus }) => appointmentsApi.updateStatus(id, status),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['appointments'] }); toast.success('Status updated') },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['appointments'] }); toast.success(i18n.t('toasts.statusUpdated')) },
   })
 }
 
@@ -101,7 +114,7 @@ export const useDeleteAppointment = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => appointmentsApi.delete(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['appointments'] }); toast.success('Appointment cancelled') },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['appointments'] }); toast.success(i18n.t('toasts.appointmentCancelled')) },
   })
 }
 
@@ -116,16 +129,35 @@ export const useCreatePrescription = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: CreatePrescriptionRequest) => prescriptionsApi.create(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['prescriptions'] }); toast.success('Prescription created') },
-    onError: () => toast.error('Failed to create prescription'),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['prescriptions'] }); toast.success(i18n.t('toasts.prescriptionCreated')) },
+    onError: () => toast.error(i18n.t('toasts.prescriptionCreateFailed')),
   })
 }
+
+// Opens the prescription PDF in a new tab so it can be printed and signed by hand; downloads it if popups are blocked.
+export const usePrintPrescription = () =>
+  useMutation({
+    mutationFn: async (id: number) => {
+      const blob = await prescriptionsApi.downloadPdf(id)
+      const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }))
+      if (!window.open(url, '_blank')) {
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `prescription-${id}.pdf`
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+      }
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 60_000)
+    },
+    onError: () => toast.error(i18n.t('toasts.prescriptionPdfFailed')),
+  })
 
 export const useDeletePrescription = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => prescriptionsApi.delete(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['prescriptions'] }); toast.success('Prescription removed') },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['prescriptions'] }); toast.success(i18n.t('toasts.prescriptionRemoved')) },
   })
 }
 
@@ -140,8 +172,8 @@ export const useCreateInvoice = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: CreateInvoiceRequest) => invoicesApi.create(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['invoices'] }); toast.success('Invoice created') },
-    onError: () => toast.error('Failed to create invoice'),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['invoices'] }); toast.success(i18n.t('toasts.invoiceCreated')) },
+    onError: () => toast.error(i18n.t('toasts.invoiceCreateFailed')),
   })
 }
 
@@ -149,9 +181,27 @@ export const useMarkInvoicePaid = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => invoicesApi.markPaid(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['invoices'] }); toast.success('Invoice marked as paid') },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['invoices'] }); toast.success(i18n.t('toasts.invoicePaid')) },
   })
 }
+
+// Downloads a DRAFT claim data worksheet (JSON or CSV); it is not a CMS-1500 form or an X12 837 file.
+export const useExportClaimDraft = () =>
+  useMutation({
+    mutationFn: async ({ id, format }: { id: number; format: ClaimExportFormat }) => {
+      const blob = await invoicesApi.downloadClaimDraft(id, format)
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `claim-draft-${id}.${format}`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 60_000)
+    },
+    onSuccess: () => toast(i18n.t('billing.claim.draftNotice'), { icon: 'ℹ️', duration: 7000 }),
+    onError: () => toast.error(i18n.t('toasts.claimExportFailed')),
+  })
 
 // ── Vitals ────────────────────────────────────────────────────────────────────
 export const usePatientVitals = (patientId: number) =>
@@ -161,7 +211,7 @@ export const useCreateVital = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: CreateVitalSignRequest) => vitalsApi.create(data),
-    onSuccess: (_, vars) => { qc.invalidateQueries({ queryKey: QK.vitals(vars.patientId) }); toast.success('Vitals recorded') },
+    onSuccess: (_, vars) => { qc.invalidateQueries({ queryKey: QK.vitals(vars.patientId) }); toast.success(i18n.t('toasts.vitalsRecorded')) },
   })
 }
 
@@ -183,7 +233,7 @@ export const useSaveNoteTemplate = () => {
   return useMutation({
     mutationFn: ({ id, data }: { id?: number; data: CreateNoteTemplateRequest }) =>
       id ? noteTemplatesApi.update(id, data) : noteTemplatesApi.create(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: QK.noteTemplates }); toast.success('Template saved') },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: QK.noteTemplates }); toast.success(i18n.t('toasts.templateSaved')) },
   })
 }
 
@@ -191,7 +241,7 @@ export const useDeleteNoteTemplate = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => noteTemplatesApi.delete(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: QK.noteTemplates }); toast.success('Template deleted') },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: QK.noteTemplates }); toast.success(i18n.t('toasts.templateDeleted')) },
   })
 }
 
@@ -202,7 +252,7 @@ export const useCreateNote = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: CreateMedicalNoteRequest) => notesApi.create(data),
-    onSuccess: (_, vars) => { qc.invalidateQueries({ queryKey: QK.notes(vars.patientId) }); toast.success('Note saved') },
+    onSuccess: (_, vars) => { qc.invalidateQueries({ queryKey: QK.notes(vars.patientId) }); toast.success(i18n.t('toasts.noteSaved')) },
   })
 }
 
@@ -210,9 +260,80 @@ export const useDeleteNote = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id }: { id: number; patientId: number }) => notesApi.delete(id),
-    onSuccess: (_, vars) => { qc.invalidateQueries({ queryKey: QK.notes(vars.patientId) }); toast.success('Note deleted') },
+    onSuccess: (_, vars) => { qc.invalidateQueries({ queryKey: QK.notes(vars.patientId) }); toast.success(i18n.t('toasts.noteDeleted')) },
   })
 }
+
+// ── Lab orders and results ────────────────────────────────────────────────────
+export const usePatientLabs = (patientId: number) =>
+  useQuery({ queryKey: QK.labs(patientId), queryFn: () => labsApi.getAll(patientId), enabled: patientId > 0 })
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here
+const labError = (err: any) => {
+  const d = err?.response?.data
+  const firstValidation = d?.errors ? (Object.values(d.errors).flat() as string[])[0] : undefined
+  toast.error(d?.message || firstValidation || i18n.t('labs.saveFailed'))
+}
+
+/** One hook for every lab order/result change; refreshes the patient's labs on success. */
+function useLabMutation<V>(fn: (v: V) => Promise<unknown>, patientId: number, messageKey: 'labs.saved' | 'labs.removed') {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: QK.labs(patientId) }); toast.success(i18n.t(messageKey)) },
+    onError: labError,
+  })
+}
+
+export const useSaveLabOrder = (patientId: number) =>
+  useLabMutation(({ id, data }: { id?: number; data: SaveLabOrderRequest }) =>
+    id ? labsApi.updateOrder(patientId, id, data) : labsApi.createOrder(patientId, data), patientId, 'labs.saved')
+export const useCancelLabOrder = (patientId: number) =>
+  useLabMutation((id: number) => labsApi.cancelOrder(patientId, id), patientId, 'labs.saved')
+export const useDeleteLabOrder = (patientId: number) =>
+  useLabMutation((id: number) => labsApi.deleteOrder(patientId, id), patientId, 'labs.removed')
+export const useSaveLabResult = (patientId: number, orderId: number) =>
+  useLabMutation(({ id, data }: { id?: number; data: SaveLabResultRequest }) =>
+    id ? labsApi.updateResult(patientId, orderId, id, data) : labsApi.addResult(patientId, orderId, data), patientId, 'labs.saved')
+export const useDeleteLabResult = (patientId: number, orderId: number) =>
+  useLabMutation((id: number) => labsApi.deleteResult(patientId, orderId, id), patientId, 'labs.removed')
+
+// ── Clinical lists ────────────────────────────────────────────────────────────
+export const usePatientClinical = (patientId: number) =>
+  useQuery({ queryKey: QK.clinical(patientId), queryFn: () => clinicalApi.getSummary(patientId), enabled: patientId > 0 })
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here; narrowing would change call signatures
+const clinicalError = (err: any) => {
+  const d = err?.response?.data
+  const firstValidation = d?.errors ? (Object.values(d.errors).flat() as string[])[0] : undefined
+  toast.error(typeof d === 'string' && d ? d : firstValidation || d?.title || 'Could not save changes')
+}
+
+/** One hook for add/update/remove of a clinical list; invalidates the summary on success. */
+function useClinicalMutation<V>(fn: (v: V) => Promise<unknown>, patientId: number, message: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: QK.clinical(patientId) }); toast.success(message) },
+    onError: clinicalError,
+  })
+}
+
+export const useSaveAllergy = (patientId: number) =>
+  useClinicalMutation(({ id, data }: { id?: number; data: SaveAllergyRequest }) =>
+    id ? clinicalApi.updateAllergy(patientId, id, data) : clinicalApi.addAllergy(patientId, data), patientId, 'Allergy saved')
+export const useDeleteAllergy = (patientId: number) =>
+  useClinicalMutation((id: number) => clinicalApi.deleteAllergy(patientId, id), patientId, 'Allergy removed')
+export const useSaveProblem = (patientId: number) =>
+  useClinicalMutation(({ id, data }: { id?: number; data: SaveProblemRequest }) =>
+    id ? clinicalApi.updateProblem(patientId, id, data) : clinicalApi.addProblem(patientId, data), patientId, 'Problem saved')
+export const useDeleteProblem = (patientId: number) =>
+  useClinicalMutation((id: number) => clinicalApi.deleteProblem(patientId, id), patientId, 'Problem removed')
+export const useSaveMedication = (patientId: number) =>
+  useClinicalMutation(({ id, data }: { id?: number; data: SaveMedicationRequest }) =>
+    id ? clinicalApi.updateMedication(patientId, id, data) : clinicalApi.addMedication(patientId, data), patientId, 'Medication saved')
+export const useDeleteMedication = (patientId: number) =>
+  useClinicalMutation((id: number) => clinicalApi.deleteMedication(patientId, id), patientId, 'Medication removed')
 
 // ── Attachments ───────────────────────────────────────────────────────────────
 export const usePatientAttachments = (patientId: number) =>
@@ -225,11 +346,12 @@ export const useUploadAttachment = () => {
       attachmentsApi.upload(data),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: QK.attachments(vars.patientId) })
-      toast.success('File uploaded')
+      toast.success(i18n.t('toasts.fileUploaded'))
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here; narrowing would change call signatures
     onError: (err: any) => {
       const d = err?.response?.data
-      toast.error(typeof d === 'string' && d ? d : d?.message || d?.title || 'Failed to upload file')
+      toast.error(typeof d === 'string' && d ? d : d?.message || d?.title || i18n.t('toasts.fileUploadFailed'))
     },
   })
 }
@@ -240,9 +362,9 @@ export const useDeleteAttachment = () => {
     mutationFn: ({ id }: { id: number; patientId: number }) => attachmentsApi.delete(id),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: QK.attachments(vars.patientId) })
-      toast.success('Attachment deleted')
+      toast.success(i18n.t('toasts.attachmentDeleted'))
     },
-    onError: () => toast.error('Failed to delete attachment'),
+    onError: () => toast.error(i18n.t('toasts.attachmentDeleteFailed')),
   })
 }
 
@@ -254,9 +376,9 @@ export const useSetAttachmentSharing = () => {
       attachmentsApi.setSharing(id, shared),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: QK.attachments(vars.patientId) })
-      toast.success(vars.shared ? 'Shared with patient' : 'No longer shared')
+      toast.success(vars.shared ? i18n.t('toasts.shared') : i18n.t('toasts.unshared'))
     },
-    onError: () => toast.error('Failed to update sharing'),
+    onError: () => toast.error(i18n.t('toasts.sharingFailed')),
   })
 }
 
@@ -267,13 +389,14 @@ export const useSetNoteSharing = () => {
       notesApi.setSharing(id, shared),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: QK.notes(vars.patientId) })
-      toast.success(vars.shared ? 'Shared with patient' : 'No longer shared')
+      toast.success(vars.shared ? i18n.t('toasts.shared') : i18n.t('toasts.unshared'))
     },
-    onError: () => toast.error('Failed to update sharing'),
+    onError: () => toast.error(i18n.t('toasts.sharingFailed')),
   })
 }
 
 // ── Portal invitations (doctor) ───────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here; narrowing would change call signatures
 const apiError = (err: any, fallback: string) => {
   const d = err?.response?.data
   return d?.errors?.[0] || d?.error || fallback
@@ -285,9 +408,9 @@ export const useInvitePatient = () => {
     mutationFn: (patientId: number) => patientsApi.invite(patientId),
     onSuccess: (_, patientId) => {
       qc.invalidateQueries({ queryKey: QK.patient(patientId) })
-      toast.success('Invitation sent')
+      toast.success(i18n.t('toasts.invitationSent'))
     },
-    onError: (err) => toast.error(apiError(err, 'Failed to send invitation')),
+    onError: (err) => toast.error(apiError(err, i18n.t('toasts.invitationFailed'))),
   })
 }
 
@@ -297,9 +420,9 @@ export const useRevokePortalAccess = () => {
     mutationFn: (patientId: number) => patientsApi.revokePortalAccess(patientId),
     onSuccess: (_, patientId) => {
       qc.invalidateQueries({ queryKey: QK.patient(patientId) })
-      toast.success('Portal access revoked')
+      toast.success(i18n.t('toasts.portalRevoked'))
     },
-    onError: () => toast.error('Failed to revoke access'),
+    onError: () => toast.error(i18n.t('toasts.revokeFailed')),
   })
 }
 
@@ -315,8 +438,8 @@ export const usePortalNotes = () => useQuery({ queryKey: QK.portal('notes'), que
 export const useSendIntakeLink = () =>
   useMutation({
     mutationFn: (patientId: number) => intakeApi.sendLink(patientId),
-    onSuccess: () => toast.success('Intake form sent'),
-    onError: (err) => toast.error(apiError(err, 'Failed to send intake form')),
+    onSuccess: () => toast.success(i18n.t('toasts.intakeSent')),
+    onError: (err) => toast.error(apiError(err, i18n.t('toasts.intakeSendFailed'))),
   })
 
 export const useIntakeSubmissions = (status?: IntakeStatus, page = 1) =>
@@ -333,9 +456,9 @@ export const useDecideIntake = (id: number) => {
     onSuccess: (_, v) => {
       qc.invalidateQueries({ queryKey: ['intake'] })
       qc.invalidateQueries({ queryKey: ['patients'] })
-      toast.success(v.accept ? 'Answers added to the patient record' : 'Submission rejected')
+      toast.success(v.accept ? i18n.t('toasts.intakeAccepted') : i18n.t('toasts.intakeRejected'))
     },
-    onError: (err) => toast.error(apiError(err, 'Could not save your decision')),
+    onError: (err) => toast.error(apiError(err, i18n.t('toasts.decisionFailed'))),
   })
 }
 
@@ -349,8 +472,8 @@ export const useSetWeeklyAvailability = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: availabilityApi.setWeekly,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['availability'] }); toast.success('Weekly availability saved') },
-    onError: (e) => toast.error(errMsg(e, 'Failed to save availability')),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['availability'] }); toast.success(i18n.t('toasts.availabilitySaved')) },
+    onError: (e) => toast.error(errMsg(e, i18n.t('toasts.availabilityFailed'))),
   })
 }
 
@@ -358,8 +481,8 @@ export const useAddBlockedDate = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: availabilityApi.addBlockedDate,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['availability'] }); toast.success('Date blocked') },
-    onError: (e) => toast.error(errMsg(e, 'Failed to block date')),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['availability'] }); toast.success(i18n.t('toasts.dateBlocked')) },
+    onError: (e) => toast.error(errMsg(e, i18n.t('toasts.blockFailed'))),
   })
 }
 
@@ -382,11 +505,11 @@ export const useBookAppointment = () => {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QK.portal('appointments') })
       qc.invalidateQueries({ queryKey: QK.portal('slots') })
-      toast.success('Appointment booked')
+      toast.success(i18n.t('toasts.appointmentBooked'))
     },
     onError: (e) => {
       qc.invalidateQueries({ queryKey: QK.portal('slots') })
-      toast.error(errMsg(e, 'Could not book this appointment'))
+      toast.error(errMsg(e, i18n.t('toasts.bookFailed')))
     },
   })
 }
