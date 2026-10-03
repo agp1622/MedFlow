@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi } from '@/api/services'
+import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi, availabilityApi } from '@/api/services'
 import type { QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest } from '@/types'
 import toast from 'react-hot-toast'
 
@@ -274,3 +274,55 @@ export const usePortalPrescriptions = () => useQuery({ queryKey: QK.portal('pres
 export const usePortalInvoices = () => useQuery({ queryKey: QK.portal('invoices'), queryFn: portalApi.invoices })
 export const usePortalAttachments = () => useQuery({ queryKey: QK.portal('attachments'), queryFn: portalApi.attachments })
 export const usePortalNotes = () => useQuery({ queryKey: QK.portal('notes'), queryFn: portalApi.notes })
+
+// ── Availability (doctor) ─────────────────────────────────────────────────────
+export const useAvailability = () => useQuery({ queryKey: ['availability'], queryFn: availabilityApi.get })
+
+const errMsg = (e: unknown, fallback: string) =>
+  (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? fallback
+
+export const useSetWeeklyAvailability = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: availabilityApi.setWeekly,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['availability'] }); toast.success('Weekly availability saved') },
+    onError: (e) => toast.error(errMsg(e, 'Failed to save availability')),
+  })
+}
+
+export const useAddBlockedDate = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: availabilityApi.addBlockedDate,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['availability'] }); toast.success('Date blocked') },
+    onError: (e) => toast.error(errMsg(e, 'Failed to block date')),
+  })
+}
+
+export const useRemoveBlockedDate = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: availabilityApi.removeBlockedDate,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['availability'] }) },
+  })
+}
+
+// ── Online booking (patient) ──────────────────────────────────────────────────
+export const usePortalSlots = (date: string) =>
+  useQuery({ queryKey: [...QK.portal('slots'), date], queryFn: () => portalApi.bookingSlots(date, date), enabled: !!date })
+
+export const useBookAppointment = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: portalApi.book,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: QK.portal('appointments') })
+      qc.invalidateQueries({ queryKey: QK.portal('slots') })
+      toast.success('Appointment booked')
+    },
+    onError: (e) => {
+      qc.invalidateQueries({ queryKey: QK.portal('slots') })
+      toast.error(errMsg(e, 'Could not book this appointment'))
+    },
+  })
+}

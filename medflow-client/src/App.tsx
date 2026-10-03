@@ -7,6 +7,7 @@ import { PortalPage } from '@/pages/PortalPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { PatientsPage, PatientDetailPage } from '@/pages/PatientsPage'
 import { AppointmentsPage } from '@/pages/AppointmentsPage'
+import { AvailabilityPage } from '@/pages/AvailabilityPage'
 import { PrescriptionsPage, BillingPage } from '@/pages/BillingPrescriptionsPages'
 
 const homeFor = (role?: string) => (role === 'Patient' ? '/portal' : '/')
@@ -50,6 +51,7 @@ export default function App() {
         <Route path="patients" element={<PatientsPage />} />
         <Route path="patients/:id" element={<PatientDetailPage />} />
         <Route path="appointments" element={<AppointmentsPage />} />
+        <Route path="availability" element={<AvailabilityPage />} />
         <Route path="prescriptions" element={<PrescriptionsPage />} />
         <Route path="billing" element={<BillingPage />} />
       </Route>
