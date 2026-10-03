@@ -301,7 +301,15 @@ export const es = {
     },
     tabs: {
       overview: 'Resumen', appointments: 'Citas', prescriptions: 'Recetas', invoices: 'Facturas',
-      notes: 'Notas', attachments: 'Archivos adjuntos', audit: 'Registro de auditoría',
+      notes: 'Notas', attachments: 'Archivos adjuntos', audit: 'Registro de auditoría', vitals: 'Signos vitales',
+    },
+    trends: {
+      title: 'Tendencias de signos vitales',
+      range: { d30: 'Últimos 30 días', m6: 'Últimos 6 meses', y1: 'Último año', all: 'Todo', custom: 'Personalizado' },
+      from: 'Desde', to: 'Hasta',
+      invalidRange: 'La fecha final no puede ser anterior a la fecha inicial.',
+      noneInRange: 'No hay signos vitales registrados en este rango de fechas.',
+      systolic: 'Sistólica', diastolic: 'Diastólica',
     },
     vitals: {
       title: 'Últimos signos vitales',
