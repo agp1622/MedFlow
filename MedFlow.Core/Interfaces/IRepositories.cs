@@ -96,3 +96,16 @@ public interface IPortalInvitationRepository
     Task RevokeAsync(Patient patient);
     Task<string> GetPortalStatusAsync(Patient patient);
 }
+
+public interface IPatientClinicalRepository
+{
+    /// <summary>True when the (non-deleted) patient exists and belongs to the doctor.</summary>
+    Task<bool> OwnsPatientAsync(int patientId, string doctorId);
+    Task<ClinicalSummaryDto> GetSummaryAsync(int patientId, string doctorId);
+    Task<T?> GetOwnedAsync<T>(int id, int patientId, string doctorId) where T : ClinicalEntry;
+    Task<int> CountAsync<T>(int patientId, string doctorId) where T : ClinicalEntry;
+    Task<bool> AllergyExistsAsync(int patientId, string doctorId, string substance, int? exceptId = null);
+    Task<T> AddAsync<T>(T entry) where T : ClinicalEntry;
+    Task UpdateAsync<T>(T entry) where T : ClinicalEntry;
+    Task DeleteAsync<T>(T entry) where T : ClinicalEntry;
+}

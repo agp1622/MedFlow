@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using MedFlow.Core.Enums;
 
 namespace MedFlow.Core.DTOs;
@@ -180,3 +181,26 @@ public record PortalAttachmentDto(
     int Id, string FileName, string ContentType, long FileSize,
     string? Category, string? Description, DateTime CreatedAt);
 public record PortalNoteDto(int Id, string DoctorName, string? VisitType, string Content, DateTime NoteDate);
+
+// ── Clinical lists (allergies, problems, medications) ─────────────────────────
+public record AllergyDto(int Id, string Substance, string? Reaction, string Severity, DateTime CreatedAt, DateTime UpdatedAt);
+public record ProblemDto(int Id, string Description, string Icd10Code, string Status, DateOnly? OnsetDate, DateTime CreatedAt, DateTime UpdatedAt);
+public record MedicationDto(int Id, string Name, string? Dosage, string? Frequency, string? Notes, DateTime CreatedAt, DateTime UpdatedAt);
+public record ClinicalSummaryDto(IEnumerable<AllergyDto> Allergies, IEnumerable<ProblemDto> Problems, IEnumerable<MedicationDto> Medications);
+
+public record SaveAllergyRequest(
+    [property: Required, StringLength(200)] string Substance,
+    [property: StringLength(500)] string? Reaction,
+    [property: Required] AllergySeverity? Severity);
+
+public record SaveProblemRequest(
+    [property: Required, StringLength(200)] string Description,
+    [property: Required, StringLength(16), RegularExpression(@"^\s*[A-Za-z][0-9][A-Za-z0-9](\.[A-Za-z0-9]{1,4})?\s*$", ErrorMessage = "Enter a valid ICD-10 code such as E11.9.")] string Icd10Code,
+    [property: Required] ProblemStatus? Status,
+    DateOnly? OnsetDate);
+
+public record SaveMedicationRequest(
+    [property: Required, StringLength(200)] string Name,
+    [property: StringLength(100)] string? Dosage,
+    [property: StringLength(100)] string? Frequency,
+    [property: StringLength(500)] string? Notes);

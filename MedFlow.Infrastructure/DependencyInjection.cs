@@ -40,6 +40,7 @@ public static class DependencyInjection
         services.AddScoped<IVitalSignRepository, VitalSignRepository>();
         services.AddScoped<IMedicalNoteRepository, MedicalNoteRepository>();
         services.AddScoped<IPatientAttachmentRepository, PatientAttachmentRepository>();
+        services.AddScoped<IPatientClinicalRepository, PatientClinicalRepository>();
         services.AddScoped<IDashboardRepository, DashboardRepository>();
         services.AddScoped<IPortalRepository, PortalRepository>();
         services.AddScoped<IPortalInvitationRepository, PortalInvitationRepository>();
