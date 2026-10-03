@@ -35,6 +35,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<AppointmentReminder> AppointmentReminders => Set<AppointmentReminder>();
     public DbSet<ReminderDelivery> ReminderDeliveries => Set<ReminderDelivery>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
+    public DbSet<WaitlistEntry> WaitlistEntries => Set<WaitlistEntry>();
+    public DbSet<WaitlistOffer> WaitlistOffers => Set<WaitlistOffer>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -295,6 +297,21 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.Property(d => d.Channel).HasMaxLength(20);
             e.Property(d => d.Outcome).HasConversion<string>().HasMaxLength(20);
             e.Property(d => d.Reason).HasMaxLength(200);
+        });
+
+        // Waitlist (no navigations: Patient/Appointment have soft-delete query filters)
+        builder.Entity<WaitlistEntry>(e =>
+        {
+            e.HasIndex(w => new { w.DoctorId, w.Status, w.CreatedAt });
+            e.HasIndex(w => new { w.PatientId, w.Status });
+            e.Property(w => w.DoctorId).HasMaxLength(450);
+            e.Property(w => w.Status).HasConversion<string>().HasMaxLength(20);
+        });
+        builder.Entity<WaitlistOffer>(e =>
+        {
+            e.HasIndex(o => new { o.EntryId, o.SlotStartsAt }).IsUnique();
+            e.HasIndex(o => o.TokenHash);
+            e.Property(o => o.TokenHash).HasMaxLength(64);
         });
 
         // PortalAccessLog

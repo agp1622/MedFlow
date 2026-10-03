@@ -169,6 +169,12 @@ public static class Messages
         ["Portal.RangeMax"] = ("Elija un intervalo de fechas de como máximo 31 días.", "Choose a date range of at most 31 days."),
         ["Portal.NotAvailable"] = ("Ese horario no está disponible para reservar.", "That time is not available for booking."),
         ["Portal.LimitReached"] = ("Ha alcanzado el límite de citas próximas.", "You have reached the limit of upcoming appointments."),
+        // Waitlist
+        ["Waitlist.NotActive"] = ("Solo los pacientes activos pueden estar en la lista de espera.", "Only active patients can join the waitlist."),
+        ["Waitlist.AlreadyWaiting"] = ("El paciente ya está en la lista de espera.", "The patient is already on the waitlist."),
+        ["Waitlist.NotOnList"] = ("No está en la lista de espera.", "You are not on the waitlist."),
+        ["Waitlist.OfferInvalid"] = ("Este enlace no es válido o ha caducado.", "This link is not valid or has expired."),
+        ["Waitlist.SlotGone"] = ("Ese horario ya no está disponible.", "That time is no longer available."),
         ["Portal.SlotTaken"] = ("Ese horario ya no está disponible.", "That time is no longer available."),
 
         // Audit log

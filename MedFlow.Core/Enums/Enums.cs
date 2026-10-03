@@ -17,6 +17,7 @@ public enum ReminderOutcome { Sent, Failed, Skipped }
 public enum ReminderResponse { None, Confirmed, Cancelled }
 public enum ReminderAction { Confirm, Cancel }
 public enum AuditAction { View, Change }
-public enum AuditItemKind { Patient, Appointment, Prescription, Invoice, VitalSign, Note, Attachment, PortalAccess, AuditLog, LabOrder }
+public enum AuditItemKind { Patient, Appointment, Prescription, Invoice, VitalSign, Note, Attachment, PortalAccess, AuditLog, LabOrder, Waitlist }
 public enum LabOrderStatus { Ordered, Completed, Cancelled }
 public enum LabFlag { None, Low, High }
+public enum WaitlistStatus { Waiting, Booked, Removed }
