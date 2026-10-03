@@ -15,3 +15,8 @@
 5. Create a note, a template and a patient with mixed Spanish and English text, switch language, confirm they display unchanged and re-saving does not alter them (US5).
 6. Block local storage (private window): app is Spanish and the switcher still works for the session (edge case).
 7. Check phone width (360px) for text overflow in the longest Spanish labels (spec 017).
+
+## Adding a language later (no screen or component edits)
+
+1. Client: create `medflow-client/src/i18n/resources/<code>.ts` exporting the same keys as `es.ts` (plural suffixes follow that language's rules), then register it in `resources` in `medflow-client/src/i18n/index.ts` and add its date-fns locale and Intl tag to `LOCALES` in `medflow-client/src/utils/format.ts`. The switcher lists registered languages automatically and shows each one's `language.short` and `language.name`.
+2. API: add the language code to `Messages.SupportedLanguages` and a third text to each catalog entry in `MedFlow.Api/Localization/Messages.cs` (the entry tuple and `Localizer.Get` gain one case). Unsupported codes fall back to Spanish until then.
