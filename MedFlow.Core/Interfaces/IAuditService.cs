@@ -25,4 +25,7 @@ public interface IAuditService
 
     /// <summary>The patient's clinic log, newest first; null when <see cref="CanReadLogAsync"/> would be false.</summary>
     Task<PagedResult<AuditEventDto>?> GetLogAsync(ClinicScope staff, int patientId, AuditLogQuery query);
+
+    /// <summary>Records a security event of a user (for example 2FA enabled). Not tied to a patient; never holds secrets.</summary>
+    Task RecordSecurityAsync(string userId, SecurityEventKind kind);
 }

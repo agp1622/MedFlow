@@ -35,6 +35,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<AppointmentReminder> AppointmentReminders => Set<AppointmentReminder>();
     public DbSet<ReminderDelivery> ReminderDeliveries => Set<ReminderDelivery>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
+    public DbSet<TwoFactorRecoveryCode> TwoFactorRecoveryCodes => Set<TwoFactorRecoveryCode>();
+    public DbSet<SecurityEvent> SecurityEvents => Set<SecurityEvent>();
     public DbSet<WaitlistEntry> WaitlistEntries => Set<WaitlistEntry>();
     public DbSet<WaitlistOffer> WaitlistOffers => Set<WaitlistOffer>();
 
@@ -338,6 +340,22 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.Property(a => a.ChangedFields).HasMaxLength(500);
         });
 
+        // Two-factor recovery codes (hashed, single use) and append-only security events
+        builder.Entity<TwoFactorRecoveryCode>(e =>
+        {
+            e.HasIndex(c => c.UserId);
+            e.Property(c => c.UserId).HasMaxLength(450).IsRequired();
+            e.Property(c => c.CodeHash).HasMaxLength(256).IsRequired();
+            e.Property(c => c.UsedAt).IsConcurrencyToken(); // a code can be spent only once, even concurrently
+            e.HasOne<ApplicationUser>().WithMany().HasForeignKey(c => c.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+        builder.Entity<SecurityEvent>(e =>
+        {
+            e.HasIndex(x => new { x.UserId, x.OccurredAt });
+            e.Property(x => x.UserId).HasMaxLength(450).IsRequired();
+            e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(40);
+        });
+
         // Clinics, membership and staff invitations
         builder.Entity<Clinic>(e =>
         {
@@ -447,6 +465,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         // Audit events are append-only: refuse any attempt to edit or remove one
         if (ChangeTracker.Entries<AuditEvent>().Any(e => e.State is EntityState.Modified or EntityState.Deleted))
             throw new InvalidOperationException("Audit events are immutable.");
+
+        if (ChangeTracker.Entries<SecurityEvent>().Any(e => e.State is EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("Security events are immutable.");
 
         await StampClinicIdsAsync(ct);
 

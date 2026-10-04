@@ -61,6 +61,12 @@ public class AuditService : IAuditService
         await _db.SaveChangesAsync();
     }
 
+    public async Task RecordSecurityAsync(string userId, SecurityEventKind kind)
+    {
+        _db.SecurityEvents.Add(new SecurityEvent { UserId = userId, Kind = kind, OccurredAt = DateTime.UtcNow });
+        await _db.SaveChangesAsync();
+    }
+
     public async Task<bool> CanReadLogAsync(ClinicScope staff, int patientId)
     {
         if (!staff.Has(Permission.AuditLogRead)) return false;
