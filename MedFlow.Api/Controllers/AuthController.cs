@@ -1,5 +1,6 @@
 using MedFlow.Api.Localization;
 using MedFlow.Api.Extensions;
+using MedFlow.Api.Services;
 using MedFlow.Core;
 using MedFlow.Core.DTOs;
 using MedFlow.Infrastructure.Data;
@@ -29,12 +30,13 @@ public class AuthController : ControllerBase
     private readonly IEmailSender _emailSender;
     private readonly ILogger<AuthController> _logger;
     private readonly ITwoFactorService _twoFactor;
+    private readonly IGoogleIdTokenValidator _google;
 
     public AuthController(UserManager<ApplicationUser> userManager,
         RoleManager<IdentityRole> roleManager, IPortalInvitationRepository invitations, IClinicService clinics,
         SignInManager<ApplicationUser> signInManager,
         IConfiguration config, AppDbContext db,
-        IEmailSender emailSender, ILogger<AuthController> logger, ITwoFactorService twoFactor)
+        IEmailSender emailSender, ILogger<AuthController> logger, ITwoFactorService twoFactor, IGoogleIdTokenValidator google)
     {
         _userManager = userManager;
         _roleManager = roleManager;
@@ -46,6 +48,7 @@ public class AuthController : ControllerBase
         _emailSender = emailSender;
         _logger = logger;
         _twoFactor = twoFactor;
+        _google = google;
     }
 
     private async Task AddToRoleAsync(ApplicationUser user, string role)
@@ -141,11 +144,7 @@ public class AuthController : ControllerBase
     {
         try
         {
-            var settings = new GoogleJsonWebSignature.ValidationSettings
-            {
-                Audience = new[] { _config["Authentication:Google:ClientId"] }
-            };
-            var payload = await GoogleJsonWebSignature.ValidateAsync(req.Credential, settings);
+            var payload = await _google.ValidateAsync(req.Credential, _config["Authentication:Google:ClientId"]!);
 
             var user = await _userManager.FindByEmailAsync(payload.Email);
             // Portal (patient) accounts sign in with email/password only. The Google token has already

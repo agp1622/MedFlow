@@ -198,6 +198,7 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
+builder.Services.AddSingleton<MedFlow.Api.Services.IGoogleIdTokenValidator, MedFlow.Api.Services.GoogleIdTokenValidator>();
 builder.Services.AddScoped<MedFlow.Api.Services.BookingConfirmationService>();
 builder.Services.AddHostedService<MedFlow.Api.Services.ReminderBackgroundService>();
 

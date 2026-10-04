@@ -40,3 +40,7 @@ Format: `- [ ] ID [P] [Story] description with path`
 
 - [x] T020 Verify FR-013: grep the new code for any logger call that includes secrets, codes, challenge tokens or otpauth URIs (log only user id and event kind); verify the Serilog request logging does not capture bodies
 - [x] T019 Run `dotnet build`, `dotnet test`, `npm run build`, `npm run lint`; fix any caused failures; note any test whose premise changed
+
+## Phase 7: Convergence
+
+- [x] T021 Add a Google ID token validator seam (`MedFlow.Api/Services/GoogleIdTokenValidator.cs`, used by `AuthController.GoogleLogin`) and tests in `TwoFactorTests.cs` proving Google sign-in returns a challenge (no session) for a 2FA account and a normal session otherwise, per US2/AC6 and SC-002 (partial: T012 promised Google gating tests but Google token validation could not be faked)

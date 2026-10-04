@@ -3,9 +3,13 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using MedFlow.Core.Enums;
 using MedFlow.Infrastructure.Identity;
+using Google.Apis.Auth;
+using MedFlow.Api.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace MedFlow.Api.Tests;
 
@@ -449,5 +453,46 @@ public class TwoFactorTests : IClassFixture<TestApiFactory>
         var dump = JsonSerializer.Serialize(events);
         Assert.DoesNotContain(e.Key, dump);
         Assert.All(e.RecoveryCodes, c => Assert.DoesNotContain(c, dump));
+    }
+
+    // ── Google sign-in ────────────────────────────────────────────────────────
+
+    private sealed class FakeGoogle : IGoogleIdTokenValidator
+    {
+        public Task<GoogleJsonWebSignature.Payload> ValidateAsync(string credential, string clientId) =>
+            Task.FromResult(new GoogleJsonWebSignature.Payload { Email = credential, GivenName = "G", FamilyName = "User" });
+    }
+
+    private Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> GoogleFactory() =>
+        _f.WithWebHostBuilder(b => b.ConfigureServices(s =>
+        {
+            s.RemoveAll<IGoogleIdTokenValidator>();
+            s.AddSingleton<IGoogleIdTokenValidator, FakeGoogle>();
+        }));
+
+    [Fact]
+    public async Task Google_sign_in_is_gated_for_a_2fa_account_and_unchanged_otherwise()
+    {
+        var e = await EnrollAsync("tf-google-gate@x.com");
+        var plain = await _f.RegisterDoctorAsync("tf-google-plain@x.com");
+
+        using var factory = GoogleFactory();
+        var client = factory.CreateClient();
+
+        var gated = await client.PostAsJsonAsync("/api/auth/google-login", new { credential = e.Email });
+        Assert.Equal(HttpStatusCode.OK, gated.StatusCode);
+        var body = await Json(gated);
+        Assert.True(body.GetProperty("twoFactorRequired").GetBoolean());
+        Assert.False(body.TryGetProperty("token", out _));
+
+        // the challenge it hands out completes with a valid code like any other
+        await ForgetLastStepAsync(e.Auth.UserId);
+        var done = await VerifyAsync(body.GetProperty("challengeToken").GetString()!, CodeFor(e.Key));
+        Assert.Equal(HttpStatusCode.OK, done.StatusCode);
+
+        var open = await client.PostAsJsonAsync("/api/auth/google-login", new { credential = "tf-google-plain@x.com" });
+        Assert.Equal(HttpStatusCode.OK, open.StatusCode);
+        Assert.True((await Json(open)).TryGetProperty("token", out _));
+        Assert.NotNull(plain);
     }
 }
