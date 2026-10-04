@@ -369,7 +369,15 @@ public class StaffManagementTests : IClassFixture<TestApiFactory>
                 _f.ClientFor(owner.Token).PutAsJsonAsync($"/api/staff/{secondId}/role", new { role = "Nurse" }),
                 _f.ClientFor(second.Token).PutAsJsonAsync($"/api/staff/{firstId}/role", new { role = "Nurse" }));
             var codes = both.Select(r => r.StatusCode).OrderBy(c => (int)c).ToList();
-            Assert.Equal(new[] { HttpStatusCode.OK, HttpStatusCode.Conflict }, codes);
+            // Exactly one demotion wins. The loser is rejected in one of two legitimate ways, depending on timing:
+            //  - Conflict: both requests passed authorization while both callers were still owners; the per-clinic
+            //    lock then serialised the changes and the loser hit the last-owner rule.
+            //  - Forbidden: the winner committed before the loser was authorised. Membership is resolved from the DB
+            //    on every request, so the now-demoted caller correctly lacks StaffManage.
+            // Never [OK, OK] (would leave zero owners) and never a pair without an OK; the single-owner assertion
+            // below is the invariant that must hold for every interleaving.
+            Assert.Equal(1, codes.Count(c => c == HttpStatusCode.OK));
+            Assert.Contains(codes.Single(c => c != HttpStatusCode.OK), new[] { HttpStatusCode.Conflict, HttpStatusCode.Forbidden });
             var owners = await _f.WithDbAsync(db => db.ClinicMembers.CountAsync(m => (m.Id == firstId || m.Id == secondId) && m.Role == ClinicRole.Owner && m.IsActive));
             Assert.Equal(1, owners);
 
