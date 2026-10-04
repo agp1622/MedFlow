@@ -1,3 +1,4 @@
+using MedFlow.Api.Authorization;
 using MedFlow.Api.Extensions;
 using MedFlow.Api.Localization;
 using MedFlow.Api.Reports;
@@ -9,10 +10,10 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace MedFlow.Api.Controllers;
 
-/// <summary>Practice reports for the signed-in doctor. There is no clinic layer yet, so every figure is scoped to the caller.</summary>
+/// <summary>Practice reports: clinic-wide for Owners, limited to the caller's own appointments and invoices for Doctors.</summary>
 [ApiController]
 [Route("api/reports")]
-[Authorize(Roles = Roles.Doctor)]
+[HasPermission(Permission.ReportsRead)]
 public class ReportsController : ControllerBase
 {
     public const int MaxRangeDays = 366;
@@ -39,14 +40,14 @@ public class ReportsController : ControllerBase
     public async Task<ActionResult<RevenueReport>> Revenue([FromQuery] DateOnly? from, [FromQuery] DateOnly? to, [FromQuery] ReportPeriod period = ReportPeriod.Day)
     {
         if (!TryRange(from, to, out var f, out var t, out var err)) return err!;
-        return Ok(await _reports.GetRevenueAsync(User.GetUserId(), f, t, period));
+        return Ok(await _reports.GetRevenueAsync(this.GetScope(), f, t, period));
     }
 
     [HttpGet("revenue/export")]
     public async Task<IActionResult> RevenueExport([FromQuery] DateOnly? from, [FromQuery] DateOnly? to, [FromQuery] ReportPeriod period = ReportPeriod.Day)
     {
         if (!TryRange(from, to, out var f, out var t, out var err)) return err!;
-        var r = await _reports.GetRevenueAsync(User.GetUserId(), f, t, period);
+        var r = await _reports.GetRevenueAsync(this.GetScope(), f, t, period);
         var csv = new CsvWriter().Row(H("Period"), H("Revenue"), H("InvoicesPaid"));
         foreach (var p in r.Series) csv.Row(CsvWriter.Date(p.PeriodStart), CsvWriter.Number(p.Revenue), CsvWriter.Number(p.InvoicesPaid));
         return Csv(csv, "revenue", f, t);
@@ -56,14 +57,14 @@ public class ReportsController : ControllerBase
     public async Task<ActionResult<VisitsReport>> Visits([FromQuery] DateOnly? from, [FromQuery] DateOnly? to, [FromQuery] ReportPeriod period = ReportPeriod.Day)
     {
         if (!TryRange(from, to, out var f, out var t, out var err)) return err!;
-        return Ok(await _reports.GetVisitsAsync(User.GetUserId(), f, t, period));
+        return Ok(await _reports.GetVisitsAsync(this.GetScope(), f, t, period));
     }
 
     [HttpGet("visits/export")]
     public async Task<IActionResult> VisitsExport([FromQuery] DateOnly? from, [FromQuery] DateOnly? to, [FromQuery] ReportPeriod period = ReportPeriod.Day)
     {
         if (!TryRange(from, to, out var f, out var t, out var err)) return err!;
-        var r = await _reports.GetVisitsAsync(User.GetUserId(), f, t, period);
+        var r = await _reports.GetVisitsAsync(this.GetScope(), f, t, period);
         var csv = new CsvWriter().Row(H("Period"), H("Visits"));
         foreach (var p in r.Series) csv.Row(CsvWriter.Date(p.PeriodStart), CsvWriter.Number(p.Visits));
         return Csv(csv, "visits", f, t);
@@ -73,14 +74,14 @@ public class ReportsController : ControllerBase
     public async Task<ActionResult<NoShowReport>> NoShows([FromQuery] DateOnly? from, [FromQuery] DateOnly? to, [FromQuery] ReportPeriod period = ReportPeriod.Day)
     {
         if (!TryRange(from, to, out var f, out var t, out var err)) return err!;
-        return Ok(await _reports.GetNoShowsAsync(User.GetUserId(), f, t, period));
+        return Ok(await _reports.GetNoShowsAsync(this.GetScope(), f, t, period));
     }
 
     [HttpGet("no-shows/export")]
     public async Task<IActionResult> NoShowsExport([FromQuery] DateOnly? from, [FromQuery] DateOnly? to, [FromQuery] ReportPeriod period = ReportPeriod.Day)
     {
         if (!TryRange(from, to, out var f, out var t, out var err)) return err!;
-        var r = await _reports.GetNoShowsAsync(User.GetUserId(), f, t, period);
+        var r = await _reports.GetNoShowsAsync(this.GetScope(), f, t, period);
         var csv = new CsvWriter().Row(H("Period"), H("Completed"), H("NoShows"), H("NoShowRate"));
         foreach (var p in r.Series)
             csv.Row(CsvWriter.Date(p.PeriodStart), CsvWriter.Number(p.Completed), CsvWriter.Number(p.NoShows),
@@ -93,13 +94,13 @@ public class ReportsController : ControllerBase
     {
         if (page < 1 || pageSize < 1 || pageSize > MaxPageSize)
             return BadRequest(new { error = this.T("Reports.PageRange", MaxPageSize) });
-        return Ok(await _reports.GetArAgingAsync(User.GetUserId(), Today, page, pageSize));
+        return Ok(await _reports.GetArAgingAsync(this.GetScope(), Today, page, pageSize));
     }
 
     [HttpGet("ar-aging/export")]
     public async Task<IActionResult> ArAgingExport()
     {
-        var rows = await _reports.GetArRowsAsync(User.GetUserId(), Today, MaxCsvRows);
+        var rows = await _reports.GetArRowsAsync(this.GetScope(), Today, MaxCsvRows);
         var csv = new CsvWriter().Row(H("Invoice"), H("Patient"), H("InvoiceDate"), H("DueDate"), H("DaysPastDue"), H("Bucket"), H("Balance"));
         foreach (var r in rows)
             csv.Row(CsvWriter.Text(r.InvoiceNumber), CsvWriter.Text(r.PatientName), CsvWriter.Date(r.InvoiceDate),

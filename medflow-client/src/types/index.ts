@@ -15,9 +15,27 @@ export interface AuthResponse {
 }
 export interface UserDto {
   id: string; email: string; firstName: string; lastName: string; specialty: string
-  role?: UserRole
+  /** Clinic role for staff, 'Patient' for portal users, empty when the account has no active clinic membership */
+  role?: UserRole | ''
+  clinicId?: number; clinicName?: string
 }
-export type UserRole = 'Doctor' | 'Patient'
+export type ClinicRole = 'Owner' | 'Doctor' | 'Nurse' | 'Receptionist'
+export type UserRole = ClinicRole | 'Patient'
+
+// ── Clinic and staff ──────────────────────────────────────────────────────────
+export interface ClinicDto { id: number; name: string; role: ClinicRole; userId: string }
+export interface ClinicDoctorDto { userId: string; fullName: string; role: ClinicRole }
+export interface StaffMemberDto {
+  id: number; userId: string; email: string; firstName: string; lastName: string
+  role: ClinicRole; isActive: boolean; joinedAt: string
+}
+export interface StaffInvitationDto { id: number; email: string; role: ClinicRole; expiresAt: string; createdAt: string }
+export type InvitableRole = Exclude<ClinicRole, 'Owner'>
+export interface InviteStaffRequest { email: string; role: InvitableRole }
+export interface AcceptStaffInvitationRequest {
+  token: string; email: string; password: string; confirmPassword: string
+  firstName: string; lastName: string; specialty?: string
+}
 export interface AcceptInvitationRequest {
   token: string; email: string; password: string; confirmPassword: string
 }
@@ -72,6 +90,8 @@ export interface CreatePatientRequest {
   insuranceProvider?: string; insurancePolicyNumber?: string
   insuranceGroupNumber?: string; insurancePayerId?: string; insuranceSubscriberName?: string
   insuranceSubscriberDateOfBirth?: string; insuranceSubscriberRelationship?: InsuranceRelationship
+  /** Treating doctor (a doctor of the clinic); the server picks one when omitted */
+  doctorId?: string
 }
 export type UpdatePatientRequest = CreatePatientRequest & { status: PatientStatus }
 
@@ -85,6 +105,8 @@ export interface AppointmentDto {
 export interface CreateAppointmentRequest {
   patientId: number; scheduledAt: string; durationMinutes: number
   type: AppointmentType; reason?: string; location?: string
+  /** A doctor of the clinic; the server picks one when omitted */
+  doctorId?: string
 }
 export interface UpdateAppointmentRequest extends CreateAppointmentRequest {
   status: AppointmentStatus; notes?: string

@@ -1,3 +1,4 @@
+import { useAuthStore } from '@/store/authStore'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import toast from 'react-hot-toast'
@@ -73,6 +74,7 @@ export function ReportsPage() {
   }
 
   const xTick = (v: string) => fmt.dateShort(v)
+  const role = useAuthStore(st => st.user?.role)
   const rate = (r: number | null) => (r == null ? t('reports.rateNA') : `${fmt.number(Math.round(r * 1000) / 10)}%`)
 
   return (
@@ -80,7 +82,7 @@ export function ReportsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{t('reports.title')}</h1>
-          <p className="text-sm text-gray-500">{t('reports.scope')}</p>
+          <p className="text-sm text-gray-500">{role === 'Owner' ? t('reports.scopeOwner') : t('reports.scopeDoctor')}</p>
         </div>
         <button type="button" className="btn-primary flex items-center gap-2" onClick={exportCsv}
           disabled={exporting || (ranged && !valid)}>

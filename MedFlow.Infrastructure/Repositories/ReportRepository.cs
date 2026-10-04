@@ -1,3 +1,4 @@
+using MedFlow.Core;
 using MedFlow.Core.DTOs;
 using MedFlow.Core.Enums;
 using MedFlow.Core.Interfaces;
@@ -7,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace MedFlow.Infrastructure.Repositories;
 
 /// <summary>
-/// Report aggregates for one doctor. Rows are grouped per calendar day by the database (at most one row
+/// Report aggregates: clinic-wide for Owners, limited to the caller's own doctor-linked records for everyone else. Rows are grouped per calendar day by the database (at most one row
 /// per day in the requested range), then folded into weeks or months in memory.
 /// </summary>
 public class ReportRepository : IReportRepository
@@ -15,6 +16,18 @@ public class ReportRepository : IReportRepository
     private static readonly string[] BucketNames = { "current", "1-30", "31-60", "61-90", "90+" };
     private readonly AppDbContext _db;
     public ReportRepository(AppDbContext db) => _db = db;
+
+    private IQueryable<Core.Entities.Invoice> InvoicesOf(ClinicScope scope)
+    {
+        var q = _db.Invoices.Where(i => i.ClinicId == scope.ClinicId);
+        return scope.OwnDataOnly ? q.Where(i => i.DoctorId == scope.UserId) : q;
+    }
+
+    private IQueryable<Core.Entities.Appointment> AppointmentsOf(ClinicScope scope)
+    {
+        var q = _db.Appointments.Where(a => a.ClinicId == scope.ClinicId);
+        return scope.OwnDataOnly ? q.Where(a => a.DoctorId == scope.UserId) : q;
+    }
 
     private static DateTime Start(DateOnly d) => d.ToDateTime(TimeOnly.MinValue);
 
@@ -25,12 +38,12 @@ public class ReportRepository : IReportRepository
         _ => day
     };
 
-    public async Task<RevenueReport> GetRevenueAsync(string doctorId, DateOnly from, DateOnly to, ReportPeriod period)
+    public async Task<RevenueReport> GetRevenueAsync(ClinicScope scope, DateOnly from, DateOnly to, ReportPeriod period)
     {
         var lo = Start(from);
         var hi = Start(to).AddDays(1);
-        var days = await _db.Invoices
-            .Where(i => i.DoctorId == doctorId && i.Status == InvoiceStatus.Paid && i.PaidDate != null
+        var days = await InvoicesOf(scope)
+            .Where(i => i.Status == InvoiceStatus.Paid && i.PaidDate != null
                         && i.PaidDate >= lo && i.PaidDate < hi)
             .GroupBy(i => new { i.PaidDate!.Value.Year, i.PaidDate!.Value.Month, i.PaidDate!.Value.Day })
             .Select(g => new { g.Key.Year, g.Key.Month, g.Key.Day, Amount = g.Sum(i => i.PaidAmount ?? i.Amount), Count = g.Count() })
@@ -44,12 +57,12 @@ public class ReportRepository : IReportRepository
         return new RevenueReport(from, to, period, series.Sum(p => p.Revenue), series.Sum(p => p.InvoicesPaid), series);
     }
 
-    public async Task<VisitsReport> GetVisitsAsync(string doctorId, DateOnly from, DateOnly to, ReportPeriod period)
+    public async Task<VisitsReport> GetVisitsAsync(ClinicScope scope, DateOnly from, DateOnly to, ReportPeriod period)
     {
         var lo = Start(from);
         var hi = Start(to).AddDays(1);
-        var days = await _db.Appointments
-            .Where(a => a.DoctorId == doctorId && a.Status == AppointmentStatus.Completed
+        var days = await AppointmentsOf(scope)
+            .Where(a => a.Status == AppointmentStatus.Completed
                         && a.ScheduledAt >= lo && a.ScheduledAt < hi)
             .GroupBy(a => new { a.ScheduledAt.Year, a.ScheduledAt.Month, a.ScheduledAt.Day })
             .Select(g => new { g.Key.Year, g.Key.Month, g.Key.Day, Count = g.Count() })
@@ -63,13 +76,12 @@ public class ReportRepository : IReportRepository
         return new VisitsReport(from, to, period, series.Sum(p => p.Visits), series);
     }
 
-    public async Task<NoShowReport> GetNoShowsAsync(string doctorId, DateOnly from, DateOnly to, ReportPeriod period)
+    public async Task<NoShowReport> GetNoShowsAsync(ClinicScope scope, DateOnly from, DateOnly to, ReportPeriod period)
     {
         var lo = Start(from);
         var hi = Start(to).AddDays(1);
-        var days = await _db.Appointments
-            .Where(a => a.DoctorId == doctorId
-                        && (a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.NoShow)
+        var days = await AppointmentsOf(scope)
+            .Where(a => (a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.NoShow)
                         && a.ScheduledAt >= lo && a.ScheduledAt < hi)
             .GroupBy(a => new { a.ScheduledAt.Year, a.ScheduledAt.Month, a.ScheduledAt.Day })
             .Select(g => new
@@ -95,19 +107,18 @@ public class ReportRepository : IReportRepository
 
     // Open = still owes money. Reference date is the due date (invoice date when none); the Pending/Overdue
     // flag is not trusted to be current, so aging is computed from dates only.
-    private IQueryable<Core.Entities.Invoice> OpenInvoices(string doctorId) =>
-        _db.Invoices.Where(i => i.DoctorId == doctorId
-            && i.Patient != null // invoices of deleted patients drop out of totals and list alike
+    private IQueryable<Core.Entities.Invoice> OpenInvoices(ClinicScope scope) =>
+        InvoicesOf(scope).Where(i => i.Patient != null // invoices of deleted patients drop out of totals and list alike
             && (i.Status == InvoiceStatus.Pending || i.Status == InvoiceStatus.Overdue)
             && i.Amount > (i.PaidAmount ?? 0m));
 
-    public async Task<ArAgingReport> GetArAgingAsync(string doctorId, DateOnly asOf, int page, int pageSize)
+    public async Task<ArAgingReport> GetArAgingAsync(ClinicScope scope, DateOnly asOf, int page, int pageSize)
     {
         var today = Start(asOf);
         var d30 = today.AddDays(-30);
         var d60 = today.AddDays(-60);
         var d90 = today.AddDays(-90);
-        var open = OpenInvoices(doctorId);
+        var open = OpenInvoices(scope);
 
         var grouped = await open
             .GroupBy(i => (i.DueDate ?? i.InvoiceDate) >= today ? 0
@@ -131,8 +142,8 @@ public class ReportRepository : IReportRepository
             new PagedResult<ArInvoiceDto>(rows, total, page, pageSize));
     }
 
-    public async Task<IReadOnlyList<ArInvoiceDto>> GetArRowsAsync(string doctorId, DateOnly asOf, int max) =>
-        await ToRowsAsync(OpenInvoices(doctorId).OrderBy(i => i.DueDate ?? i.InvoiceDate).ThenBy(i => i.Id).Take(max), asOf);
+    public async Task<IReadOnlyList<ArInvoiceDto>> GetArRowsAsync(ClinicScope scope, DateOnly asOf, int max) =>
+        await ToRowsAsync(OpenInvoices(scope).OrderBy(i => i.DueDate ?? i.InvoiceDate).ThenBy(i => i.Id).Take(max), asOf);
 
     private static async Task<List<ArInvoiceDto>> ToRowsAsync(IQueryable<Core.Entities.Invoice> q, DateOnly asOf)
     {

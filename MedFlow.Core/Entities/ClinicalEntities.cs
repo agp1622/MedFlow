@@ -3,8 +3,9 @@ using MedFlow.Core.Enums;
 namespace MedFlow.Core.Entities;
 
 /// <summary>Doctor-maintained clinical list entry; always scoped to a patient and the owning doctor.</summary>
-public abstract class ClinicalEntry : BaseEntity
+public abstract class ClinicalEntry : BaseEntity, IClinicScoped
 {
+    public int ClinicId { get; set; }
     public int PatientId { get; set; }
     public Patient? Patient { get; set; }
     public string DoctorId { get; set; } = string.Empty;

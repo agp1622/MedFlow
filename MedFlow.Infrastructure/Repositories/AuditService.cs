@@ -13,25 +13,39 @@ public class AuditService : IAuditService
     private readonly AppDbContext _db;
     public AuditService(AppDbContext db) { _db = db; }
 
-    public async Task<bool> RecordAsync(string actorUserId, string actorRole, int patientId, AuditAction action,
+    public async Task<bool> RecordAsync(ClinicScope staff, int patientId, AuditAction action,
         AuditItemKind itemKind, int? itemId = null, IEnumerable<string>? changedFields = null)
     {
-        // Owning doctor of the patient, or null when the patient is missing / not accessible to the actor
-        var doctorId = actorRole == Roles.Patient
-            ? await _db.Patients.AsNoTracking()
-                .Where(p => p.Id == patientId && p.PortalUserId == actorUserId)
-                .Select(p => p.DoctorId).FirstOrDefaultAsync()
-            : await _db.Patients.AsNoTracking()
-                .Where(p => p.Id == patientId && p.DoctorId == actorUserId)
-                .Select(p => p.DoctorId).FirstOrDefaultAsync();
+        // Treating doctor of the patient, or null when the patient is missing or in another clinic
+        var doctorId = await _db.Patients.AsNoTracking()
+            .Where(p => p.Id == patientId && p.ClinicId == staff.ClinicId)
+            .Select(p => p.DoctorId).FirstOrDefaultAsync();
         if (doctorId == null) return false;
+        await StoreAsync(staff.ClinicId, doctorId, staff.UserId, staff.Role.ToString(), patientId, action, itemKind, itemId, changedFields);
+        return true;
+    }
 
+    public async Task<bool> RecordPortalAsync(string portalUserId, int patientId, AuditAction action,
+        AuditItemKind itemKind, int? itemId = null, IEnumerable<string>? changedFields = null)
+    {
+        var patient = await _db.Patients.AsNoTracking()
+            .Where(p => p.Id == patientId && p.PortalUserId == portalUserId)
+            .Select(p => new { p.DoctorId, p.ClinicId }).FirstOrDefaultAsync();
+        if (patient == null) return false;
+        await StoreAsync(patient.ClinicId, patient.DoctorId, portalUserId, Roles.Patient, patientId, action, itemKind, itemId, changedFields);
+        return true;
+    }
+
+    private async Task StoreAsync(int clinicId, string doctorId, string actorUserId, string actorRole, int patientId,
+        AuditAction action, AuditItemKind itemKind, int? itemId, IEnumerable<string>? changedFields)
+    {
         var name = await _db.Users.AsNoTracking().Where(u => u.Id == actorUserId)
             .Select(u => u.FirstName + " " + u.LastName).FirstOrDefaultAsync();
 
         var fields = changedFields?.Distinct().ToArray();
         _db.AuditEvents.Add(new AuditEvent
         {
+            ClinicId = clinicId,
             PatientId = patientId,
             DoctorId = doctorId,
             ActorUserId = actorUserId,
@@ -45,14 +59,23 @@ public class AuditService : IAuditService
         });
         // Callers that mutate a tracked entity before recording have that change saved in this same call
         await _db.SaveChangesAsync();
-        return true;
     }
 
-    public async Task<PagedResult<AuditEventDto>?> GetLogAsync(int patientId, string doctorId, AuditLogQuery q)
+    public async Task<bool> CanReadLogAsync(ClinicScope staff, int patientId)
     {
-        if (!await _db.Patients.AnyAsync(p => p.Id == patientId && p.DoctorId == doctorId)) return null;
+        if (!staff.Has(Permission.AuditLogRead)) return false;
+        var treating = await _db.Patients.AsNoTracking()
+            .Where(p => p.Id == patientId && p.ClinicId == staff.ClinicId)
+            .Select(p => p.DoctorId).FirstOrDefaultAsync();
+        if (treating == null) return false;
+        return staff.Role == ClinicRole.Owner || treating == staff.UserId;
+    }
 
-        var query = _db.AuditEvents.AsNoTracking().Where(a => a.PatientId == patientId && a.DoctorId == doctorId);
+    public async Task<PagedResult<AuditEventDto>?> GetLogAsync(ClinicScope staff, int patientId, AuditLogQuery q)
+    {
+        if (!await CanReadLogAsync(staff, patientId)) return null;
+
+        var query = _db.AuditEvents.AsNoTracking().Where(a => a.PatientId == patientId && a.ClinicId == staff.ClinicId);
         if (q.Action.HasValue) query = query.Where(a => a.Action == q.Action.Value);
         if (!string.IsNullOrWhiteSpace(q.Actor))
         {

@@ -133,7 +133,7 @@ function FlagBadge({ flag }: { flag: LabResultDto['flag'] }) {
   )
 }
 
-function OrderCard({ patientId, order }: { patientId: number; order: LabOrderDto }) {
+function OrderCard({ patientId, order, readOnly }: { patientId: number; order: LabOrderDto; readOnly: boolean }) {
   const { t } = useTranslation()
   const cancel = useCancelLabOrder(patientId)
   const del = useDeleteLabOrder(patientId)
@@ -156,7 +156,7 @@ function OrderCard({ patientId, order }: { patientId: number; order: LabOrderDto
             <p className="text-xs text-gray-500">{t('labs.ordered', { date: fmt.date(order.orderedDate) })}</p>
             {order.notes && <p className="text-xs text-gray-500 break-words">{order.notes}</p>}
           </div>
-          <div className="flex gap-1 flex-shrink-0">
+          {!readOnly && <div className="flex gap-1 flex-shrink-0">
             {!cancelled && (
               <>
                 <button type="button" className="btn-ghost p-1" aria-label={t('labs.editOrder')} onClick={() => setEditingOrder(true)}><Pencil size={14} className="text-gray-400" /></button>
@@ -166,7 +166,7 @@ function OrderCard({ patientId, order }: { patientId: number; order: LabOrderDto
             )}
             <button type="button" className="btn-ghost p-1" aria-label={t('labs.deleteOrder')}
               onClick={() => { if (confirm(t('labs.confirmDelete'))) del.mutate(order.id) }}><Trash2 size={14} className="text-gray-400" /></button>
-          </div>
+          </div>}
         </div>
       )}
 
@@ -197,7 +197,7 @@ function OrderCard({ patientId, order }: { patientId: number; order: LabOrderDto
                       : `${r.referenceLow != null ? num(r.referenceLow) : '…'} – ${r.referenceHigh != null ? num(r.referenceHigh) : '…'}`}
                   </td>
                   <td className="py-2 text-right">
-                    {!cancelled && (
+                    {!cancelled && !readOnly && (
                       <span className="inline-flex gap-1">
                         <button type="button" className="btn-ghost p-1" aria-label={t('labs.editResult')} onClick={() => setResultForm(r.id)}><Pencil size={13} className="text-gray-400" /></button>
                         <button type="button" className="btn-ghost p-1" aria-label={t('common.remove')}
@@ -213,7 +213,7 @@ function OrderCard({ patientId, order }: { patientId: number; order: LabOrderDto
       )}
 
       {resultForm === 'new' && <ResultForm patientId={patientId} orderId={order.id} onDone={() => setResultForm(null)} />}
-      {!cancelled && resultForm === null && (
+      {!cancelled && !readOnly && resultForm === null && (
         <button type="button" className="btn-secondary text-xs" onClick={() => setResultForm('new')}>
           <Plus size={13} className="inline mr-1" />{t('labs.addResult')}
         </button>
@@ -223,7 +223,8 @@ function OrderCard({ patientId, order }: { patientId: number; order: LabOrderDto
 }
 
 /** Lab orders with manually entered results; abnormal values are flagged from the range the doctor entered. Doctor-only. */
-export function LabsPanel({ patientId }: { patientId: number }) {
+/** `readOnly` hides ordering and result entry (roles without LabsWrite, e.g. Nurse). */
+export function LabsPanel({ patientId, readOnly = false }: { patientId: number; readOnly?: boolean }) {
   const { t } = useTranslation()
   const { data, isLoading, isError } = usePatientLabs(patientId)
   const [adding, setAdding] = useState(false)
@@ -238,13 +239,13 @@ export function LabsPanel({ patientId }: { patientId: number }) {
           {t('labs.title')}
           {data.abnormalCount > 0 && <span className="badge bg-red-50 text-red-700 ml-2">{t('labs.abnormal', { count: data.abnormalCount })}</span>}
         </h3>
-        <button type="button" className="btn-primary text-sm" onClick={() => setAdding(true)}>
+        {!readOnly && <button type="button" className="btn-primary text-sm" onClick={() => setAdding(true)}>
           <Plus size={14} className="inline mr-1" />{t('labs.newOrder')}
-        </button>
+        </button>}
       </div>
       {adding && <OrderForm patientId={patientId} onDone={() => setAdding(false)} />}
       {data.orders.length === 0 && !adding && <EmptyState title={t('labs.empty')} description={t('labs.emptyHint')} />}
-      {data.orders.map(o => <OrderCard key={o.id} patientId={patientId} order={o} />)}
+      {data.orders.map(o => <OrderCard key={o.id} patientId={patientId} order={o} readOnly={readOnly} />)}
     </div>
   )
 }

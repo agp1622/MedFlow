@@ -7,6 +7,8 @@ namespace MedFlow.Core.Interfaces;
 public interface IRepository<T> where T : BaseEntity
 {
     Task<T?> GetByIdAsync(int id);
+    /// <summary>The record when it exists and belongs to the clinic; null otherwise (same as missing). Only for <see cref="IClinicScoped"/> entities.</summary>
+    Task<T?> GetInClinicAsync(int id, int clinicId);
     Task<IEnumerable<T>> GetAllAsync();
     Task<T> AddAsync(T entity);
     Task UpdateAsync(T entity);
@@ -16,29 +18,29 @@ public interface IRepository<T> where T : BaseEntity
 
 public interface IPatientRepository : IRepository<Patient>
 {
-    Task<PagedResult<PatientSummaryDto>> GetPagedAsync(string doctorId, QueryParams query);
-    Task<Patient?> GetWithDetailsAsync(int id, string doctorId);
+    Task<PagedResult<PatientSummaryDto>> GetPagedAsync(ClinicScope scope, QueryParams query);
+    Task<Patient?> GetWithDetailsAsync(int id, ClinicScope scope);
     Task<DateTime?> GetLastVisitAsync(int patientId);
     Task<DateTime?> GetNextAppointmentAsync(int patientId);
-    Task<IEnumerable<PatientSummaryDto>> GetRecentAsync(string doctorId, int count = 5);
+    Task<IEnumerable<PatientSummaryDto>> GetRecentAsync(ClinicScope scope, int count = 5);
 }
 
 public interface IAppointmentRepository : IRepository<Appointment>
 {
-    Task<PagedResult<AppointmentDto>> GetPagedAsync(string doctorId, QueryParams query);
-    Task<IEnumerable<AppointmentDto>> GetTodayAsync(string doctorId);
-    Task<IEnumerable<AppointmentDto>> GetByPatientAsync(int patientId, string doctorId);
-    Task<IEnumerable<AppointmentDto>> GetUpcomingAsync(string doctorId, int count = 5);
+    Task<PagedResult<AppointmentDto>> GetPagedAsync(ClinicScope scope, QueryParams query);
+    Task<IEnumerable<AppointmentDto>> GetTodayAsync(ClinicScope scope);
+    Task<IEnumerable<AppointmentDto>> GetByPatientAsync(int patientId, ClinicScope scope);
+    Task<IEnumerable<AppointmentDto>> GetUpcomingAsync(ClinicScope scope, int count = 5);
 }
 
 public interface IPrescriptionRepository : IRepository<Prescription>
 {
-    Task<PagedResult<PrescriptionDto>> GetPagedAsync(string doctorId, QueryParams query);
-    Task<IEnumerable<PrescriptionDto>> GetByPatientAsync(int patientId, string doctorId);
-    Task<int> GetExpiringCountAsync(string doctorId, int daysAhead = 30);
+    Task<PagedResult<PrescriptionDto>> GetPagedAsync(ClinicScope scope, QueryParams query);
+    Task<IEnumerable<PrescriptionDto>> GetByPatientAsync(int patientId, ClinicScope scope);
+    Task<int> GetExpiringCountAsync(ClinicScope scope, int daysAhead = 30);
     Task UpdateExpiryStatusesAsync();
-    /// <summary>Data for the printable prescription; null unless the prescription and its patient belong to the doctor.</summary>
-    Task<PrescriptionDocumentData?> GetDocumentDataAsync(int id, string doctorId);
+    /// <summary>Data for the printable prescription; null unless the prescription and its patient belong to the clinic.</summary>
+    Task<PrescriptionDocumentData?> GetDocumentDataAsync(int id, ClinicScope scope);
 }
 
 public interface IPrescriptionDocumentRenderer
@@ -49,27 +51,26 @@ public interface IPrescriptionDocumentRenderer
 
 public interface IInvoiceRepository : IRepository<Invoice>
 {
-    Task<PagedResult<InvoiceDto>> GetPagedAsync(string doctorId, QueryParams query);
-    Task<IEnumerable<InvoiceDto>> GetByPatientAsync(int patientId, string doctorId);
-    Task<decimal> GetPendingAmountAsync(string doctorId);
-    Task<int> GetOverdueCountAsync(string doctorId);
+    Task<PagedResult<InvoiceDto>> GetPagedAsync(ClinicScope scope, QueryParams query);
+    Task<IEnumerable<InvoiceDto>> GetByPatientAsync(int patientId, ClinicScope scope);
+    Task<decimal> GetPendingAmountAsync(ClinicScope scope);
+    Task<int> GetOverdueCountAsync(ClinicScope scope);
     Task UpdateOverdueStatusesAsync();
     Task<string> GenerateInvoiceNumberAsync();
-    /// <summary>Data for a claim draft; null unless the invoice and its patient both belong to the doctor.</summary>
-    Task<ClaimSourceData?> GetClaimSourceAsync(int id, string doctorId);
+    /// <summary>Data for a claim draft; null unless the invoice and its patient both belong to the clinic.</summary>
+    Task<ClaimSourceData?> GetClaimSourceAsync(int id, ClinicScope scope);
 }
 
 public interface IVitalSignRepository : IRepository<VitalSign>
 {
-    Task<IEnumerable<VitalSignDto>> GetByPatientAsync(int patientId, string doctorId);
-    Task<VitalSignDto?> GetLatestByPatientAsync(int patientId);
+    Task<IEnumerable<VitalSignDto>> GetByPatientAsync(int patientId, ClinicScope scope);
+    Task<VitalSignDto?> GetLatestByPatientAsync(int patientId, ClinicScope scope);
 }
 
 public interface IMedicalNoteRepository : IRepository<MedicalNote>
 {
-    Task<IEnumerable<MedicalNoteDto>> GetByPatientAsync(int patientId, string doctorId);
-    Task<MedicalNote?> GetWithOwnerCheckAsync(int id, string doctorId);
-    Task<CopyForwardDto?> GetLatestForPatientAsync(int patientId, string doctorId);
+    Task<IEnumerable<MedicalNoteDto>> GetByPatientAsync(int patientId, ClinicScope scope);
+    Task<CopyForwardDto?> GetLatestForPatientAsync(int patientId, ClinicScope scope);
 }
 
 public interface INoteTemplateRepository : IRepository<NoteTemplate>
@@ -81,14 +82,13 @@ public interface INoteTemplateRepository : IRepository<NoteTemplate>
 
 public interface IPatientAttachmentRepository : IRepository<PatientAttachment>
 {
-    Task<IEnumerable<PatientAttachmentDto>> GetByPatientAsync(int patientId, string doctorId);
-    Task<PatientAttachment?> GetWithOwnerCheckAsync(int id, string doctorId);
+    Task<IEnumerable<PatientAttachmentDto>> GetByPatientAsync(int patientId, ClinicScope scope);
     Task SetSharingAsync(PatientAttachment attachment, bool shared);
 }
 
 public interface IDashboardRepository
 {
-    Task<DashboardStatsDto> GetStatsAsync(string doctorId);
+    Task<DashboardStatsDto> GetStatsAsync(ClinicScope scope);
 }
 
 public interface IPortalRepository
@@ -118,12 +118,12 @@ public interface IPortalInvitationRepository
 
 public interface IPatientClinicalRepository
 {
-    /// <summary>True when the (non-deleted) patient exists and belongs to the doctor.</summary>
-    Task<bool> OwnsPatientAsync(int patientId, string doctorId);
-    Task<ClinicalSummaryDto> GetSummaryAsync(int patientId, string doctorId);
-    Task<T?> GetOwnedAsync<T>(int id, int patientId, string doctorId) where T : ClinicalEntry;
-    Task<int> CountAsync<T>(int patientId, string doctorId) where T : ClinicalEntry;
-    Task<bool> AllergyExistsAsync(int patientId, string doctorId, string substance, int? exceptId = null);
+    /// <summary>True when the (non-deleted) patient exists and belongs to the clinic.</summary>
+    Task<bool> OwnsPatientAsync(int patientId, ClinicScope scope);
+    Task<ClinicalSummaryDto> GetSummaryAsync(int patientId, ClinicScope scope);
+    Task<T?> GetOwnedAsync<T>(int id, int patientId, ClinicScope scope) where T : ClinicalEntry;
+    Task<int> CountAsync<T>(int patientId, ClinicScope scope) where T : ClinicalEntry;
+    Task<bool> AllergyExistsAsync(int patientId, ClinicScope scope, string substance, int? exceptId = null);
     Task<T> AddAsync<T>(T entry) where T : ClinicalEntry;
     Task UpdateAsync<T>(T entry) where T : ClinicalEntry;
     Task DeleteAsync<T>(T entry) where T : ClinicalEntry;
@@ -139,10 +139,10 @@ public interface IIntakeRepository
     Task<(IntakeLink Link, Patient Patient)?> FindValidLinkAsync(string token);
     /// <summary>Consumes the link and stores the submission in one save; false if the link was already used.</summary>
     Task<bool> SubmitAsync(IntakeLink link, Patient patient, IntakeSubmission submission);
-    Task<PagedResult<IntakeSubmissionSummaryDto>> GetPagedAsync(string doctorId, IntakeStatus? status, int page, int pageSize);
-    Task<IntakeSubmissionDetailDto?> GetDetailAsync(int id, string doctorId);
+    Task<PagedResult<IntakeSubmissionSummaryDto>> GetPagedAsync(ClinicScope scope, IntakeStatus? status, int page, int pageSize);
+    Task<IntakeSubmissionDetailDto?> GetDetailAsync(int id, ClinicScope scope);
     /// <summary>Accepts (applies the answers to the patient record) or rejects a pending submission.</summary>
-    Task<DecisionResult> DecideAsync(int id, string doctorId, bool accept, string? reason);
+    Task<DecisionResult> DecideAsync(int id, ClinicScope scope, bool accept, string? reason);
 }
 
 public enum DecisionResult { Done, NotFound, AlreadyDecided }
@@ -169,19 +169,19 @@ public interface IReminderRepository
     /// <summary>Takes the raw emailed token. Null for any unknown, expired, stale or tampered token (callers must not distinguish).</summary>
     Task<ReminderLookupDto?> LookupAsync(string token);
     Task<(ReminderRespondResult Result, ReminderLookupDto? Dto)> RespondAsync(string token, ReminderAction action);
-    /// <summary>Null when the appointment does not belong to the doctor.</summary>
-    Task<ReminderLogDto?> GetLogAsync(int appointmentId, string doctorId);
+    /// <summary>Null when the appointment does not belong to the clinic.</summary>
+    Task<ReminderLogDto?> GetLogAsync(int appointmentId, ClinicScope scope);
 }
 
-/// <summary>Report aggregates for one doctor (no clinic layer yet). Dates are inclusive UTC calendar days.</summary>
+/// <summary>Report aggregates: clinic-wide for Owners, limited to the caller's own doctor-linked records otherwise. Dates are inclusive UTC calendar days.</summary>
 public interface IReportRepository
 {
-    Task<RevenueReport> GetRevenueAsync(string doctorId, DateOnly from, DateOnly to, ReportPeriod period);
-    Task<VisitsReport> GetVisitsAsync(string doctorId, DateOnly from, DateOnly to, ReportPeriod period);
-    Task<NoShowReport> GetNoShowsAsync(string doctorId, DateOnly from, DateOnly to, ReportPeriod period);
-    Task<ArAgingReport> GetArAgingAsync(string doctorId, DateOnly asOf, int page, int pageSize);
+    Task<RevenueReport> GetRevenueAsync(ClinicScope scope, DateOnly from, DateOnly to, ReportPeriod period);
+    Task<VisitsReport> GetVisitsAsync(ClinicScope scope, DateOnly from, DateOnly to, ReportPeriod period);
+    Task<NoShowReport> GetNoShowsAsync(ClinicScope scope, DateOnly from, DateOnly to, ReportPeriod period);
+    Task<ArAgingReport> GetArAgingAsync(ClinicScope scope, DateOnly asOf, int page, int pageSize);
     /// <summary>Open invoices, oldest first, at most <paramref name="max"/> rows.</summary>
-    Task<IReadOnlyList<ArInvoiceDto>> GetArRowsAsync(string doctorId, DateOnly asOf, int max);
+    Task<IReadOnlyList<ArInvoiceDto>> GetArRowsAsync(ClinicScope scope, DateOnly asOf, int max);
 }
 
 public interface IReminderProcessor
@@ -192,10 +192,10 @@ public interface IReminderProcessor
 
 public interface ILabOrderRepository
 {
-    Task<bool> OwnsPatientAsync(int patientId, string doctorId);
-    Task<LabSummaryDto> GetSummaryAsync(int patientId, string doctorId);
-    Task<LabOrder?> GetOrderAsync(int orderId, int patientId, string doctorId);
-    Task<int> CountOrdersAsync(int patientId, string doctorId);
+    Task<bool> OwnsPatientAsync(int patientId, ClinicScope scope);
+    Task<LabSummaryDto> GetSummaryAsync(int patientId, ClinicScope scope);
+    Task<LabOrder?> GetOrderAsync(int orderId, int patientId, ClinicScope scope);
+    Task<int> CountOrdersAsync(int patientId, ClinicScope scope);
     Task<LabOrderDto> AddOrderAsync(LabOrder order);
     Task<LabOrderDto> SaveOrderAsync(LabOrder order);
     Task DeleteOrderAsync(LabOrder order);
@@ -206,10 +206,10 @@ public interface ILabOrderRepository
 
 public interface IWaitlistRepository
 {
-    Task<PagedResult<WaitlistEntryDto>> GetPagedAsync(string doctorId, QueryParams q);
-    Task<(WaitlistAddOutcome Outcome, WaitlistEntryDto? Entry)> AddAsync(int patientId, string doctorId);
-    /// <summary>Null when the entry is not a Waiting entry of the doctor (otherwise the removed entry's patient id).</summary>
-    Task<int?> RemoveAsync(int entryId, string doctorId);
+    Task<PagedResult<WaitlistEntryDto>> GetPagedAsync(ClinicScope scope, QueryParams q);
+    Task<(WaitlistAddOutcome Outcome, WaitlistEntryDto? Entry)> AddAsync(int patientId, ClinicScope scope);
+    /// <summary>Null when the entry is not a Waiting entry of the clinic (otherwise the removed entry's patient id).</summary>
+    Task<int?> RemoveAsync(int entryId, ClinicScope scope);
     Task<PortalWaitlistDto> GetForPatientAsync(int patientId);
     Task<(WaitlistAddOutcome Outcome, WaitlistEntryDto? Entry)> JoinAsync(Patient patient);
     Task<bool> LeaveAsync(int patientId);

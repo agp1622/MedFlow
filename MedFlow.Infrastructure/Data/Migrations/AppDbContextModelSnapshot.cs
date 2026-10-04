@@ -30,6 +30,9 @@ namespace MedFlow.Infrastructure.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -70,6 +73,8 @@ namespace MedFlow.Infrastructure.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ClinicId");
 
                     b.HasIndex("PatientId");
 
@@ -166,6 +171,9 @@ namespace MedFlow.Infrastructure.Data.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("int");
+
                     b.Property<string>("DoctorId")
                         .IsRequired()
                         .HasMaxLength(450)
@@ -187,9 +195,85 @@ namespace MedFlow.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ClinicId");
+
                     b.HasIndex("PatientId", "OccurredAt");
 
                     b.ToTable("AuditEvents");
+                });
+
+            modelBuilder.Entity("MedFlow.Core.Entities.Clinic", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("Stamp")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Clinics");
+                });
+
+            modelBuilder.Entity("MedFlow.Core.Entities.ClinicMember", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.HasIndex("ClinicId", "Role", "IsActive");
+
+                    b.ToTable("ClinicMembers");
                 });
 
             modelBuilder.Entity("MedFlow.Core.Entities.Doctor", b =>
@@ -383,6 +467,9 @@ namespace MedFlow.Infrastructure.Data.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("int");
+
                     b.Property<bool>("ConsentAgreed")
                         .HasColumnType("bit");
 
@@ -491,6 +578,8 @@ namespace MedFlow.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ClinicId");
+
                     b.HasIndex("IntakeLinkId")
                         .IsUnique();
 
@@ -512,6 +601,9 @@ namespace MedFlow.Infrastructure.Data.Migrations
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<int?>("AppointmentId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ClinicId")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
@@ -562,6 +654,8 @@ namespace MedFlow.Infrastructure.Data.Migrations
 
                     b.HasIndex("AppointmentId");
 
+                    b.HasIndex("ClinicId");
+
                     b.HasIndex("InvoiceNumber")
                         .IsUnique();
 
@@ -579,6 +673,9 @@ namespace MedFlow.Infrastructure.Data.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -615,6 +712,8 @@ namespace MedFlow.Infrastructure.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ClinicId");
 
                     b.HasIndex("PatientId", "DoctorId");
 
@@ -677,6 +776,9 @@ namespace MedFlow.Infrastructure.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Content")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -686,6 +788,7 @@ namespace MedFlow.Infrastructure.Data.Migrations
 
                     b.Property<string>("DoctorId")
                         .IsRequired()
+                        .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
 
                     b.Property<bool>("IsDeleted")
@@ -710,7 +813,7 @@ namespace MedFlow.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DoctorId");
+                    b.HasIndex("ClinicId");
 
                     b.HasIndex("PatientId", "DoctorId");
 
@@ -776,6 +879,9 @@ namespace MedFlow.Infrastructure.Data.Migrations
 
                     b.Property<string>("City")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -863,6 +969,8 @@ namespace MedFlow.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ClinicId");
+
                     b.HasIndex("Email");
 
                     b.HasIndex("PortalUserId")
@@ -881,6 +989,9 @@ namespace MedFlow.Infrastructure.Data.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -914,6 +1025,8 @@ namespace MedFlow.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ClinicId");
+
                     b.HasIndex("PatientId", "DoctorId");
 
                     b.ToTable("PatientAllergies");
@@ -930,6 +1043,9 @@ namespace MedFlow.Infrastructure.Data.Migrations
                     b.Property<string>("Category")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("int");
 
                     b.Property<string>("ContentType")
                         .IsRequired()
@@ -975,6 +1091,8 @@ namespace MedFlow.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ClinicId");
+
                     b.HasIndex("PatientId", "DoctorId");
 
                     b.ToTable("PatientAttachments");
@@ -987,6 +1105,9 @@ namespace MedFlow.Infrastructure.Data.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -1023,6 +1144,8 @@ namespace MedFlow.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ClinicId");
+
                     b.HasIndex("PatientId", "DoctorId");
 
                     b.ToTable("PatientMedications");
@@ -1035,6 +1158,9 @@ namespace MedFlow.Infrastructure.Data.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -1071,6 +1197,8 @@ namespace MedFlow.Infrastructure.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ClinicId");
 
                     b.HasIndex("PatientId", "DoctorId");
 
@@ -1173,6 +1301,9 @@ namespace MedFlow.Infrastructure.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -1218,6 +1349,8 @@ namespace MedFlow.Infrastructure.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ClinicId");
 
                     b.HasIndex("DoctorId");
 
@@ -1273,6 +1406,61 @@ namespace MedFlow.Infrastructure.Data.Migrations
                     b.ToTable("ReminderDeliveries");
                 });
 
+            modelBuilder.Entity("MedFlow.Core.Entities.StaffInvitation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InvitedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash");
+
+                    b.HasIndex("ClinicId", "Email");
+
+                    b.ToTable("StaffInvitations");
+                });
+
             modelBuilder.Entity("MedFlow.Core.Entities.VitalSign", b =>
                 {
                     b.Property<int>("Id")
@@ -1287,6 +1475,9 @@ namespace MedFlow.Infrastructure.Data.Migrations
                     b.Property<decimal?>("Bmi")
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -1326,6 +1517,8 @@ namespace MedFlow.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ClinicId");
+
                     b.HasIndex("PatientId", "RecordedAt");
 
                     b.ToTable("VitalSigns");
@@ -1338,6 +1531,9 @@ namespace MedFlow.Infrastructure.Data.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("ClosedAt")
                         .HasColumnType("datetime2");
@@ -1365,6 +1561,8 @@ namespace MedFlow.Infrastructure.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ClinicId");
 
                     b.HasIndex("PatientId", "Status");
 
@@ -1632,6 +1830,12 @@ namespace MedFlow.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("MedFlow.Core.Entities.Appointment", b =>
                 {
+                    b.HasOne("MedFlow.Core.Entities.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MedFlow.Core.Entities.Doctor", "Doctor")
                         .WithMany("Appointments")
                         .HasForeignKey("DoctorId")
@@ -1650,11 +1854,44 @@ namespace MedFlow.Infrastructure.Data.Migrations
                     b.Navigation("Patient");
                 });
 
+            modelBuilder.Entity("MedFlow.Core.Entities.AuditEvent", b =>
+                {
+                    b.HasOne("MedFlow.Core.Entities.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MedFlow.Core.Entities.ClinicMember", b =>
+                {
+                    b.HasOne("MedFlow.Core.Entities.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MedFlow.Core.Entities.IntakeSubmission", b =>
+                {
+                    b.HasOne("MedFlow.Core.Entities.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("MedFlow.Core.Entities.Invoice", b =>
                 {
                     b.HasOne("MedFlow.Core.Entities.Appointment", "Appointment")
                         .WithMany()
                         .HasForeignKey("AppointmentId");
+
+                    b.HasOne("MedFlow.Core.Entities.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("MedFlow.Core.Entities.Doctor", "Doctor")
                         .WithMany()
@@ -1678,6 +1915,12 @@ namespace MedFlow.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("MedFlow.Core.Entities.LabOrder", b =>
                 {
+                    b.HasOne("MedFlow.Core.Entities.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MedFlow.Core.Entities.Patient", "Patient")
                         .WithMany()
                         .HasForeignKey("PatientId")
@@ -1698,10 +1941,9 @@ namespace MedFlow.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("MedFlow.Core.Entities.MedicalNote", b =>
                 {
-                    b.HasOne("MedFlow.Core.Entities.Doctor", "Doctor")
+                    b.HasOne("MedFlow.Core.Entities.Clinic", null)
                         .WithMany()
-                        .HasForeignKey("DoctorId")
-                        .HasPrincipalKey("UserId")
+                        .HasForeignKey("ClinicId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -1711,13 +1953,17 @@ namespace MedFlow.Infrastructure.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Doctor");
-
                     b.Navigation("Patient");
                 });
 
             modelBuilder.Entity("MedFlow.Core.Entities.Patient", b =>
                 {
+                    b.HasOne("MedFlow.Core.Entities.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MedFlow.Core.Entities.Doctor", "Doctor")
                         .WithMany("Patients")
                         .HasForeignKey("DoctorId")
@@ -1730,6 +1976,12 @@ namespace MedFlow.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("MedFlow.Core.Entities.PatientAllergy", b =>
                 {
+                    b.HasOne("MedFlow.Core.Entities.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MedFlow.Core.Entities.Patient", "Patient")
                         .WithMany()
                         .HasForeignKey("PatientId")
@@ -1741,6 +1993,12 @@ namespace MedFlow.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("MedFlow.Core.Entities.PatientAttachment", b =>
                 {
+                    b.HasOne("MedFlow.Core.Entities.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MedFlow.Core.Entities.Patient", "Patient")
                         .WithMany("Attachments")
                         .HasForeignKey("PatientId")
@@ -1752,6 +2010,12 @@ namespace MedFlow.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("MedFlow.Core.Entities.PatientMedication", b =>
                 {
+                    b.HasOne("MedFlow.Core.Entities.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MedFlow.Core.Entities.Patient", "Patient")
                         .WithMany()
                         .HasForeignKey("PatientId")
@@ -1763,6 +2027,12 @@ namespace MedFlow.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("MedFlow.Core.Entities.PatientProblem", b =>
                 {
+                    b.HasOne("MedFlow.Core.Entities.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MedFlow.Core.Entities.Patient", "Patient")
                         .WithMany()
                         .HasForeignKey("PatientId")
@@ -1774,6 +2044,12 @@ namespace MedFlow.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("MedFlow.Core.Entities.Prescription", b =>
                 {
+                    b.HasOne("MedFlow.Core.Entities.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MedFlow.Core.Entities.Doctor", "Doctor")
                         .WithMany()
                         .HasForeignKey("DoctorId")
@@ -1792,8 +2068,23 @@ namespace MedFlow.Infrastructure.Data.Migrations
                     b.Navigation("Patient");
                 });
 
+            modelBuilder.Entity("MedFlow.Core.Entities.StaffInvitation", b =>
+                {
+                    b.HasOne("MedFlow.Core.Entities.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("MedFlow.Core.Entities.VitalSign", b =>
                 {
+                    b.HasOne("MedFlow.Core.Entities.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MedFlow.Core.Entities.Patient", "Patient")
                         .WithMany("VitalSigns")
                         .HasForeignKey("PatientId")
@@ -1801,6 +2092,15 @@ namespace MedFlow.Infrastructure.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Patient");
+                });
+
+            modelBuilder.Entity("MedFlow.Core.Entities.WaitlistEntry", b =>
+                {
+                    b.HasOne("MedFlow.Core.Entities.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>

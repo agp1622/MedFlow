@@ -1,30 +1,46 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { ParseKeys } from 'i18next'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
+import { useClinic } from '@/hooks/queries'
+import { can, type Permission } from '@/utils/permissions'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 import {
-  LayoutDashboard, Users, CalendarDays, Pill, CreditCard, LogOut, Plus, Menu, X, ClipboardList, Clock, FileText, BarChart3, ListOrdered
+  LayoutDashboard, Users, CalendarDays, Pill, CreditCard, LogOut, Plus, Menu, X, ClipboardList, Clock, FileText, BarChart3, ListOrdered, UserCog
 } from 'lucide-react'
 
-const NAV = [
-  { to: '/',              icon: LayoutDashboard, label: 'nav.dashboard' },
-  { to: '/patients',      icon: Users,           label: 'nav.patients' },
-  { to: '/intake',        icon: ClipboardList,   label: 'nav.intake' },
-  { to: '/appointments',  icon: CalendarDays,    label: 'nav.appointments' },
-  { to: '/availability',  icon: Clock,           label: 'nav.availability' },
-  { to: '/waitlist',      icon: ListOrdered,     label: 'nav.waitlist' },
-  { to: '/prescriptions', icon: Pill,            label: 'nav.prescriptions' },
-  { to: '/billing',       icon: CreditCard,      label: 'nav.billing' },
-  { to: '/templates',     icon: FileText,        label: 'nav.templates' },
-  { to: '/reports',       icon: BarChart3,       label: 'nav.reports' },
-] as const
+// Each entry is shown only to roles holding its permission (same matrix the API enforces)
+const NAV: { to: string; icon: typeof Users; label: ParseKeys; permission: Permission }[] = [
+  { to: '/',              icon: LayoutDashboard, label: 'nav.dashboard',     permission: 'DashboardRead' },
+  { to: '/patients',      icon: Users,           label: 'nav.patients',      permission: 'PatientsRead' },
+  { to: '/intake',        icon: ClipboardList,   label: 'nav.intake',        permission: 'IntakeReview' },
+  { to: '/appointments',  icon: CalendarDays,    label: 'nav.appointments',  permission: 'AppointmentsRead' },
+  { to: '/availability',  icon: Clock,           label: 'nav.availability',  permission: 'AvailabilityManage' },
+  { to: '/waitlist',      icon: ListOrdered,     label: 'nav.waitlist',      permission: 'WaitlistManage' },
+  { to: '/prescriptions', icon: Pill,            label: 'nav.prescriptions', permission: 'PrescriptionsRead' },
+  { to: '/billing',       icon: CreditCard,      label: 'nav.billing',       permission: 'InvoicesRead' },
+  { to: '/templates',     icon: FileText,        label: 'nav.templates',     permission: 'NoteTemplates' },
+  { to: '/reports',       icon: BarChart3,       label: 'nav.reports',       permission: 'ReportsRead' },
+  { to: '/staff',         icon: UserCog,         label: 'nav.staff',         permission: 'StaffManage' },
+]
 
 export function AppLayout() {
   const { t } = useTranslation()
-  const { user, logout } = useAuthStore()
+  const { user, logout, updateUser } = useAuthStore()
   const navigate = useNavigate()
+  // The role is re-read from the API: it can change (or be withdrawn) while a token is still valid
+  const { data: clinic, error: clinicError } = useClinic()
+  useEffect(() => {
+    if (clinic && (clinic.role !== user?.role || clinic.name !== user?.clinicName))
+      updateUser({ role: clinic.role, clinicName: clinic.name, clinicId: clinic.id })
+  }, [clinic, user?.role, user?.clinicName, updateUser])
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here
+    if ((clinicError as any)?.response?.status === 403) { logout(); navigate('/login') }
+  }, [clinicError, logout, navigate])
+  const role = user?.role
 
   const location = useLocation()
   const [navOpen, setNavOpen] = useState(false)
@@ -67,7 +83,7 @@ export function AppLayout() {
 
         {/* Nav */}
         <nav className="flex-1 px-3 pt-4 space-y-0.5">
-          {NAV.map(({ to, icon: Icon, label }) => (
+          {NAV.filter(n => can(role, n.permission)).map(({ to, icon: Icon, label }) => (
             <NavLink key={to} to={to} end={to === '/'}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-3 lg:py-2.5 rounded-lg text-sm font-medium transition-all ${
@@ -89,8 +105,10 @@ export function AppLayout() {
               {user?.firstName?.[0]}{user?.lastName?.[0]}
             </div>
             <div className="min-w-0">
-              <p className="text-[#C8D8E8] text-xs font-semibold truncate">{t('layout.doctorPrefix')} {user?.firstName} {user?.lastName}</p>
-              <p className="text-[#4A6280] text-xs truncate">{user?.specialty}</p>
+              <p className="text-[#C8D8E8] text-xs font-semibold truncate">
+                {(role === 'Owner' || role === 'Doctor') && `${t('layout.doctorPrefix')} `}{user?.firstName} {user?.lastName}
+              </p>
+              <p className="text-[#4A6280] text-xs truncate">{role ? t(`roles.${role}`) : ''}{user?.clinicName ? ` · ${user.clinicName}` : ''}</p>
             </div>
           </div>
           <div className="flex items-center justify-between">

@@ -80,7 +80,8 @@ function canPreview(contentType: string) {
 }
 
 // ── Main Tab ──────────────────────────────────────────────────────────────────
-export function AttachmentsTab({ patientId }: { patientId: number }) {
+/** `readOnly` hides upload, sharing and delete (roles without AttachmentsWrite, e.g. Nurse). */
+export function AttachmentsTab({ patientId, readOnly = false }: { patientId: number; readOnly?: boolean }) {
   const { t } = useTranslation()
   const { data, isLoading } = usePatientAttachments(patientId)
   const uploadMutation = useUploadAttachment()
@@ -153,7 +154,7 @@ export function AttachmentsTab({ patientId }: { patientId: number }) {
   return (
     <div className="space-y-5">
       {/* Upload Area */}
-      <div
+      {!readOnly && <div
         className={`card border-2 border-dashed transition-all duration-200 cursor-pointer ${
           dragging
             ? 'border-primary-400 bg-primary-50/50 shadow-lg scale-[1.01]'
@@ -187,7 +188,7 @@ export function AttachmentsTab({ patientId }: { patientId: number }) {
           accept="image/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx"
           onChange={handleFileSelect}
         />
-      </div>
+      </div>}
 
       {/* Upload Dialog */}
       {showUpload && (
@@ -318,11 +319,11 @@ export function AttachmentsTab({ patientId }: { patientId: number }) {
                 )}
                 <div className="mt-2 flex items-center justify-between gap-2">
                   <p className="text-[10px] text-gray-300">{fmt.relative(file.createdAt)}</p>
-                  <ShareToggle
+                  {!readOnly && <ShareToggle
                     shared={!!file.sharedWithPatient}
                     disabled={sharingMutation.isPending}
                     onChange={shared => sharingMutation.mutate({ id: file.id, patientId, shared })}
-                  />
+                  />}
                 </div>
 
                 {/* Actions */}
@@ -337,10 +338,10 @@ export function AttachmentsTab({ patientId }: { patientId: number }) {
                     onClick={() => attachmentsApi.download(file.id, file.fileName)}>
                     <Download size={13} /> {t('attachments.download')}
                   </button>
-                  <button className="btn-ghost p-1.5 text-xs gap-1 ml-auto text-red-400 hover:text-red-600 hover:bg-red-50"
+                  {!readOnly && <button className="btn-ghost p-1.5 text-xs gap-1 ml-auto text-red-400 hover:text-red-600 hover:bg-red-50"
                     onClick={() => handleDelete(file.id)}>
                     <Trash2 size={13} />
-                  </button>
+                  </button>}
                 </div>
               </div>
             </div>

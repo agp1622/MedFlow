@@ -1,3 +1,4 @@
+using MedFlow.Api.Authorization;
 using MedFlow.Api.Extensions;
 using MedFlow.Api.Localization;
 using MedFlow.Core;
@@ -12,7 +13,7 @@ namespace MedFlow.Api.Controllers;
 /// <summary>The doctor's waitlist (staff act through the doctor's account). Always scoped to the caller.</summary>
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = Roles.Doctor)]
+[HasPermission(Permission.WaitlistManage)]
 public class WaitlistController : ControllerBase
 {
     private readonly IWaitlistRepository _waitlist;
@@ -26,12 +27,12 @@ public class WaitlistController : ControllerBase
 
     [HttpGet]
     public async Task<ActionResult<PagedResult<WaitlistEntryDto>>> GetAll([FromQuery] QueryParams q) =>
-        Ok(await _waitlist.GetPagedAsync(User.GetUserId(), q));
+        Ok(await _waitlist.GetPagedAsync(this.GetScope(), q));
 
     [HttpPost]
     public async Task<ActionResult<WaitlistEntryDto>> Add([FromBody] AddWaitlistEntryRequest req)
     {
-        var (outcome, entry) = await _waitlist.AddAsync(req.PatientId, User.GetUserId());
+        var (outcome, entry) = await _waitlist.AddAsync(req.PatientId, this.GetScope());
         switch (outcome)
         {
             case WaitlistAddOutcome.PatientNotFound:
@@ -48,7 +49,7 @@ public class WaitlistController : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Remove(int id)
     {
-        var patientId = await _waitlist.RemoveAsync(id, User.GetUserId());
+        var patientId = await _waitlist.RemoveAsync(id, this.GetScope());
         if (patientId == null) return NotFound();
         await this.AuditAsync(_audit, patientId.Value, AuditAction.Change, AuditItemKind.Waitlist, id);
         return NoContent();

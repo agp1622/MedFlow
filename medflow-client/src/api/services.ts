@@ -15,6 +15,7 @@ import type {
   SaveAllergyRequest, SaveProblemRequest, SaveMedicationRequest,
   LabSummaryDto, LabOrderDto, SaveLabOrderRequest, SaveLabResultRequest,
   AcceptInvitationRequest, InvitationResult,
+  ClinicDto, ClinicDoctorDto, StaffMemberDto, StaffInvitationDto, InviteStaffRequest, ClinicRole, AcceptStaffInvitationRequest,
   PortalProfileDto, PortalAppointmentDto, PortalPrescriptionDto, PortalInvoiceDto,
   PortalAttachmentDto, PortalNoteDto,
   IntakeFormInfo, IntakeSubmitRequest, IntakeSubmissionSummary, IntakeSubmissionDetail, IntakeStatus,
@@ -36,6 +37,24 @@ export const authApi = {
   forgotPassword: (data: ForgotPasswordRequest) => api.post<{ message: string }>('/auth/forgot-password', data).then(r => r.data),
   resetPassword:  (data: ResetPasswordRequest)  => api.post<{ message: string }>('/auth/reset-password', data).then(r => r.data),
   acceptInvitation: (data: AcceptInvitationRequest) => api.post<AuthResponse>('/auth/accept-invitation', data).then(r => r.data),
+  acceptStaffInvitation: (data: AcceptStaffInvitationRequest) => api.post<AuthResponse>('/auth/accept-staff-invitation', data).then(r => r.data),
+}
+
+// ── Clinic and staff ──────────────────────────────────────────────────────────
+export const clinicApi = {
+  get:     () => api.get<ClinicDto>('/clinic').then(r => r.data),
+  rename:  (name: string) => api.put<ClinicDto>('/clinic', { name }).then(r => r.data),
+  doctors: () => api.get<ClinicDoctorDto[]>('/clinic/doctors').then(r => r.data),
+}
+
+export const staffApi = {
+  list:        (q?: QueryParams) => api.get<PagedResult<StaffMemberDto>>('/staff', { params: q }).then(r => r.data),
+  invitations: (q?: QueryParams) => api.get<PagedResult<StaffInvitationDto>>('/staff/invitations', { params: q }).then(r => r.data),
+  invite:      (data: InviteStaffRequest) => api.post<InvitationResult>('/staff/invitations', data).then(r => r.data),
+  revokeInvitation: (id: number) => api.delete(`/staff/invitations/${id}`),
+  changeRole:  (id: number, role: ClinicRole) => api.put<StaffMemberDto>(`/staff/${id}/role`, { role }).then(r => r.data),
+  deactivate:  (id: number) => api.post<StaffMemberDto>(`/staff/${id}/deactivate`).then(r => r.data),
+  reactivate:  (id: number) => api.post<StaffMemberDto>(`/staff/${id}/reactivate`).then(r => r.data),
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────

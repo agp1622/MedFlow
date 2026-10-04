@@ -1,3 +1,4 @@
+using MedFlow.Api.Authorization;
 using MedFlow.Api.Extensions;
 using MedFlow.Core;
 using MedFlow.Core.DTOs;
@@ -11,7 +12,7 @@ namespace MedFlow.Api.Controllers;
 /// <summary>Structured allergies, problems (ICD-10) and current medications. Doctor-facing, owner-scoped.</summary>
 [ApiController]
 [Route("api/patients/{patientId:int}/clinical")]
-[Authorize(Roles = Roles.Doctor)]
+[HasPermission(Permission.ClinicRead)]
 public class PatientClinicalController : ControllerBase
 {
     private const int MaxPerList = 100;
@@ -19,40 +20,44 @@ public class PatientClinicalController : ControllerBase
 
     public PatientClinicalController(IPatientClinicalRepository clinical) => _clinical = clinical;
 
-    private string DoctorId => User.GetUserId();
+    private string DoctorId => User.GetUserId(); // the author recorded on new entries
+    private ClinicScope Scope => this.GetScope();
     private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
     [HttpGet]
+    [HasPermission(Permission.ClinicalListsRead)]
     public async Task<ActionResult<ClinicalSummaryDto>> GetSummary(int patientId)
     {
-        if (!await _clinical.OwnsPatientAsync(patientId, DoctorId)) return NotFound();
-        return Ok(await _clinical.GetSummaryAsync(patientId, DoctorId));
+        if (!await _clinical.OwnsPatientAsync(patientId, Scope)) return NotFound();
+        return Ok(await _clinical.GetSummaryAsync(patientId, Scope));
     }
 
     // ── Allergies ─────────────────────────────────────────────────────────────
     [HttpPost("allergies")]
+    [HasPermission(Permission.ClinicalListsWrite)]
     public async Task<ActionResult<AllergyDto>> AddAllergy(int patientId, [FromBody] SaveAllergyRequest req)
     {
-        if (!await _clinical.OwnsPatientAsync(patientId, DoctorId)) return NotFound();
-        if (await _clinical.CountAsync<PatientAllergy>(patientId, DoctorId) >= MaxPerList) return ListFull("allergies");
+        if (!await _clinical.OwnsPatientAsync(patientId, Scope)) return NotFound();
+        if (await _clinical.CountAsync<PatientAllergy>(patientId, Scope) >= MaxPerList) return ListFull("allergies");
         var substance = req.Substance.Trim();
-        if (await _clinical.AllergyExistsAsync(patientId, DoctorId, substance)) return Conflict("This allergy is already recorded.");
+        if (await _clinical.AllergyExistsAsync(patientId, Scope, substance)) return Conflict("This allergy is already recorded.");
 
         var created = await _clinical.AddAsync(new PatientAllergy
         {
-            PatientId = patientId, DoctorId = DoctorId, Substance = substance,
+            PatientId = patientId, DoctorId = DoctorId, ClinicId = Scope.ClinicId, Substance = substance,
             Reaction = Clean(req.Reaction), Severity = req.Severity!.Value
         });
         return Created(string.Empty, ToDto(created));
     }
 
     [HttpPut("allergies/{id:int}")]
+    [HasPermission(Permission.ClinicalListsWrite)]
     public async Task<ActionResult<AllergyDto>> UpdateAllergy(int patientId, int id, [FromBody] SaveAllergyRequest req)
     {
-        var entry = await _clinical.GetOwnedAsync<PatientAllergy>(id, patientId, DoctorId);
+        var entry = await _clinical.GetOwnedAsync<PatientAllergy>(id, patientId, Scope);
         if (entry == null) return NotFound();
         var substance = req.Substance.Trim();
-        if (await _clinical.AllergyExistsAsync(patientId, DoctorId, substance, id)) return Conflict("This allergy is already recorded.");
+        if (await _clinical.AllergyExistsAsync(patientId, Scope, substance, id)) return Conflict("This allergy is already recorded.");
 
         entry.Substance = substance;
         entry.Reaction = Clean(req.Reaction);
@@ -62,28 +67,31 @@ public class PatientClinicalController : ControllerBase
     }
 
     [HttpDelete("allergies/{id:int}")]
+    [HasPermission(Permission.ClinicalListsWrite)]
     public Task<IActionResult> DeleteAllergy(int patientId, int id) => DeleteAsync<PatientAllergy>(patientId, id);
 
     // ── Problems ──────────────────────────────────────────────────────────────
     [HttpPost("problems")]
+    [HasPermission(Permission.ClinicalListsWrite)]
     public async Task<ActionResult<ProblemDto>> AddProblem(int patientId, [FromBody] SaveProblemRequest req)
     {
-        if (!await _clinical.OwnsPatientAsync(patientId, DoctorId)) return NotFound();
+        if (!await _clinical.OwnsPatientAsync(patientId, Scope)) return NotFound();
         if (OnsetInFuture(req.OnsetDate)) return OnsetError();
-        if (await _clinical.CountAsync<PatientProblem>(patientId, DoctorId) >= MaxPerList) return ListFull("problems");
+        if (await _clinical.CountAsync<PatientProblem>(patientId, Scope) >= MaxPerList) return ListFull("problems");
 
         var created = await _clinical.AddAsync(new PatientProblem
         {
-            PatientId = patientId, DoctorId = DoctorId, Description = req.Description.Trim(),
+            PatientId = patientId, DoctorId = DoctorId, ClinicId = Scope.ClinicId, Description = req.Description.Trim(),
             Icd10Code = req.Icd10Code.Trim().ToUpperInvariant(), Status = req.Status!.Value, OnsetDate = req.OnsetDate
         });
         return Created(string.Empty, ToDto(created));
     }
 
     [HttpPut("problems/{id:int}")]
+    [HasPermission(Permission.ClinicalListsWrite)]
     public async Task<ActionResult<ProblemDto>> UpdateProblem(int patientId, int id, [FromBody] SaveProblemRequest req)
     {
-        var entry = await _clinical.GetOwnedAsync<PatientProblem>(id, patientId, DoctorId);
+        var entry = await _clinical.GetOwnedAsync<PatientProblem>(id, patientId, Scope);
         if (entry == null) return NotFound();
         if (OnsetInFuture(req.OnsetDate)) return OnsetError();
 
@@ -96,27 +104,30 @@ public class PatientClinicalController : ControllerBase
     }
 
     [HttpDelete("problems/{id:int}")]
+    [HasPermission(Permission.ClinicalListsWrite)]
     public Task<IActionResult> DeleteProblem(int patientId, int id) => DeleteAsync<PatientProblem>(patientId, id);
 
     // ── Medications ───────────────────────────────────────────────────────────
     [HttpPost("medications")]
+    [HasPermission(Permission.ClinicalListsWrite)]
     public async Task<ActionResult<MedicationDto>> AddMedication(int patientId, [FromBody] SaveMedicationRequest req)
     {
-        if (!await _clinical.OwnsPatientAsync(patientId, DoctorId)) return NotFound();
-        if (await _clinical.CountAsync<PatientMedication>(patientId, DoctorId) >= MaxPerList) return ListFull("medications");
+        if (!await _clinical.OwnsPatientAsync(patientId, Scope)) return NotFound();
+        if (await _clinical.CountAsync<PatientMedication>(patientId, Scope) >= MaxPerList) return ListFull("medications");
 
         var created = await _clinical.AddAsync(new PatientMedication
         {
-            PatientId = patientId, DoctorId = DoctorId, Name = req.Name.Trim(),
+            PatientId = patientId, DoctorId = DoctorId, ClinicId = Scope.ClinicId, Name = req.Name.Trim(),
             Dosage = Clean(req.Dosage), Frequency = Clean(req.Frequency), Notes = Clean(req.Notes)
         });
         return Created(string.Empty, ToDto(created));
     }
 
     [HttpPut("medications/{id:int}")]
+    [HasPermission(Permission.ClinicalListsWrite)]
     public async Task<ActionResult<MedicationDto>> UpdateMedication(int patientId, int id, [FromBody] SaveMedicationRequest req)
     {
-        var entry = await _clinical.GetOwnedAsync<PatientMedication>(id, patientId, DoctorId);
+        var entry = await _clinical.GetOwnedAsync<PatientMedication>(id, patientId, Scope);
         if (entry == null) return NotFound();
 
         entry.Name = req.Name.Trim();
@@ -128,12 +139,13 @@ public class PatientClinicalController : ControllerBase
     }
 
     [HttpDelete("medications/{id:int}")]
+    [HasPermission(Permission.ClinicalListsWrite)]
     public Task<IActionResult> DeleteMedication(int patientId, int id) => DeleteAsync<PatientMedication>(patientId, id);
 
     // ── Helpers ───────────────────────────────────────────────────────────────
     private async Task<IActionResult> DeleteAsync<T>(int patientId, int id) where T : ClinicalEntry
     {
-        var entry = await _clinical.GetOwnedAsync<T>(id, patientId, DoctorId);
+        var entry = await _clinical.GetOwnedAsync<T>(id, patientId, Scope);
         if (entry == null) return NotFound();
         await _clinical.DeleteAsync(entry);
         return NoContent();

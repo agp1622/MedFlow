@@ -32,13 +32,13 @@ public class WaitlistRepository : IWaitlistRepository
         return (WaitlistAddOutcome.Added, new WaitlistEntryDto(entry.Id, patient.Id, patient.FullName, entry.CreatedAt));
     }
 
-    public async Task<PagedResult<WaitlistEntryDto>> GetPagedAsync(string doctorId, QueryParams q)
+    public async Task<PagedResult<WaitlistEntryDto>> GetPagedAsync(ClinicScope scope, QueryParams q)
     {
         var page = Math.Max(1, q.Page);
         var size = Math.Clamp(q.PageSize, 1, 100);
         var query = from w in _db.WaitlistEntries
                     join p in _db.Patients on w.PatientId equals p.Id
-                    where w.DoctorId == doctorId && w.Status == WaitlistStatus.Waiting && p.DoctorId == doctorId
+                    where w.ClinicId == scope.ClinicId && w.Status == WaitlistStatus.Waiting && p.ClinicId == scope.ClinicId
                     select new { w.Id, w.PatientId, p.FirstName, p.LastName, w.CreatedAt };
         var total = await query.CountAsync();
         var rows = await query.OrderBy(x => x.CreatedAt).ThenBy(x => x.Id)
@@ -48,19 +48,19 @@ public class WaitlistRepository : IWaitlistRepository
             total, page, size);
     }
 
-    public async Task<(WaitlistAddOutcome Outcome, WaitlistEntryDto? Entry)> AddAsync(int patientId, string doctorId)
+    public async Task<(WaitlistAddOutcome Outcome, WaitlistEntryDto? Entry)> AddAsync(int patientId, ClinicScope scope)
     {
-        var patient = await _db.Patients.FirstOrDefaultAsync(p => p.Id == patientId && p.DoctorId == doctorId);
+        var patient = await _db.Patients.FirstOrDefaultAsync(p => p.Id == patientId && p.ClinicId == scope.ClinicId);
         if (patient == null) return (WaitlistAddOutcome.PatientNotFound, null);
         return await CreateAsync(patient);
     }
 
     public Task<(WaitlistAddOutcome Outcome, WaitlistEntryDto? Entry)> JoinAsync(Patient patient) => CreateAsync(patient);
 
-    public async Task<int?> RemoveAsync(int entryId, string doctorId)
+    public async Task<int?> RemoveAsync(int entryId, ClinicScope scope)
     {
         var entry = await _db.WaitlistEntries.FirstOrDefaultAsync(w =>
-            w.Id == entryId && w.DoctorId == doctorId && w.Status == WaitlistStatus.Waiting);
+            w.Id == entryId && w.ClinicId == scope.ClinicId && w.Status == WaitlistStatus.Waiting);
         if (entry == null) return null;
         Close(entry, WaitlistStatus.Removed);
         await _db.SaveChangesAsync();
@@ -138,9 +138,9 @@ public class WaitlistRepository : IWaitlistRepository
 
         if (!string.IsNullOrEmpty(patient.PortalUserId))
         {
-            await _audit.RecordAsync(patient.PortalUserId, Roles.Patient, patient.Id, AuditAction.Change,
+            await _audit.RecordPortalAsync(patient.PortalUserId, patient.Id, AuditAction.Change,
                 AuditItemKind.Appointment, appt.Id);
-            await _audit.RecordAsync(patient.PortalUserId, Roles.Patient, patient.Id, AuditAction.Change,
+            await _audit.RecordPortalAsync(patient.PortalUserId, patient.Id, AuditAction.Change,
                 AuditItemKind.Waitlist, entry.Id);
         }
         return (WaitlistClaimOutcome.Claimed,
@@ -155,7 +155,7 @@ public class WaitlistRepository : IWaitlistRepository
         Close(entry, WaitlistStatus.Removed);
         await _db.SaveChangesAsync();
         if (!string.IsNullOrEmpty(patient.PortalUserId))
-            await _audit.RecordAsync(patient.PortalUserId, Roles.Patient, patient.Id, AuditAction.Change,
+            await _audit.RecordPortalAsync(patient.PortalUserId, patient.Id, AuditAction.Change,
                 AuditItemKind.Waitlist, entry.Id);
         return true;
     }

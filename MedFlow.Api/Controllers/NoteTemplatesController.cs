@@ -1,3 +1,4 @@
+using MedFlow.Api.Authorization;
 using MedFlow.Api.Localization;
 using MedFlow.Api.Extensions;
 using MedFlow.Core;
@@ -11,7 +12,7 @@ namespace MedFlow.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = Roles.Doctor)]
+[HasPermission(Permission.NoteTemplates)]
 public class NoteTemplatesController : ControllerBase
 {
     public const int MaxNameLength = 100;

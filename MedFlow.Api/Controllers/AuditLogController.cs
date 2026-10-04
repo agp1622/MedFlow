@@ -1,3 +1,4 @@
+using MedFlow.Api.Authorization;
 using MedFlow.Api.Localization;
 using MedFlow.Api.Extensions;
 using MedFlow.Core;
@@ -11,7 +12,7 @@ namespace MedFlow.Api.Controllers;
 
 [ApiController]
 [Route("api/patients/{patientId:int}/audit-log")]
-[Authorize(Roles = Roles.Doctor)]
+[HasPermission(Permission.AuditLogRead)]
 public class AuditLogController : ControllerBase
 {
     private const int MaxPageSize = 100;
@@ -28,10 +29,13 @@ public class AuditLogController : ControllerBase
         if (q.Actor is { Length: > 200 })
             return BadRequest(new { error = this.T("Audit.UserTooLong") });
 
-        // Reading the log is itself recorded; a missing or foreign patient looks the same as no patient
+        // Owners read any clinic patient's log, Doctors only their own patients'. Missing, foreign and not-permitted look the same.
+        var scope = this.GetScope();
+        if (!await _audit.CanReadLogAsync(scope, patientId)) return NotFound();
+        // Reading the log is itself recorded
         if (!await this.AuditAsync(_audit, patientId, AuditAction.View, AuditItemKind.AuditLog)) return NotFound();
 
-        var result = await _audit.GetLogAsync(patientId, User.GetUserId(), q);
+        var result = await _audit.GetLogAsync(scope, patientId, q);
         return result == null ? NotFound() : Ok(result);
     }
 }

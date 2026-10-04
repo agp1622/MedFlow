@@ -1,6 +1,7 @@
 using MedFlow.Core;
 using MedFlow.Core.Entities;
 using MedFlow.Core.Enums;
+using MedFlow.Core.Interfaces;
 using MedFlow.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
@@ -18,7 +19,7 @@ public static class DbSeeder
 
         // Roles must exist before anything else (also covers databases seeded before roles existed)
         var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
-        foreach (var role in new[] { Roles.Doctor, Roles.Patient })
+        foreach (var role in new[] { Roles.Patient })
             if (!await roleManager.RoleExistsAsync(role))
                 await roleManager.CreateAsync(new IdentityRole(role));
 
@@ -43,8 +44,6 @@ public static class DbSeeder
         var result = await userManager.CreateAsync(user, password);
         if (!result.Succeeded) return;
 
-        await userManager.AddToRoleAsync(user, Roles.Doctor);
-
         db.Doctors.Add(new Doctor
         {
             UserId = user.Id,
@@ -53,6 +52,9 @@ public static class DbSeeder
             Specialty = specialty
         });
         await db.SaveChangesAsync();
+
+        // Staff roles come from the clinic membership: the first doctor owns the clinic
+        await services.GetRequiredService<IClinicService>().ProvisionOwnerAsync(user.Id, $"{firstName} {lastName}");
 
         await SeedDemoPortalPatientAsync(userManager, db, user.Id, config);
     }

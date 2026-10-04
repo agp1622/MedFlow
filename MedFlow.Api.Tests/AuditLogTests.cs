@@ -51,7 +51,7 @@ public class AuditLogTests : IClassFixture<TestApiFactory>
         Assert.All(events, e =>
         {
             Assert.Equal(doctor.UserId, e.ActorUserId);
-            Assert.Equal("Doctor", e.ActorRole);
+            Assert.Equal("Owner", e.ActorRole); // the registered doctor owns their clinic
             Assert.Equal("Doc Tor", e.ActorName);
             Assert.True(e.OccurredAt >= before);
             Assert.DoesNotContain("SECRET", e.ChangedFields ?? "");

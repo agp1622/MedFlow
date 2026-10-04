@@ -1,3 +1,4 @@
+using MedFlow.Core;
 using MedFlow.Core.DTOs;
 using MedFlow.Core.Entities;
 using MedFlow.Core.Enums;
@@ -12,24 +13,24 @@ public class LabOrderRepository : ILabOrderRepository
     private readonly AppDbContext _db;
     public LabOrderRepository(AppDbContext db) { _db = db; }
 
-    public Task<bool> OwnsPatientAsync(int patientId, string doctorId) =>
-        _db.Patients.AnyAsync(p => p.Id == patientId && p.DoctorId == doctorId);
+    public Task<bool> OwnsPatientAsync(int patientId, ClinicScope scope) =>
+        _db.Patients.AnyAsync(p => p.Id == patientId && p.ClinicId == scope.ClinicId);
 
-    public async Task<LabSummaryDto> GetSummaryAsync(int patientId, string doctorId)
+    public async Task<LabSummaryDto> GetSummaryAsync(int patientId, ClinicScope scope)
     {
         var orders = await _db.LabOrders.AsNoTracking().Include(o => o.Results)
-            .Where(o => o.PatientId == patientId && o.DoctorId == doctorId)
+            .Where(o => o.PatientId == patientId && o.ClinicId == scope.ClinicId)
             .OrderByDescending(o => o.OrderedDate).ThenByDescending(o => o.Id).ToListAsync();
         var dtos = orders.Select(ToDto).ToList();
         return new LabSummaryDto(dtos, dtos.Sum(o => o.AbnormalCount));
     }
 
-    public Task<LabOrder?> GetOrderAsync(int orderId, int patientId, string doctorId) =>
+    public Task<LabOrder?> GetOrderAsync(int orderId, int patientId, ClinicScope scope) =>
         _db.LabOrders.Include(o => o.Results)
-            .FirstOrDefaultAsync(o => o.Id == orderId && o.PatientId == patientId && o.DoctorId == doctorId);
+            .FirstOrDefaultAsync(o => o.Id == orderId && o.PatientId == patientId && o.ClinicId == scope.ClinicId);
 
-    public Task<int> CountOrdersAsync(int patientId, string doctorId) =>
-        _db.LabOrders.CountAsync(o => o.PatientId == patientId && o.DoctorId == doctorId);
+    public Task<int> CountOrdersAsync(int patientId, ClinicScope scope) =>
+        _db.LabOrders.CountAsync(o => o.PatientId == patientId && o.ClinicId == scope.ClinicId);
 
     public async Task<LabOrderDto> AddOrderAsync(LabOrder order)
     {

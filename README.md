@@ -125,15 +125,15 @@ All endpoints require `Authorization: Bearer <token>` except `/api/auth/*`.
 
 ### Roles and the patient portal
 
-Accounts have one of two roles, carried as a role claim in the JWT:
+Accounts are either **staff** of a clinic (Owner, Doctor, Nurse or Receptionist, see "Clinics and staff roles" below) or **Patient** portal users:
 
-- **Doctor**: everything above. All endpoints except `/api/auth/*` and `/api/portal/*` require this role.
-- **Patient**: read-only access to their own records through `/api/portal/*` only. The patient is always taken from the token, never from a request parameter.
+- **Staff**: all endpoints except `/api/auth/*` and `/api/portal/*`, limited by the clinic permission matrix.
+- **Patient**: read-only access to their own records through `/api/portal/*` only. The patient is always taken from the token, never from a request parameter. A patient token never satisfies a staff permission.
 
 | Method | Route | Role | Description |
 |--------|-------|------|-------------|
-| POST | `/api/patients/{id}/portal-invitation` | Doctor | Email a portal invitation (7-day, single-use link) |
-| DELETE | `/api/patients/{id}/portal-access` | Doctor | Revoke portal access / cancel invitation |
+| POST | `/api/patients/{id}/portal-invitation` | Owner, Doctor, Receptionist | Email a portal invitation (7-day, single-use link) |
+| DELETE | `/api/patients/{id}/portal-access` | Owner, Doctor, Receptionist | Revoke portal access / cancel invitation |
 | PUT | `/api/attachments/{id}/sharing` | Doctor | Share or unshare an attachment with the patient |
 | PUT | `/api/medicalnotes/{id}/sharing` | Doctor | Share or unshare a note with the patient |
 | POST | `/api/auth/accept-invitation` | Anonymous | Patient sets a password and signs in |
@@ -144,6 +144,46 @@ Attachments and notes are **not shared by default**. Patients cannot use Google 
 In Development, a fresh database is seeded with a demo patient (`patient.demo@medflow.local`,
 password from `SeedUser:PatientPassword`, default `MedFlowPatient2026!`) that has an appointment,
 a prescription and an invoice. The seeder only runs when there are no users yet.
+
+### Clinics and staff roles
+
+Every record belongs to a **clinic**. A doctor who registers (email or Google) becomes the **Owner** of a new clinic; the
+database migration `AddClinicsAndRoles` gave every existing doctor their own clinic (as Owner) and stamped every existing
+record with it. A user belongs to one clinic. The role is read from the database on every request (the token's role claim is
+for display only), so deactivating a member or changing a role applies immediately, and a user with no active membership
+gets 403 everywhere. A record of another clinic answers exactly like a missing record (404).
+
+Permissions live in one place, `MedFlow.Core.PermissionMatrix`, and are enforced by `[HasPermission(...)]` on every staff
+action (a test fails if one is missing). Full matrix: `specs/045-clinic-roles/contracts/permission-matrix.md`.
+
+| Area | Owner | Doctor | Nurse | Receptionist |
+|------|:-----:|:------:|:-----:|:------------:|
+| Patients: demographics and insurance (read / edit) | yes | yes | read | yes |
+| Patient clinical fields (condition, allergies, notes, blood type) | yes | yes | read | no |
+| Delete patient | yes | yes | no | no |
+| Appointments and waitlist | yes | yes | read | yes |
+| Intake links / portal invitations | yes | yes | no | yes |
+| Intake review, availability | yes | yes | no | no |
+| Prescriptions | yes | yes | read | no |
+| Invoices and payments | yes | yes | no | yes |
+| Vitals, notes (create) | yes | yes | yes | no |
+| Notes: share / delete; attachments, labs, allergies/problems/medications (write) | yes | yes | read only | no |
+| Audit log of a patient | any patient | own patients | no | no |
+| Reports | clinic-wide | own data | no | no |
+| Staff, invitations, roles, clinic name | yes | no | no | no |
+
+Staff invitation: an Owner invites by email (`POST /api/staff/invitations`, roles Doctor, Nurse or Receptionist); the emailed
+link carries a random single-use token (stored only as a SHA-256 hash, 7 days, rate limited acceptance at
+`POST /api/auth/accept-staff-invitation`). Every failure answers the same generic error, and inviting an address that
+already has an account looks exactly like success (nothing is sent), so account existence is not revealed. The last active
+Owner can never be demoted or deactivated.
+
+Verification status: the migration's SQL was reviewed and structurally tested (it cannot run on the in-memory test provider); run it against a copy of a real database before deploying (see `specs/045-clinic-roles/quickstart.md`). The client was verified by build and lint only.
+
+Behaviour notes: lists, dashboard and the schedule are clinic-wide; a self-registered doctor now shows role `Owner`; Receptionists
+get patient primary condition, allergies, notes and blood type withheld (and preserved when they edit); staff-created patients,
+appointments and invoices are linked to a clinic doctor (optional `doctorId`, default the caller if a clinician, else the clinic
+Owner); notes can be authored by nurses (no FK to `Doctors`).
 
 ### Appointment reminders
 

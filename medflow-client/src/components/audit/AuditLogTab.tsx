@@ -23,7 +23,7 @@ export function AuditLogTab({ patientId }: { patientId: number }) {
     from: from || undefined,
     to: to || undefined,
   }
-  const { data, isLoading, isError } = useAuditLog(patientId, invalidRange ? { page: 1, pageSize: 1 } : query)
+  const { data, isLoading, isError, error } = useAuditLog(patientId, invalidRange ? { page: 1, pageSize: 1 } : query)
 
   const update = (fn: () => void) => { fn(); setPage(1) }
   const filtered = !!(action || actor.trim() || from || to)
@@ -57,7 +57,8 @@ export function AuditLogTab({ patientId }: { patientId: number }) {
       {invalidRange && <p className="text-sm text-red-600">{t('audit.invalidRange')}</p>}
 
       {!invalidRange && isLoading && <PageSpinner />}
-      {!invalidRange && isError && <p className="text-sm text-red-600">{t('audit.loadError')}</p>}
+      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here */}
+      {!invalidRange && isError && <p className="text-sm text-red-600">{(error as any)?.response?.status === 404 ? t('audit.notAvailable') : t('audit.loadError')}</p>}
       {!invalidRange && data && data.items.length === 0 && (
         <EmptyState title={filtered ? t('audit.noMatch') : t('audit.none')}
           description={filtered ? t('audit.widen') : t('audit.noneHint')} />

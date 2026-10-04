@@ -1,4 +1,5 @@
 using MedFlow.Core;
+using MedFlow.Api.Authorization;
 using MedFlow.Api.Extensions;
 using MedFlow.Api.Localization;
 using MedFlow.Core.DTOs;
@@ -12,64 +13,71 @@ namespace MedFlow.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = Roles.Doctor)]
+[HasPermission(Permission.ClinicRead)]
 public class PatientsController : ControllerBase
 {
     private readonly IPatientRepository _patients;
     private readonly IPortalInvitationRepository _invitations;
     private readonly IAuditService _audit;
+    private readonly IClinicService _clinics;
 
-    public PatientsController(IPatientRepository patients, IPortalInvitationRepository invitations, IAuditService audit)
+    public PatientsController(IPatientRepository patients, IPortalInvitationRepository invitations, IAuditService audit,
+        IClinicService clinics)
     {
         _patients = patients;
         _invitations = invitations;
         _audit = audit;
+        _clinics = clinics;
     }
 
     [HttpGet]
+    [HasPermission(Permission.PatientsRead)]
     public async Task<ActionResult<PagedResult<PatientSummaryDto>>> GetAll([FromQuery] QueryParams q)
-    {
-        var doctorId = User.GetUserId();
-        return Ok(await _patients.GetPagedAsync(doctorId, q));
-    }
+        => Ok(await _patients.GetPagedAsync(this.GetScope(), q));
 
     [HttpGet("{id:int}")]
+    [HasPermission(Permission.PatientsRead)]
     public async Task<ActionResult<PatientDto>> GetById(int id)
     {
-        var doctorId = User.GetUserId();
-        var patient = await _patients.GetWithDetailsAsync(id, doctorId);
+        var scope = this.GetScope();
+        var patient = await _patients.GetWithDetailsAsync(id, scope);
         if (patient == null) return NotFound();
         if (!await this.AuditAsync(_audit, id, AuditAction.View, AuditItemKind.Patient, id)) return NotFound();
 
         var lastVisit = await _patients.GetLastVisitAsync(id);
         var nextAppt = await _patients.GetNextAppointmentAsync(id);
 
-        return Ok(MapToDto(patient, lastVisit, nextAppt, await _invitations.GetPortalStatusAsync(patient)));
+        return Ok(MapToDto(patient, lastVisit, nextAppt, scope.Has(Permission.PatientClinicalFields), await _invitations.GetPortalStatusAsync(patient)));
     }
 
     [HttpPost]
+    [HasPermission(Permission.PatientsWrite)]
     public async Task<ActionResult<PatientDto>> Create([FromBody] CreatePatientRequest req)
     {
         var invalid = ValidateInsurance(req.InsuranceGroupNumber, req.InsurancePayerId, req.InsuranceSubscriberName,
             req.InsuranceSubscriberDateOfBirth, req.InsuranceSubscriberRelationship);
         if (invalid != null) return invalid;
-        var doctorId = User.GetUserId();
+        var scope = this.GetScope();
+        // A doctor of another clinic (or a non-doctor) looks exactly like a missing doctor
+        var doctorId = await _clinics.ResolveTreatingDoctorAsync(scope, req.DoctorId);
+        if (doctorId == null) return NotFound();
+        var clinical = scope.Has(Permission.PatientClinicalFields);
         var patient = new Patient
         {
             FirstName = req.FirstName,
             LastName = req.LastName,
             DateOfBirth = req.DateOfBirth,
             Gender = req.Gender,
-            BloodType = req.BloodType,
+            BloodType = clinical ? req.BloodType : BloodType.Unknown,
             Email = req.Email,
             Phone = req.Phone,
             Address = req.Address,
             City = req.City,
             State = req.State,
             ZipCode = req.ZipCode,
-            PrimaryCondition = req.PrimaryCondition,
-            Allergies = req.Allergies,
-            Notes = req.Notes,
+            PrimaryCondition = clinical ? req.PrimaryCondition : null,
+            Allergies = clinical ? req.Allergies : null,
+            Notes = clinical ? req.Notes : null,
             InsuranceProvider = req.InsuranceProvider,
             InsurancePolicyNumber = req.InsurancePolicyNumber,
             InsuranceGroupNumber = Clean(req.InsuranceGroupNumber),
@@ -77,23 +85,26 @@ public class PatientsController : ControllerBase
             InsuranceSubscriberName = Clean(req.InsuranceSubscriberName),
             InsuranceSubscriberDateOfBirth = req.InsuranceSubscriberDateOfBirth,
             InsuranceSubscriberRelationship = req.InsuranceSubscriberRelationship,
-            DoctorId = doctorId
+            DoctorId = doctorId,
+            ClinicId = scope.ClinicId
         };
 
         var created = await _patients.AddAsync(patient);
         // The patient does not exist before this point, so this one event is written right after creation
         await this.AuditAsync(_audit, created.Id, AuditAction.Change, AuditItemKind.Patient, created.Id);
-        return CreatedAtAction(nameof(GetById), new { id = created.Id }, MapToDto(created, null, null));
+        return CreatedAtAction(nameof(GetById), new { id = created.Id }, MapToDto(created, null, null, clinical));
     }
 
     [HttpPut("{id:int}")]
+    [HasPermission(Permission.PatientsWrite)]
     public async Task<ActionResult<PatientDto>> Update(int id, [FromBody] UpdatePatientRequest req)
     {
         var invalid = ValidateInsurance(req.InsuranceGroupNumber, req.InsurancePayerId, req.InsuranceSubscriberName,
             req.InsuranceSubscriberDateOfBirth, req.InsuranceSubscriberRelationship);
         if (invalid != null) return invalid;
-        var doctorId = User.GetUserId();
-        var patient = await _patients.GetWithDetailsAsync(id, doctorId);
+        var scope = this.GetScope();
+        var clinical = scope.Has(Permission.PatientClinicalFields);
+        var patient = await _patients.GetWithDetailsAsync(id, scope);
         if (patient == null) return NotFound();
 
         var before = AuditDiff.Snapshot(patient);
@@ -101,7 +112,14 @@ public class PatientsController : ControllerBase
         patient.LastName = req.LastName;
         patient.DateOfBirth = req.DateOfBirth;
         patient.Gender = req.Gender;
-        patient.BloodType = req.BloodType;
+        // Clinical fields are only touched by roles allowed to see them; others keep the stored values
+        if (clinical)
+        {
+            patient.BloodType = req.BloodType;
+            patient.PrimaryCondition = req.PrimaryCondition;
+            patient.Allergies = req.Allergies;
+            patient.Notes = req.Notes;
+        }
         patient.Status = req.Status;
         patient.Email = req.Email;
         patient.Phone = req.Phone;
@@ -109,9 +127,6 @@ public class PatientsController : ControllerBase
         patient.City = req.City;
         patient.State = req.State;
         patient.ZipCode = req.ZipCode;
-        patient.PrimaryCondition = req.PrimaryCondition;
-        patient.Allergies = req.Allergies;
-        patient.Notes = req.Notes;
         patient.InsuranceProvider = req.InsuranceProvider;
         patient.InsurancePolicyNumber = req.InsurancePolicyNumber;
         patient.InsuranceGroupNumber = Clean(req.InsuranceGroupNumber);
@@ -124,26 +139,27 @@ public class PatientsController : ControllerBase
         if (!await this.AuditAsync(_audit, id, AuditAction.Change, AuditItemKind.Patient, id, AuditDiff.Changed(before, patient)))
             return NotFound();
         await _patients.UpdateAsync(patient);
-        return Ok(MapToDto(patient, null, null, await _invitations.GetPortalStatusAsync(patient)));
+        return Ok(MapToDto(patient, null, null, clinical, await _invitations.GetPortalStatusAsync(patient)));
     }
 
     [HttpDelete("{id:int}")]
+    [HasPermission(Permission.PatientsDelete)]
     public async Task<IActionResult> Delete(int id)
     {
-        var doctorId = User.GetUserId();
-        var patient = await _patients.GetWithDetailsAsync(id, doctorId);
+        var patient = await _patients.GetWithDetailsAsync(id, this.GetScope());
         if (patient == null) return NotFound();
         if (!await this.AuditAsync(_audit, id, AuditAction.Change, AuditItemKind.Patient, id)) return NotFound();
         await _patients.DeleteAsync(id);
         return NoContent();
     }
 
-    private static PatientDto MapToDto(Patient p, DateTime? lastVisit, DateTime? nextAppt, string portalStatus = "NotInvited") => new(
+    /// <summary>Roles without clinical access get empty primary condition, allergies and notes and Unknown blood type.</summary>
+    private static PatientDto MapToDto(Patient p, DateTime? lastVisit, DateTime? nextAppt, bool clinical, string portalStatus = "NotInvited") => new(
         p.Id, p.FirstName, p.LastName, p.FullName,
-        p.DateOfBirth, p.Age, p.Gender.ToString(), p.BloodType.ToString(),
+        p.DateOfBirth, p.Age, p.Gender.ToString(), clinical ? p.BloodType.ToString() : nameof(BloodType.Unknown),
         p.Status.ToString(), p.Email, p.Phone,
         p.Address, p.City, p.State, p.ZipCode,
-        p.PrimaryCondition, p.Allergies, p.Notes,
+        clinical ? p.PrimaryCondition : null, clinical ? p.Allergies : null, clinical ? p.Notes : null,
         p.InsuranceProvider, p.InsurancePolicyNumber,
         lastVisit, nextAppt, p.CreatedAt, p.UpdatedAt, portalStatus,
         p.InsuranceGroupNumber, p.InsurancePayerId, p.InsuranceSubscriberName,

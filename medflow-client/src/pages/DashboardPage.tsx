@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useDashboard } from '@/hooks/queries'
 import { useAuthStore } from '@/store/authStore'
+import { can } from '@/utils/permissions'
 import { PageHeader } from '@/components/layout/AppLayout'
 import { StatCard, Avatar, Badge, PageSpinner } from '@/components/ui'
 import { fmt, displayEnum } from '@/utils/format'
@@ -10,6 +11,7 @@ export function DashboardPage() {
   const { t } = useTranslation()
   const { data, isLoading } = useDashboard()
   const user = useAuthStore(s => s.user)
+  const role = user?.role
   const navigate = useNavigate()
   const today = fmt.date(new Date().toISOString())
 
@@ -21,7 +23,7 @@ export function DashboardPage() {
         <div className="flex-1 overflow-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6">
           {/* Greeting */}
           <p className="text-gray-500 text-sm">
-            {t(`dashboard.greeting.${getTimeOfDay()}`)}, <span className="font-semibold text-gray-800">{t('layout.doctorPrefix')} {user?.lastName}</span>. {t('dashboard.overview')}
+            {t(`dashboard.greeting.${getTimeOfDay()}`)}, <span className="font-semibold text-gray-800">{(role === 'Owner' || role === 'Doctor') && `${t('layout.doctorPrefix')} `}{user?.lastName}</span>. {t('dashboard.overview')}
           </p>
 
           {/* Stats row */}
@@ -30,12 +32,16 @@ export function DashboardPage() {
               sub={t('dashboard.activeCount', { count: data?.activePatients ?? 0 })} />
             <StatCard icon="📅" label={t('dashboard.todayAppointments')} value={data?.todayAppointments ?? 0}
               sub={t('dashboard.upcomingCount', { count: data?.upcomingAppointments ?? 0 })} color="text-violet-600" />
-            <StatCard icon="💊" label={t('dashboard.activePrescriptions')} value={data?.activePrescriptions ?? 0}
-              sub={data?.expiringPrescriptions ? t('dashboard.expiringSoon', { count: data.expiringPrescriptions }) : undefined}
-              color="text-amber-600" />
-            <StatCard icon="💳" label={t('dashboard.pendingInvoices')} value={fmt.currency(data?.pendingInvoicesAmount)}
-              sub={data?.overdueInvoices ? t('dashboard.overdue', { count: data.overdueInvoices }) : undefined}
-              color="text-red-500" />
+            {can(role, 'PrescriptionsRead') && (
+              <StatCard icon="💊" label={t('dashboard.activePrescriptions')} value={data?.activePrescriptions ?? 0}
+                sub={data?.expiringPrescriptions ? t('dashboard.expiringSoon', { count: data.expiringPrescriptions }) : undefined}
+                color="text-amber-600" />
+            )}
+            {can(role, 'InvoicesRead') && (
+              <StatCard icon="💳" label={t('dashboard.pendingInvoices')} value={fmt.currency(data?.pendingInvoicesAmount)}
+                sub={data?.overdueInvoices ? t('dashboard.overdue', { count: data.overdueInvoices }) : undefined}
+                color="text-red-500" />
+            )}
           </div>
 
           {/* Two column */}
@@ -84,7 +90,7 @@ export function DashboardPage() {
                     <Avatar name={p.fullName} size="sm" />
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-sm text-gray-800 truncate">{p.fullName}</p>
-                      <p className="text-xs text-gray-400">{p.primaryCondition ?? t('dashboard.noCondition')} · {t('common.age', { count: p.age })}</p>
+                      <p className="text-xs text-gray-400">{can(role, 'PatientClinicalFields') ? `${p.primaryCondition ?? t('dashboard.noCondition')} · ` : ''}{t('common.age', { count: p.age })}</p>
                     </div>
                     <Badge status={p.status} />
                   </div>

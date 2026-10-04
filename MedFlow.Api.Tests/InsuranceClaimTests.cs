@@ -387,7 +387,7 @@ public class InsuranceClaimTests : IClassFixture<TestApiFactory>
         await _f.ClientFor(d.Token).GetAsync($"/api/invoices/{id}/claim-export");
         var view = Assert.Single(await ViewsAsync(pid, id));
         Assert.Equal(d.UserId, view.ActorUserId);
-        Assert.Equal("Doctor", view.ActorRole);
+        Assert.Equal("Owner", view.ActorRole);
         Assert.Null(view.ChangedFields);
 
         await _f.ClientFor(d.Token).GetAsync($"/api/invoices/{id}/claim-export?format=csv");
@@ -417,10 +417,12 @@ public class InsuranceClaimTests : IClassFixture<TestApiFactory>
     {
         var (owner, pid) = await SetupAsync();
         var other = await _f.RegisterDoctorAsync($"doc-{Guid.NewGuid():N}@x.com");
-        var id = await SeedInvoiceAsync(other.UserId, pid); // issuer is "other", patient belongs to "owner"
+        // Every record belongs to one clinic: an invoice issued by a doctor of another clinic for this patient cannot be saved
+        await Assert.ThrowsAsync<InvalidOperationException>(() => SeedInvoiceAsync(other.UserId, pid));
 
+        // ...and a normal invoice of the owner's clinic is invisible to the other clinic's doctor
+        var id = await SeedInvoiceAsync(owner.UserId, pid);
         Assert.Equal(HttpStatusCode.NotFound, (await _f.ClientFor(other.Token).GetAsync($"/api/invoices/{id}/claim-export")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await _f.ClientFor(owner.Token).GetAsync($"/api/invoices/{id}/claim-export")).StatusCode);
         Assert.Empty(await ViewsAsync(pid, id));
     }
 
