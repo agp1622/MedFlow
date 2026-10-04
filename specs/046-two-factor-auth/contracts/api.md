@@ -13,7 +13,7 @@ All errors are `{ "error": "<localized>" }`. Codes: 6 digits (spaces tolerated);
 ## Account (authenticated staff, patient tokens get 403; secret-bearing responses `Cache-Control: no-store`)
 - `GET /api/account/2fa` -> `{ enabled, recoveryCodesRemaining }`
 - `POST /api/account/2fa/setup` -> `{ sharedKey, otpAuthUri }`; `409` if already enabled
-- `POST /api/account/2fa/enable` `{ code }` -> `{ recoveryCodes: string[10] }`; `400` invalid code; `409` if already enabled or no setup
+- `POST /api/account/2fa/enable` `{ code }` -> `{ recoveryCodes: string[10] }`; `400` invalid code or no setup started; `409` if already enabled
 - `POST /api/account/2fa/recovery-codes` `{ password?, code }` -> `{ recoveryCodes }`
 - `POST /api/account/2fa/disable` `{ password?, code }` -> `204`
-- `code` here may be a TOTP code or a recovery code. `password` is required when the account has one. Failure: `400 { error: "Invalid credentials or code" }` uniformly; locked: `401`.
+- `code` here may be a TOTP code or a recovery code. `password` is required when the account has one. Failure: `400 { error: "Invalid credentials or code" }` uniformly; locked: `423`.

@@ -31,7 +31,7 @@ public class TwoFactorController : ControllerBase
     }
 
     private IActionResult Failure(SecondFactorResult result) => result == SecondFactorResult.LockedOut
-        ? Unauthorized(new { error = this.T("Auth.AccountLocked") })
+        ? StatusCode(StatusCodes.Status423Locked, new { error = this.T("Auth.AccountLocked") })
         : BadRequest(new { error = this.T("TwoFactor.InvalidConfirmation") });
 
     [HttpGet]

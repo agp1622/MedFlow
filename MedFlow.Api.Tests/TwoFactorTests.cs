@@ -422,7 +422,7 @@ public class TwoFactorTests : IClassFixture<TestApiFactory>
             await client.PostAsJsonAsync("/api/account/2fa/disable", new { password = TestApiFactory.Password, code = "000000" });
         await ForgetLastStepAsync(e.Auth.UserId);
         var res = await client.PostAsJsonAsync("/api/account/2fa/disable", new { password = TestApiFactory.Password, code = CodeFor(e.Key) });
-        Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
+        Assert.Equal(HttpStatusCode.Locked, res.StatusCode);
         Assert.True((await Json(await client.GetAsync("/api/account/2fa"))).GetProperty("enabled").GetBoolean());
     }
 
