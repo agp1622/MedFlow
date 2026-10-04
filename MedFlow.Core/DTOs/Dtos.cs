@@ -11,6 +11,18 @@ public record AuthResponse(string Token, string RefreshToken, DateTime Expires, 
 public record UserDto(string Id, string Email, string FirstName, string LastName, string Specialty, string Role = "Doctor",
     int? ClinicId = null, string? ClinicName = null);
 
+// ── Auth (Two-factor) ────────────────────────────────────────────────────────
+/// <summary>Returned instead of <see cref="AuthResponse"/> when the account has 2FA on. Carries no session.</summary>
+public record TwoFactorChallengeResponse(bool TwoFactorRequired, string ChallengeToken, DateTime Expires);
+public record TwoFactorVerifyRequest(string ChallengeToken, string Code);
+public record TwoFactorRecoveryRequest(string ChallengeToken, string RecoveryCode);
+public record TwoFactorStatusDto(bool Enabled, int RecoveryCodesRemaining);
+public record TwoFactorSetupDto(string SharedKey, string OtpAuthUri);
+public record TwoFactorEnableRequest(string Code);
+/// <summary>Password is required when the account has one; Code is a current authenticator code or a recovery code.</summary>
+public record TwoFactorConfirmRequest(string? Password, string Code);
+public record RecoveryCodesDto(IReadOnlyList<string> RecoveryCodes);
+
 // ── Auth (Password Recovery) ─────────────────────────────────────────────────
 public record ForgotPasswordRequest(string Email);
 public record ResetPasswordRequest(string Email, string Token, string NewPassword, string ConfirmPassword);

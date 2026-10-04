@@ -8,7 +8,7 @@ import { can, type Permission } from '@/utils/permissions'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 import {
-  LayoutDashboard, Users, CalendarDays, Pill, CreditCard, LogOut, Plus, Menu, X, ClipboardList, Clock, FileText, BarChart3, ListOrdered, UserCog
+  LayoutDashboard, Users, CalendarDays, Pill, CreditCard, LogOut, Plus, Menu, X, ClipboardList, Clock, FileText, BarChart3, ListOrdered, UserCog, ShieldCheck
 } from 'lucide-react'
 
 // Each entry is shown only to roles holding its permission (same matrix the API enforces)
@@ -25,6 +25,9 @@ const NAV: { to: string; icon: typeof Users; label: ParseKeys; permission: Permi
   { to: '/reports',       icon: BarChart3,       label: 'nav.reports',       permission: 'ReportsRead' },
   { to: '/staff',         icon: UserCog,         label: 'nav.staff',         permission: 'StaffManage' },
 ]
+
+// Every staff member manages their own sign-in security, whatever their role
+const SECURITY_NAV = { to: '/security', icon: ShieldCheck, label: 'nav.security' as ParseKeys }
 
 export function AppLayout() {
   const { t } = useTranslation()
@@ -83,7 +86,7 @@ export function AppLayout() {
 
         {/* Nav */}
         <nav className="flex-1 px-3 pt-4 space-y-0.5">
-          {NAV.filter(n => can(role, n.permission)).map(({ to, icon: Icon, label }) => (
+          {[...NAV.filter(n => can(role, n.permission)), SECURITY_NAV].map(({ to, icon: Icon, label }) => (
             <NavLink key={to} to={to} end={to === '/'}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-3 lg:py-2.5 rounded-lg text-sm font-medium transition-all ${
