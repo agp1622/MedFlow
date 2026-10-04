@@ -1,3 +1,4 @@
+using MedFlow.Api.Authorization;
 using MedFlow.Api.Extensions;
 using MedFlow.Api.Localization;
 using MedFlow.Core;
@@ -16,6 +17,7 @@ namespace MedFlow.Api.Controllers;
 [ApiController]
 [Route("api/account/2fa")]
 [Authorize]
+[HasPermission(Permission.ClinicRead)] // every active staff member holds it; deactivated users and patients are refused centrally
 public class TwoFactorController : ControllerBase
 {
     private readonly ITwoFactorService _twoFactor;
