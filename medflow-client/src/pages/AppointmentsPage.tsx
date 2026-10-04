@@ -6,9 +6,11 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useNavigate } from 'react-router-dom'
 import {
-  useAppointments, useAppointmentReminders, useCreateAppointment, useUpdateAppointmentStatus, useDeleteAppointment, usePatients
+  useAppointments, useAppointmentReminders, useCreateAppointment, useUpdateAppointmentStatus, useDeleteAppointment, usePatients, useClinicDoctors
 } from '@/hooks/queries'
 import { PageHeader } from '@/components/layout/AppLayout'
+import { useAuthStore } from '@/store/authStore'
+import { can } from '@/utils/permissions'
 import { Avatar, Badge, PageSpinner, EmptyState, SearchInput, Pagination, Spinner } from '@/components/ui'
 import { Modal } from './PatientsPage'
 import { fmt, displayEnum } from '@/utils/format'
@@ -25,11 +27,12 @@ export function AppointmentsPage() {
   const { data, isLoading } = useAppointments({ page, pageSize: 20, search })
   const updateStatus = useUpdateAppointmentStatus()
   const deleteAppt = useDeleteAppointment()
+  const canWrite = can(useAuthStore(s => s.user?.role), 'AppointmentsWrite')
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <PageHeader title={t('appointments.title')} subtitle={t('appointments.total', { count: data?.totalCount ?? 0 })}
-        action={{ label: t('appointments.new'), onClick: () => setShowModal(true) }}>
+        action={canWrite ? { label: t('appointments.new'), onClick: () => setShowModal(true) } : undefined}>
         <SearchInput value={search} onChange={v => { setSearch(v); setPage(1) }} placeholder={t('patients.search')} />
       </PageHeader>
 
@@ -64,13 +67,13 @@ export function AppointmentsPage() {
                     <td className="px-4 py-3"><Badge status={a.status} /></td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
-                        {a.status === 'Pending' && (
+                        {canWrite && a.status === 'Pending' && (
                           <button className="btn-secondary p-1.5" title={t('appointments.confirm')}
                             onClick={() => updateStatus.mutate({ id: a.id, status: 'Confirmed' })}>
                             <CheckCircle size={14} />
                           </button>
                         )}
-                        {(a.status === 'Pending' || a.status === 'Confirmed') && (
+                        {canWrite && (a.status === 'Pending' || a.status === 'Confirmed') && (
                           <button className="btn-danger p-1.5" title={t('common.cancel')}
                             onClick={() => updateStatus.mutate({ id: a.id, status: 'Cancelled' })}>
                             <XCircle size={14} />
@@ -80,10 +83,10 @@ export function AppointmentsPage() {
                           onClick={() => setRemindersFor(a.id)}>
                           <Bell size={14} className="text-gray-400" />
                         </button>
-                        <button className="btn-ghost p-1.5" title={t('common.delete')}
+                        {canWrite && <button className="btn-ghost p-1.5" title={t('common.delete')}
                           onClick={() => { if (confirm(t('appointments.confirmDelete'))) deleteAppt.mutate(a.id) }}>
                           <Trash2 size={14} className="text-gray-400" />
-                        </button>
+                        </button>}
                       </div>
                     </td>
                   </tr>
@@ -138,6 +141,7 @@ const apptSchema = z.object({
   type: z.enum(['NewPatient','FollowUp','CheckUp','Consultation','LabReview','Emergency']),
   reason: z.string().optional(),
   location: z.string().optional(),
+  doctorId: z.string().optional(),
 })
 type ApptForm = z.infer<typeof apptSchema>
 
@@ -149,9 +153,10 @@ function NewAppointmentModal({ onClose }: { onClose: () => void }) {
   })
   const create = useCreateAppointment()
   const { data: patients } = usePatients({ pageSize: 200 })
+  const { data: doctors } = useClinicDoctors()
 
   const onSubmit = (data: ApptForm) => {
-    create.mutate(data as CreateAppointmentRequest, { onSuccess: onClose })
+    create.mutate({ ...data, doctorId: data.doctorId || undefined } as CreateAppointmentRequest, { onSuccess: onClose })
   }
 
   return (
@@ -192,6 +197,15 @@ function NewAppointmentModal({ onClose }: { onClose: () => void }) {
           <label className="label">{t('appointments.form.location')}</label>
           <input className="input" placeholder={t('appointments.form.locationPlaceholder')} {...register('location')} />
         </div>
+        {doctors && doctors.length > 1 && (
+          <div>
+            <label className="label">{t('appointments.form.doctor')}</label>
+            <select className="input" {...register('doctorId')}>
+              <option value="">{t('appointments.form.doctorAuto')}</option>
+              {doctors.map(dr => <option key={dr.userId} value={dr.userId}>{dr.fullName}</option>)}
+            </select>
+          </div>
+        )}
         <div className="flex justify-end gap-3 pt-2">
           <button type="button" className="btn-ghost" onClick={onClose}>{t('common.cancel')}</button>
           <button type="submit" className="btn-primary" disabled={create.isPending}>

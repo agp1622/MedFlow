@@ -351,6 +351,79 @@ export function AcceptInvitePage() {
   )
 }
 
+// ── Accept staff invitation (Owner invited a Doctor, Nurse or Receptionist) ──
+const staffInviteSchema = z.object({
+  firstName: z.string().trim().min(1, 'validation.required').max(100),
+  lastName: z.string().trim().min(1, 'validation.required').max(100),
+  specialty: z.string().max(100).optional(),
+  newPassword: z.string().min(8, 'validation.passwordMin').regex(/[A-Z]/, 'validation.passwordUpper').regex(/[0-9]/, 'validation.passwordDigit'),
+  confirmPassword: z.string(),
+}).refine(d => d.newPassword === d.confirmPassword, { message: 'validation.passwordMismatch', path: ['confirmPassword'] })
+type StaffInviteForm = z.infer<typeof staffInviteSchema>
+
+export function AcceptStaffInvitePage() {
+  const { t } = useTranslation()
+  const [params] = useSearchParams()
+  const navigate = useNavigate()
+  const login = useAuthStore(s => s.login)
+  const token = params.get('token') ?? ''
+  const email = params.get('email') ?? ''
+  const [linkError, setLinkError] = useState<string | null>(null)
+  const { register, handleSubmit, formState: { errors } } = useForm<StaffInviteForm>({ resolver: zodResolver(staffInviteSchema) })
+
+  const mutation = useMutation({
+    mutationFn: (d: StaffInviteForm) => authApi.acceptStaffInvitation({
+      token, email, password: d.newPassword, confirmPassword: d.confirmPassword,
+      firstName: d.firstName, lastName: d.lastName, specialty: d.specialty || undefined,
+    }),
+    onSuccess: (data) => { login(data.token, data.user); navigate('/') },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here; narrowing would change call signatures
+    onError: (err: any) => {
+      const data = err?.response?.data
+      if (data?.error) setLinkError(data.error)
+      else toast.error(data?.errors?.[0] ?? t('auth.staffInvite.failed'))
+    },
+  })
+
+  const invalid = !token || !email || linkError
+
+  return (
+    <AuthShell title={t('auth.staffInvite.title')} subtitle={t('auth.staffInvite.subtitle')}>
+      {invalid ? (
+        <div className="space-y-4 text-center">
+          <p className="text-sm text-gray-700">{linkError ?? t('auth.staffInvite.invalid')}</p>
+          <p className="text-sm text-gray-500">{t('auth.staffInvite.askNew')}</p>
+          <Link to="/login" className="btn-primary w-full h-10 inline-flex items-center justify-center">{t('auth.goToSignIn')}</Link>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit(d => mutation.mutate(d))} className="space-y-4">
+          <p className="text-sm text-gray-600">{t('auth.staffInvite.settingUp')} <strong>{email}</strong></p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label={t('auth.staffInvite.firstName')} error={errors.firstName?.message}>
+              <input className="input" autoComplete="given-name" {...register('firstName')} />
+            </Field>
+            <Field label={t('auth.staffInvite.lastName')} error={errors.lastName?.message}>
+              <input className="input" autoComplete="family-name" {...register('lastName')} />
+            </Field>
+          </div>
+          <Field label={t('auth.staffInvite.specialty')} error={errors.specialty?.message}>
+            <input className="input" {...register('specialty')} />
+          </Field>
+          <Field label={t('auth.password')} error={errors.newPassword?.message}>
+            <PasswordInput placeholder={t('auth.strongPasswordPlaceholder')} registration={register('newPassword')} />
+          </Field>
+          <Field label={t('auth.confirmPassword')} error={errors.confirmPassword?.message}>
+            <PasswordInput placeholder={t('auth.repeatPassword')} registration={register('confirmPassword')} />
+          </Field>
+          <button type="submit" className="btn-primary w-full h-10" disabled={mutation.isPending}>
+            {mutation.isPending ? <Spinner className="w-4 h-4" /> : t('auth.staffInvite.submit')}
+          </button>
+        </form>
+      )}
+    </AuthShell>
+  )
+}
+
 // ── Shared Auth Shell ─────────────────────────────────────────────────────────
 export function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (

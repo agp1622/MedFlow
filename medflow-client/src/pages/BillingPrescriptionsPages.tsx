@@ -11,6 +11,8 @@ import {
   usePatients
 } from '@/hooks/queries'
 import { PageHeader } from '@/components/layout/AppLayout'
+import { useAuthStore } from '@/store/authStore'
+import { can } from '@/utils/permissions'
 import { Avatar, Badge, StatCard, PageSpinner, EmptyState, SearchInput, Pagination, Spinner } from '@/components/ui'
 import { Modal } from './PatientsPage'
 import { PrintPrescriptionButton } from '@/components/prescriptions/PrintPrescriptionButton'
@@ -27,11 +29,12 @@ export function PrescriptionsPage() {
   const [showModal, setShowModal] = useState(false)
   const { data, isLoading } = usePrescriptions({ page, pageSize: 20, search })
   const deletePrescription = useDeletePrescription()
+  const canWrite = can(useAuthStore(s => s.user?.role), 'PrescriptionsWrite') // Nurses read and print only
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <PageHeader title={t('prescriptions.title')} subtitle={t('prescriptions.total', { count: data?.totalCount ?? 0 })}
-        action={{ label: t('prescriptions.new'), onClick: () => setShowModal(true) }}>
+        action={canWrite ? { label: t('prescriptions.new'), onClick: () => setShowModal(true) } : undefined}>
         <SearchInput value={search} onChange={v => { setSearch(v); setPage(1) }} placeholder={t('prescriptions.search')} />
       </PageHeader>
 
@@ -67,10 +70,10 @@ export function PrescriptionsPage() {
                     <td className="px-4 py-3"><Badge status={rx.status} /></td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <PrintPrescriptionButton id={rx.id} />
-                      <button className="btn-ghost p-1.5"
+                      {canWrite && <button className="btn-ghost p-1.5"
                         onClick={() => { if (confirm(t('prescriptions.confirmDelete'))) deletePrescription.mutate(rx.id) }}>
                         <Trash2 size={14} className="text-gray-400" />
-                      </button>
+                      </button>}
                     </td>
                   </tr>
                 ))}

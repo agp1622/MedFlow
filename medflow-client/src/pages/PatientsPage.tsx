@@ -10,7 +10,10 @@ import {
   usePatientAppointments, usePatientPrescriptions, usePatientInvoices,
   usePatientVitals, usePatientLabs, usePatientNotes, useCreateNote, useDeleteNote,
   useSetNoteSharing, useNoteTemplates, useCopyForward, useInvitePatient, useRevokePortalAccess, useSendIntakeLink,
+  useClinicDoctors,
 } from '@/hooks/queries'
+import { useAuthStore } from '@/store/authStore'
+import { can, type Permission } from '@/utils/permissions'
 import { PageHeader } from '@/components/layout/AppLayout'
 import { Avatar, Badge, SearchInput, PageSpinner, EmptyState, Pagination, Spinner } from '@/components/ui'
 import { fmt, bloodTypeDisplay, displayEnum } from '@/utils/format'
@@ -34,11 +37,17 @@ export function PatientsPage() {
   const [showModal, setShowModal] = useState(false)
   const { data, isLoading } = usePatients({ page, pageSize: 20, search })
   const deletePatient = useDeletePatient()
+  const role = useAuthStore(s => s.user?.role)
+  const canWrite = can(role, 'PatientsWrite')
+  const canDelete = can(role, 'PatientsDelete')
+  const clinical = can(role, 'PatientClinicalFields')
+  // Roles without clinical access never see the condition and blood group columns
+  const cols = ['patient', 'age', ...(clinical ? ['condition', 'blood'] as const : []), 'lastVisit', 'nextAppt', 'status', ''] as const
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <PageHeader title={t('patients.title')} subtitle={t('patients.total', { count: data?.totalCount ?? 0 })}
-        action={{ label: t('patients.new'), onClick: () => setShowModal(true) }}>
+        action={canWrite ? { label: t('patients.new'), onClick: () => setShowModal(true) } : undefined}>
         <SearchInput value={search} onChange={v => { setSearch(v); setPage(1) }} placeholder={t('patients.search')} />
       </PageHeader>
 
@@ -48,14 +57,14 @@ export function PatientsPage() {
             <table className="w-full min-w-[640px]">
               <thead>
                 <tr className="bg-gray-50 border-b border-border">
-                  {(['patient', 'age', 'condition', 'blood', 'lastVisit', 'nextAppt', 'status', ''] as const).map(h => (
+                  {cols.map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h && t(`patients.cols.${h}`)}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {data?.items.length === 0 && (
-                  <tr><td colSpan={8}><EmptyState title={t('patients.empty')} description={t('patients.emptyHint')} /></td></tr>
+                  <tr><td colSpan={cols.length}><EmptyState title={t('patients.empty')} description={t('patients.emptyHint')} /></td></tr>
                 )}
                 {data?.items.map(p => (
                   <tr key={p.id} className="table-row-hover" onClick={() => navigate(`/patients/${p.id}`)}>
@@ -69,17 +78,17 @@ export function PatientsPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-gray-700">{p.age}</td>
-                    <td className="px-4 py-3 text-gray-700">{p.primaryCondition ?? '—'}</td>
-                    <td className="px-4 py-3">
+                    {clinical && <td className="px-4 py-3 text-gray-700">{p.primaryCondition ?? '—'}</td>}
+                    {clinical && <td className="px-4 py-3">
                       <span className="font-bold text-primary-600 text-sm">{bloodTypeDisplay[p.bloodType] ?? p.bloodType}</span>
-                    </td>
+                    </td>}
                     <td className="px-4 py-3 text-gray-500 text-sm">{fmt.date(p.lastVisit)}</td>
                     <td className="px-4 py-3 text-gray-500 text-sm">{fmt.dateShort(p.nextAppointment)}</td>
                     <td className="px-4 py-3"><Badge status={p.status} /></td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                      <button className="btn-danger p-1.5" onClick={() => {
+                      {canDelete && <button className="btn-danger p-1.5" onClick={() => {
                         if (confirm(t('patients.confirmRemove'))) deletePatient.mutate(p.id)
-                      }}><Trash2 size={14} /></button>
+                      }}><Trash2 size={14} /></button>}
                     </td>
                   </tr>
                 ))}
@@ -97,6 +106,11 @@ export function PatientsPage() {
 // ── Patient Detail ────────────────────────────────────────────────────────────
 const TABS = ['overview', 'appointments', 'prescriptions', 'invoices', 'notes', 'vitals', 'labs', 'attachments', 'audit'] as const
 type Tab = typeof TABS[number]
+// A tab is offered only to roles that may read what it shows (the API refuses the rest)
+const TAB_PERMISSION: Record<Tab, Permission | null> = {
+  overview: null, appointments: 'AppointmentsRead', prescriptions: 'PrescriptionsRead', invoices: 'InvoicesRead',
+  notes: 'NotesRead', vitals: 'VitalsRead', labs: 'LabsRead', attachments: 'AttachmentsRead', audit: 'AuditLogRead',
+}
 
 export function PatientDetailPage() {
   const { t } = useTranslation()
@@ -108,8 +122,11 @@ export function PatientDetailPage() {
   const invite = useInvitePatient()
   const revoke = useRevokePortalAccess()
   const sendIntake = useSendIntakeLink()
+  const role = useAuthStore(s => s.user?.role)
+  const clinical = can(role, 'PatientClinicalFields')
+  const tabs = TABS.filter(k => TAB_PERMISSION[k] === null || can(role, TAB_PERMISSION[k]!))
   // Shares the Labs tab's query, so the tab badge needs no extra request
-  const abnormalLabs = usePatientLabs(patientId).data?.abnormalCount ?? 0
+  const abnormalLabs = usePatientLabs(patientId, can(role, 'LabsRead')).data?.abnormalCount ?? 0
 
   if (isLoading) return <PageSpinner />
   if (!patient) return <div className="p-8 text-gray-500">{t('patients.notFound')}</div>
@@ -117,7 +134,9 @@ export function PatientDetailPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <PageHeader title={patient.fullName}
-        subtitle={`${patient.primaryCondition ?? t('patients.noCondition')} · ${t('common.age', { count: patient.age })}`}>
+        subtitle={clinical
+          ? `${patient.primaryCondition ?? t('patients.noCondition')} · ${t('common.age', { count: patient.age })}`
+          : t('common.age', { count: patient.age })}>
         <button className="btn-ghost gap-1" onClick={() => navigate('/patients')}>
           <ArrowLeft size={15} /> {t('common.back')}
         </button>
@@ -137,7 +156,7 @@ export function PatientDetailPage() {
               ['phone', patient.phone],
               ['insurance', patient.insuranceProvider ?? '—'],
               ['allergies', patient.allergies ?? '—'],
-            ] as const).map(([k, v]) => (
+            ] as const).filter(([k]) => clinical || (k !== 'bloodType' && k !== 'allergies')).map(([k, v]) => (
               <div key={k}>
                 <p className="label">{t(`patients.fields.${k}`)}</p>
                 <p className="text-sm font-medium text-gray-800">{v}</p>
@@ -146,27 +165,33 @@ export function PatientDetailPage() {
           </div>
           <div className="flex flex-col sm:items-end gap-2">
             <Badge status={patient.status} />
-            <button className="btn-secondary text-xs" disabled={sendIntake.isPending || !patient.email?.trim()}
-              title={patient.email?.trim() ? undefined : t('patients.emailRequired')}
-              onClick={() => sendIntake.mutate(patientId)}>
-              {sendIntake.isPending ? <Spinner className="w-3.5 h-3.5" /> : t('patients.sendIntake')}
-            </button>
-            <PortalAccess
-              status={patient.portalStatus ?? 'NotInvited'}
-              hasEmail={!!patient.email?.trim()}
-              busy={invite.isPending || revoke.isPending}
-              onInvite={() => invite.mutate(patientId)}
-              onRevoke={() => { if (confirm(t('patients.confirmRevoke'))) revoke.mutate(patientId) }}
-            />
+            {can(role, 'IntakeLinkSend') && (
+              <button className="btn-secondary text-xs" disabled={sendIntake.isPending || !patient.email?.trim()}
+                title={patient.email?.trim() ? undefined : t('patients.emailRequired')}
+                onClick={() => sendIntake.mutate(patientId)}>
+                {sendIntake.isPending ? <Spinner className="w-3.5 h-3.5" /> : t('patients.sendIntake')}
+              </button>
+            )}
+            {can(role, 'PortalInvite') && (
+              <PortalAccess
+                status={patient.portalStatus ?? 'NotInvited'}
+                hasEmail={!!patient.email?.trim()}
+                busy={invite.isPending || revoke.isPending}
+                onInvite={() => invite.mutate(patientId)}
+                onRevoke={() => { if (confirm(t('patients.confirmRevoke'))) revoke.mutate(patientId) }}
+              />
+            )}
           </div>
         </div>
 
-        {/* Allergies, problems, medications: always visible */}
-        <ClinicalPanel patientId={patientId} legacyAllergies={patient.allergies} />
+        {/* Allergies, problems, medications: clinical roles only (read-only for those who cannot edit) */}
+        {can(role, 'ClinicalListsRead') && (
+          <ClinicalPanel patientId={patientId} legacyAllergies={patient.allergies} readOnly={!can(role, 'ClinicalListsWrite')} />
+        )}
 
         {/* Tabs */}
         <div className="flex gap-1 bg-white border border-border rounded-xl p-1 w-fit max-w-full overflow-x-auto">
-          {TABS.map(k => (
+          {tabs.map(k => (
             <button key={k} onClick={() => setTab(k)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                 tab === k ? 'bg-primary-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
@@ -186,8 +211,8 @@ export function PatientDetailPage() {
         {tab === 'invoices'      && <InvTab patientId={patientId} />}
         {tab === 'notes'         && <NotesTab patientId={patientId} />}
         {tab === 'vitals'        && <VitalsTrends patientId={patientId} />}
-        {tab === 'labs'          && <LabsPanel patientId={patientId} />}
-        {tab === 'attachments'   && <AttachmentsTab patientId={patientId} />}
+        {tab === 'labs'          && <LabsPanel patientId={patientId} readOnly={!can(role, 'LabsWrite')} />}
+        {tab === 'attachments'   && <AttachmentsTab patientId={patientId} readOnly={!can(role, 'AttachmentsWrite')} />}
         {tab === 'audit'         && <AuditLogTab patientId={patientId} />}
       </div>
     </div>
@@ -196,11 +221,12 @@ export function PatientDetailPage() {
 
 function OverviewTab({ patient, patientId }: { patient: ReturnType<typeof usePatient>['data']; patientId: number }) {
   const { t } = useTranslation()
-  const { data: vitals } = usePatientVitals(patientId)
+  const role = useAuthStore(s => s.user?.role)
+  const { data: vitals } = usePatientVitals(patientId, can(role, 'VitalsRead'))
   const latest = vitals?.[0]
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-      <div className="card p-5">
+      {can(role, 'VitalsRead') && <div className="card p-5">
         <h3 className="font-bold text-gray-800 mb-4">{t('patients.vitals.title')}</h3>
         {!latest ? <p className="text-gray-400 text-sm">{t('patients.vitals.none')}</p> : (
           <div className="space-y-2">
@@ -220,11 +246,11 @@ function OverviewTab({ patient, patientId }: { patient: ReturnType<typeof usePat
             <p className="text-xs text-gray-400 mt-2">{t('patients.vitals.recorded', { when: fmt.relative(latest.recordedAt) })}</p>
           </div>
         )}
-      </div>
-      <div className="card p-5">
+      </div>}
+      {can(role, 'PatientClinicalFields') && <div className="card p-5">
         <h3 className="font-bold text-gray-800 mb-4">{t('patients.medicalNotes')}</h3>
         <p className="text-sm text-gray-600 leading-relaxed">{patient?.notes ?? t('patients.noNotesOnFile')}</p>
-      </div>
+      </div>}
       {patient && <InsuranceCard patient={patient} />}
     </div>
   )
@@ -234,6 +260,7 @@ function OverviewTab({ patient, patientId }: { patient: ReturnType<typeof usePat
 function InsuranceCard({ patient }: { patient: PatientDto }) {
   const { t } = useTranslation()
   const [editing, setEditing] = useState(false)
+  const canEdit = can(useAuthStore(s => s.user?.role), 'PatientsWrite')
   const rel = patient.insuranceSubscriberRelationship
   const rows: [string, string | undefined][] = [
     ['provider', patient.insuranceProvider],
@@ -249,7 +276,7 @@ function InsuranceCard({ patient }: { patient: PatientDto }) {
     <div className="card p-5 lg:col-span-2">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-bold text-gray-800">{t('patients.insurance.title')}</h3>
-        <button className="btn-secondary text-xs" onClick={() => setEditing(true)}>{t('patients.insurance.edit')}</button>
+        {canEdit && <button className="btn-secondary text-xs" onClick={() => setEditing(true)}>{t('patients.insurance.edit')}</button>}
       </div>
       {!hasAny ? <p className="text-gray-400 text-sm">{t('patients.insurance.none')}</p> : (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 break-words">
@@ -437,6 +464,7 @@ function NotesTab({ patientId }: { patientId: number }) {
   const [visitType, setVisitType] = useState('')
   const { data: templates } = useNoteTemplates()
   const copyForward = useCopyForward()
+  const canManage = can(useAuthStore(s => s.user?.role), 'NotesManage')
 
   // Never silently discard what the doctor has already typed.
   const applyText = (text: string) => {
@@ -487,14 +515,14 @@ function NotesTab({ patientId }: { patientId: number }) {
               <div>
                 <p className="text-xs text-gray-400">{fmt.dateTime(note.noteDate)} · {note.visitType ?? t('patients.notes.general')}</p>
                 <p className="text-sm text-gray-700 mt-1 leading-relaxed">{note.content}</p>
-                <div className="mt-2">
+                {canManage && <div className="mt-2">
                   <ShareToggle shared={!!note.sharedWithPatient} disabled={setSharing.isPending}
                     onChange={shared => setSharing.mutate({ id: note.id, patientId, shared })} />
-                </div>
+                </div>}
               </div>
-              <button className="btn-ghost p-1.5 flex-shrink-0" onClick={() => deleteNote.mutate({ id: note.id, patientId })}>
+              {canManage && <button className="btn-ghost p-1.5 flex-shrink-0" onClick={() => deleteNote.mutate({ id: note.id, patientId })}>
                 <Trash2 size={13} className="text-gray-400" />
-              </button>
+              </button>}
             </div>
           </div>
         ))}
@@ -538,16 +566,25 @@ const patientSchema = z.object({
   primaryCondition: z.string().optional(),
   allergies: z.string().optional(),
   insuranceProvider: z.string().optional(),
+  doctorId: z.string().optional(),
 })
 type PatientForm = z.infer<typeof patientSchema>
 
 function NewPatientModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation()
-  const { register, handleSubmit, formState: { errors } } = useForm<PatientForm>({ resolver: zodResolver(patientSchema) })
+  const role = useAuthStore(s => s.user?.role)
+  const clinical = can(role, 'PatientClinicalFields')
+  const { data: doctors } = useClinicDoctors()
+  // Roles without clinical access cannot set blood group, condition or allergies: the API stores them empty
+  const { register, handleSubmit, formState: { errors } } = useForm<PatientForm>({
+    resolver: zodResolver(patientSchema),
+    defaultValues: clinical ? undefined : { bloodType: 'Unknown' },
+  })
   const create = useCreatePatient()
 
   const onSubmit = (data: PatientForm) => {
-    create.mutate(data as unknown as CreatePatientRequest, { onSuccess: onClose })
+    const body = { ...data, doctorId: data.doctorId || undefined }
+    create.mutate(body as unknown as CreatePatientRequest, { onSuccess: onClose })
   }
 
   return (
@@ -570,19 +607,29 @@ function NewPatientModal({ onClose }: { onClose: () => void }) {
           <Field label={t('patients.form.email')} error={errors.email?.message}><input className="input" type="email" {...register('email')} /></Field>
           <Field label={t('patients.form.phone')} error={errors.phone?.message}><input className="input" {...register('phone')} /></Field>
         </div>
+        {clinical && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label={t('patients.form.bloodType')} error={errors.bloodType?.message}>
+              <select className="input" {...register('bloodType')}>
+                <option value="">{t('common.select')}</option>
+                {Object.entries(bloodTypeDisplay).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </Field>
+            <Field label={t('patients.form.primaryCondition')}><input className="input" {...register('primaryCondition')} /></Field>
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label={t('patients.form.bloodType')} error={errors.bloodType?.message}>
-            <select className="input" {...register('bloodType')}>
-              <option value="">{t('common.select')}</option>
-              {Object.entries(bloodTypeDisplay).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-          </Field>
-          <Field label={t('patients.form.primaryCondition')}><input className="input" {...register('primaryCondition')} /></Field>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label={t('patients.form.allergies')}><input className="input" {...register('allergies')} /></Field>
+          {clinical && <Field label={t('patients.form.allergies')}><input className="input" {...register('allergies')} /></Field>}
           <Field label={t('patients.form.insurance')}><input className="input" {...register('insuranceProvider')} /></Field>
         </div>
+        {doctors && doctors.length > 1 && (
+          <Field label={t('patients.form.doctor')}>
+            <select className="input" {...register('doctorId')}>
+              <option value="">{t('patients.form.doctorAuto')}</option>
+              {doctors.map(d => <option key={d.userId} value={d.userId}>{d.fullName}</option>)}
+            </select>
+          </Field>
+        )}
         <div className="flex justify-end gap-3 pt-2">
           <button type="button" className="btn-ghost" onClick={onClose}>{t('common.cancel')}</button>
           <button type="submit" className="btn-primary" disabled={create.isPending}>

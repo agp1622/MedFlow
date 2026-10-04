@@ -122,12 +122,12 @@ function MedicationForm({ patientId, item, onDone }: { patientId: number; item?:
   )
 }
 
-function Section({ title, count, onAdd, children }: { title: string; count: number; onAdd: () => void; children: React.ReactNode }) {
+function Section({ title, count, onAdd, children }: { title: string; count: number; onAdd?: () => void; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <h4 className="font-bold text-gray-800 text-sm">{title} <span className="text-gray-400 font-normal">({count})</span></h4>
-        <button type="button" className="btn-ghost p-1.5" aria-label={`Add ${title}`} onClick={onAdd}><Plus size={14} /></button>
+        {onAdd && <button type="button" className="btn-ghost p-1.5" aria-label={`Add ${title}`} onClick={onAdd}><Plus size={14} /></button>}
       </div>
       {children}
     </div>
@@ -148,7 +148,8 @@ const None = ({ text }: { text: string }) => <p className="text-sm text-gray-400
 type Editing = { kind: 'allergy' | 'problem' | 'medication'; id: number | 'new' } | null
 
 /** Prominent allergy / problem / medication summary with inline editing. Doctor-facing only. */
-export function ClinicalPanel({ patientId, legacyAllergies }: { patientId: number; legacyAllergies?: string | null }) {
+/** `readOnly` hides every add/edit/remove control (roles without ClinicalListsWrite, e.g. Nurse). */
+export function ClinicalPanel({ patientId, legacyAllergies, readOnly = false }: { patientId: number; legacyAllergies?: string | null; readOnly?: boolean }) {
   const { data, isLoading, isError } = usePatientClinical(patientId)
   const delAllergy = useDeleteAllergy(patientId)
   const delProblem = useDeleteProblem(patientId)
@@ -169,7 +170,7 @@ export function ClinicalPanel({ patientId, legacyAllergies }: { patientId: numbe
   return (
     <div className={`card p-5 grid grid-cols-3 gap-6 border-l-4 ${hasSevere ? 'border-l-red-500' : 'border-l-primary-600'}`}
       aria-label="Clinical summary">
-      <Section title="Allergies" count={data.allergies.length} onAdd={() => setEditing({ kind: 'allergy', id: 'new' })}>
+      <Section title="Allergies" count={data.allergies.length} onAdd={readOnly ? undefined : () => setEditing({ kind: 'allergy', id: 'new' })}>
         {is('allergy', 'new') && <AllergyForm patientId={patientId} onDone={done} />}
         {data.allergies.length === 0 && !is('allergy', 'new') && <None text="No allergies recorded" />}
         {data.allergies.map(a => is('allergy', a.id)
@@ -184,8 +185,8 @@ export function ClinicalPanel({ patientId, legacyAllergies }: { patientId: numbe
                 </p>
                 {a.reaction && <p className="text-xs text-gray-500">{a.reaction}</p>}
               </div>
-              <RowActions onEdit={() => setEditing({ kind: 'allergy', id: a.id })}
-                onRemove={() => { if (confirm(`Remove allergy "${a.substance}"?`)) delAllergy.mutate(a.id) }} />
+              {!readOnly && <RowActions onEdit={() => setEditing({ kind: 'allergy', id: a.id })}
+                onRemove={() => { if (confirm(`Remove allergy "${a.substance}"?`)) delAllergy.mutate(a.id) }} />}
             </div>
           ))}
         {legacyAllergies?.trim() && (
@@ -195,7 +196,7 @@ export function ClinicalPanel({ patientId, legacyAllergies }: { patientId: numbe
         )}
       </Section>
 
-      <Section title="Active problems" count={activeProblems.length} onAdd={() => setEditing({ kind: 'problem', id: 'new' })}>
+      <Section title="Active problems" count={activeProblems.length} onAdd={readOnly ? undefined : () => setEditing({ kind: 'problem', id: 'new' })}>
         {is('problem', 'new') && <ProblemForm patientId={patientId} onDone={done} />}
         {shownProblems.length === 0 && !is('problem', 'new') && <None text="No active problems recorded" />}
         {shownProblems.map(p => is('problem', p.id)
@@ -209,8 +210,8 @@ export function ClinicalPanel({ patientId, legacyAllergies }: { patientId: numbe
                 </p>
                 {p.onsetDate && <p className="text-xs text-gray-500">Since {p.onsetDate}</p>}
               </div>
-              <RowActions onEdit={() => setEditing({ kind: 'problem', id: p.id })}
-                onRemove={() => { if (confirm(`Remove problem "${p.description}"?`)) delProblem.mutate(p.id) }} />
+              {!readOnly && <RowActions onEdit={() => setEditing({ kind: 'problem', id: p.id })}
+                onRemove={() => { if (confirm(`Remove problem "${p.description}"?`)) delProblem.mutate(p.id) }} />}
             </div>
           ))}
         {resolved.length > 0 && (
@@ -220,7 +221,7 @@ export function ClinicalPanel({ patientId, legacyAllergies }: { patientId: numbe
         )}
       </Section>
 
-      <Section title="Current medications" count={data.medications.length} onAdd={() => setEditing({ kind: 'medication', id: 'new' })}>
+      <Section title="Current medications" count={data.medications.length} onAdd={readOnly ? undefined : () => setEditing({ kind: 'medication', id: 'new' })}>
         {is('medication', 'new') && <MedicationForm patientId={patientId} onDone={done} />}
         {data.medications.length === 0 && !is('medication', 'new') && <None text="No medications recorded" />}
         {data.medications.map(m => is('medication', m.id)
@@ -232,8 +233,8 @@ export function ClinicalPanel({ patientId, legacyAllergies }: { patientId: numbe
                 <p className="text-xs text-gray-500">{[m.dosage, m.frequency].filter(Boolean).join(' · ') || '—'}</p>
                 {m.notes && <p className="text-xs text-gray-400">{m.notes}</p>}
               </div>
-              <RowActions onEdit={() => setEditing({ kind: 'medication', id: m.id })}
-                onRemove={() => { if (confirm(`Remove medication "${m.name}"?`)) delMed.mutate(m.id) }} />
+              {!readOnly && <RowActions onEdit={() => setEditing({ kind: 'medication', id: m.id })}
+                onRemove={() => { if (confirm(`Remove medication "${m.name}"?`)) delMed.mutate(m.id) }} />}
             </div>
           ))}
       </Section>

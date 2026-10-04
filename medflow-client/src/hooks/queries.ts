@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi, clinicalApi, labsApi, intakeApi, noteTemplatesApi, availabilityApi, waitlistApi, auditApi, reportsApi } from '@/api/services'
-import type { ReportQuery, QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest, SaveAllergyRequest, SaveProblemRequest, SaveMedicationRequest, SaveLabOrderRequest, SaveLabResultRequest, IntakeStatus, CreateNoteTemplateRequest, AuditLogQuery, ClaimExportFormat } from '@/types'
+import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi, clinicalApi, labsApi, intakeApi, noteTemplatesApi, availabilityApi, waitlistApi, auditApi, reportsApi, clinicApi, staffApi } from '@/api/services'
+import type { ReportQuery, QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest, SaveAllergyRequest, SaveProblemRequest, SaveMedicationRequest, SaveLabOrderRequest, SaveLabResultRequest, IntakeStatus, CreateNoteTemplateRequest, AuditLogQuery, ClaimExportFormat, ClinicRole, InviteStaffRequest } from '@/types'
 import toast from 'react-hot-toast'
 import i18n from '@/i18n'
 
@@ -204,8 +204,8 @@ export const useExportClaimDraft = () =>
   })
 
 // ── Vitals ────────────────────────────────────────────────────────────────────
-export const usePatientVitals = (patientId: number) =>
-  useQuery({ queryKey: QK.vitals(patientId), queryFn: () => vitalsApi.getByPatient(patientId), enabled: patientId > 0 })
+export const usePatientVitals = (patientId: number, allowed = true) =>
+  useQuery({ queryKey: QK.vitals(patientId), queryFn: () => vitalsApi.getByPatient(patientId), enabled: patientId > 0 && allowed })
 
 export const useCreateVital = () => {
   const qc = useQueryClient()
@@ -265,8 +265,8 @@ export const useDeleteNote = () => {
 }
 
 // ── Lab orders and results ────────────────────────────────────────────────────
-export const usePatientLabs = (patientId: number) =>
-  useQuery({ queryKey: QK.labs(patientId), queryFn: () => labsApi.getAll(patientId), enabled: patientId > 0 })
+export const usePatientLabs = (patientId: number, allowed = true) =>
+  useQuery({ queryKey: QK.labs(patientId), queryFn: () => labsApi.getAll(patientId), enabled: patientId > 0 && allowed })
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here
 const labError = (err: any) => {
@@ -558,5 +558,70 @@ export const useLeavePortalWaitlist = () => {
     mutationFn: portalApi.leaveWaitlist,
     onSuccess: () => { qc.invalidateQueries({ queryKey: QK.portal('waitlist') }); toast.success(i18n.t('waitlist.left')) },
     onError: (e) => toast.error(errMsg(e, i18n.t('waitlist.leaveFailed'))),
+  })
+}
+
+// ── Clinic and staff ──────────────────────────────────────────────────────────
+export const useClinic = (enabled = true) =>
+  useQuery({ queryKey: ['clinic'], queryFn: clinicApi.get, enabled, staleTime: 60_000, retry: false })
+
+export const useClinicDoctors = (enabled = true) =>
+  useQuery({ queryKey: ['clinic', 'doctors'], queryFn: clinicApi.doctors, enabled, staleTime: 60_000 })
+
+export const useRenameClinic = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (name: string) => clinicApi.rename(name),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['clinic'] }); toast.success(i18n.t('clinic.renamed')) },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here
+    onError: (err: any) => toast.error(err?.response?.data?.errors?.[0] ?? i18n.t('errors.generic')),
+  })
+}
+
+export const useStaff = () =>
+  useQuery({ queryKey: ['staff', 'members'], queryFn: () => staffApi.list({ page: 1, pageSize: 100 }) })
+
+export const useStaffInvitations = () =>
+  useQuery({ queryKey: ['staff', 'invitations'], queryFn: () => staffApi.invitations({ page: 1, pageSize: 100 }) })
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here
+const staffError = (err: any) => {
+  const data = err?.response?.data
+  toast.error(data?.error ?? data?.errors?.[0] ?? i18n.t('errors.generic'))
+}
+
+export const useInviteStaff = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: InviteStaffRequest) => staffApi.invite(data),
+    onSuccess: (r) => { qc.invalidateQueries({ queryKey: ['staff', 'invitations'] }); toast.success(r.message) },
+    onError: staffError,
+  })
+}
+
+export const useRevokeStaffInvitation = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => staffApi.revokeInvitation(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['staff', 'invitations'] }); toast.success(i18n.t('staff.invitationRevoked')) },
+    onError: staffError,
+  })
+}
+
+export const useChangeStaffRole = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, role }: { id: number; role: ClinicRole }) => staffApi.changeRole(id, role),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['staff'] }); qc.invalidateQueries({ queryKey: ['clinic'] }); toast.success(i18n.t('staff.roleChanged')) },
+    onError: staffError,
+  })
+}
+
+export const useSetStaffActive = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, active }: { id: number; active: boolean }) => active ? staffApi.reactivate(id) : staffApi.deactivate(id),
+    onSuccess: (_d, v) => { qc.invalidateQueries({ queryKey: ['staff'] }); toast.success(i18n.t(v.active ? 'staff.reactivated' : 'staff.deactivated')) },
+    onError: staffError,
   })
 }

@@ -6,6 +6,8 @@ interface AuthState {
   token: string | null
   isAuthenticated: boolean
   login: (token: string, user: UserDto) => void
+  /** Refreshes role/clinic from the API (a role can change while a token is still valid) */
+  updateUser: (patch: Partial<UserDto>) => void
   logout: () => void
 }
 
@@ -32,6 +34,13 @@ export const useAuthStore = create<AuthState>((set) => ({
     localStorage.setItem('medflow_user', JSON.stringify(user))
     set({ token, user, isAuthenticated: true })
   },
+
+  updateUser: (patch) => set((state) => {
+    if (!state.user) return state
+    const user = { ...state.user, ...patch }
+    localStorage.setItem('medflow_user', JSON.stringify(user))
+    return { user }
+  }),
 
   logout: () => {
     localStorage.removeItem('medflow_token')
