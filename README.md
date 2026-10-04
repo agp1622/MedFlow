@@ -178,6 +178,8 @@ link carries a random single-use token (stored only as a SHA-256 hash, 7 days, r
 already has an account looks exactly like success (nothing is sent), so account existence is not revealed. The last active
 Owner can never be demoted or deactivated.
 
+Verification status: the migration's SQL was reviewed and structurally tested (it cannot run on the in-memory test provider); run it against a copy of a real database before deploying (see `specs/045-clinic-roles/quickstart.md`). The client was verified by build and lint only.
+
 Behaviour notes: lists, dashboard and the schedule are clinic-wide; a self-registered doctor now shows role `Owner`; Receptionists
 get patient primary condition, allergies, notes and blood type withheld (and preserved when they edit); staff-created patients,
 appointments and invoices are linked to a clinic doctor (optional `doctorId`, default the caller if a clinician, else the clinic

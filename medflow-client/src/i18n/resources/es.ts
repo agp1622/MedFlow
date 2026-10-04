@@ -679,6 +679,7 @@ export const es = {
     from: 'Desde',
     to: 'Hasta',
     invalidRange: 'La fecha de inicio no puede ser posterior a la fecha de fin.',
+    notAvailable: 'El registro de este paciente solo lo ven los propietarios y su médico tratante.',
     loadError: 'No se pudo cargar el registro de auditoría.',
     noMatch: 'No hay eventos coincidentes',
     none: 'Aún no hay actividad registrada',

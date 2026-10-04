@@ -674,6 +674,7 @@ export const en: Optional<typeof es> = {
     from: 'From',
     to: 'To',
     invalidRange: 'The start date must not be after the end date.',
+    notAvailable: 'This patient\'s log is only visible to owners and the treating doctor.',
     loadError: 'The audit log could not be loaded.',
     noMatch: 'No matching events',
     none: 'No activity recorded yet',
