@@ -53,6 +53,7 @@ public class TestApiFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("RateLimiting__StaffInvitationPermitLimit", "1000");
         Environment.SetEnvironmentVariable("RateLimiting__AppointmentResponsePermitLimit", "1000");
         Environment.SetEnvironmentVariable("RateLimiting__WaitlistOfferPermitLimit", "1000");
+        Environment.SetEnvironmentVariable("RateLimiting__TwoFactorPermitLimit", "1000");
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)

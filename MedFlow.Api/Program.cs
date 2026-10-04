@@ -172,6 +172,15 @@ builder.Services.AddRateLimiter(options =>
                 Window = TimeSpan.FromMinutes(15),
                 QueueLimit = 0
             }));
+    options.AddPolicy("two-factor", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = builder.Configuration.GetValue("RateLimiting:TwoFactorPermitLimit", 10),
+                Window = TimeSpan.FromMinutes(15),
+                QueueLimit = 0
+            }));
     options.AddPolicy("waitlist-offer", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
             httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",

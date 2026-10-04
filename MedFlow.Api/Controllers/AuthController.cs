@@ -28,12 +28,13 @@ public class AuthController : ControllerBase
     private readonly AppDbContext _db;
     private readonly IEmailSender _emailSender;
     private readonly ILogger<AuthController> _logger;
+    private readonly ITwoFactorService _twoFactor;
 
     public AuthController(UserManager<ApplicationUser> userManager,
         RoleManager<IdentityRole> roleManager, IPortalInvitationRepository invitations, IClinicService clinics,
         SignInManager<ApplicationUser> signInManager,
         IConfiguration config, AppDbContext db,
-        IEmailSender emailSender, ILogger<AuthController> logger)
+        IEmailSender emailSender, ILogger<AuthController> logger, ITwoFactorService twoFactor)
     {
         _userManager = userManager;
         _roleManager = roleManager;
@@ -44,6 +45,7 @@ public class AuthController : ControllerBase
         _db = db;
         _emailSender = emailSender;
         _logger = logger;
+        _twoFactor = twoFactor;
     }
 
     private async Task AddToRoleAsync(ApplicationUser user, string role)
@@ -108,10 +110,21 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
-    public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest req)
+    public async Task<IActionResult> Login([FromBody] LoginRequest req)
     {
         var user = await _userManager.FindByEmailAsync(req.Email);
         if (user == null) return Unauthorized(new { error = this.T("Auth.InvalidCredentials") });
+
+        // 2FA accounts: a correct password only earns a challenge. Their failure counter is not reset by it.
+        if (await _twoFactor.IsEnabledAsync(user.Id))
+        {
+            return await _twoFactor.CheckPasswordForChallengeAsync(user.Id, req.Password) switch
+            {
+                SecondFactorResult.Ok => Ok(TwoFactorChallenge(user)),
+                SecondFactorResult.LockedOut => Unauthorized(new { error = this.T("Auth.AccountLocked") }),
+                _ => Unauthorized(new { error = this.T("Auth.InvalidCredentials") })
+            };
+        }
 
         var result = await _signInManager.CheckPasswordSignInAsync(user, req.Password, lockoutOnFailure: true);
         if (!result.Succeeded)
@@ -124,7 +137,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("google-login")]
-    public async Task<ActionResult<AuthResponse>> GoogleLogin([FromBody] GoogleLoginRequest req)
+    public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest req)
     {
         try
         {
@@ -172,11 +185,51 @@ public class AuthController : ControllerBase
                 await _clinics.ProvisionOwnerAsync(user.Id, $"{user.FirstName} {user.LastName}");
             }
 
+            // Google has verified the address, but a user who turned on MedFlow 2FA is never let past it
+            if (await _twoFactor.IsEnabledAsync(user.Id)) return Ok(TwoFactorChallenge(user));
+
             return Ok(await BuildAuthResponseAsync(user));
         }
         catch (InvalidJwtException)
         {
             return Unauthorized(new { error = this.T("Auth.InvalidGoogleToken") });
+        }
+    }
+
+    private TwoFactorChallengeResponse TwoFactorChallenge(ApplicationUser user)
+    {
+        var (token, expires) = user.GenerateTwoFactorChallenge(_config);
+        return new TwoFactorChallengeResponse(true, token, expires);
+    }
+
+    /// <summary>Exchanges a challenge plus a current authenticator code for the real session. Every failure reads the same.</summary>
+    [HttpPost("2fa/verify")]
+    [EnableRateLimiting("two-factor")]
+    public Task<IActionResult> VerifyTwoFactor([FromBody] TwoFactorVerifyRequest req) =>
+        CompleteTwoFactorAsync(req.ChallengeToken, (id) => _twoFactor.VerifyCodeAsync(id, req.Code ?? string.Empty));
+
+    [HttpPost("2fa/recovery")]
+    [EnableRateLimiting("two-factor")]
+    public Task<IActionResult> RecoverTwoFactor([FromBody] TwoFactorRecoveryRequest req) =>
+        CompleteTwoFactorAsync(req.ChallengeToken, (id) => _twoFactor.VerifyRecoveryCodeAsync(id, req.RecoveryCode ?? string.Empty));
+
+    private async Task<IActionResult> CompleteTwoFactorAsync(string? challenge, Func<string, Task<SecondFactorResult>> verify)
+    {
+        var invalid = Unauthorized(new { error = this.T("TwoFactor.InvalidCode") });
+        var userId = JwtExtensions.ValidateTwoFactorChallenge(challenge, _config);
+        if (userId == null) return invalid;
+
+        switch (await verify(userId))
+        {
+            case SecondFactorResult.LockedOut:
+                return Unauthorized(new { error = this.T("Auth.AccountLocked") });
+            case SecondFactorResult.Ok:
+                var user = await _userManager.FindByIdAsync(userId);
+                if (user == null) return invalid;
+                _logger.LogInformation("Second factor completed for user {UserId}", userId);
+                return Ok(await BuildAuthResponseAsync(user));
+            default:
+                return invalid;
         }
     }
 
