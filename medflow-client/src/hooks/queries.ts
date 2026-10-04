@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi, clinicalApi, labsApi, intakeApi, noteTemplatesApi, availabilityApi, waitlistApi, auditApi, reportsApi, clinicApi, staffApi } from '@/api/services'
-import type { ReportQuery, QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest, SaveAllergyRequest, SaveProblemRequest, SaveMedicationRequest, SaveLabOrderRequest, SaveLabResultRequest, IntakeStatus, CreateNoteTemplateRequest, AuditLogQuery, ClaimExportFormat, ClinicRole, InviteStaffRequest } from '@/types'
+import { dashboardApi, patientsApi, appointmentsApi, prescriptionsApi, invoicesApi, vitalsApi, notesApi, attachmentsApi, portalApi, clinicalApi, labsApi, intakeApi, noteTemplatesApi, availabilityApi, waitlistApi, auditApi, reportsApi, clinicApi, staffApi, twoFactorApi } from '@/api/services'
+import type { ReportQuery, QueryParams, CreatePatientRequest, UpdatePatientRequest, CreateAppointmentRequest, AppointmentStatus, CreatePrescriptionRequest, CreateInvoiceRequest, CreateVitalSignRequest, CreateMedicalNoteRequest, SaveAllergyRequest, SaveProblemRequest, SaveMedicationRequest, SaveLabOrderRequest, SaveLabResultRequest, IntakeStatus, CreateNoteTemplateRequest, AuditLogQuery, ClaimExportFormat, ClinicRole, InviteStaffRequest, TwoFactorConfirmRequest } from '@/types'
 import toast from 'react-hot-toast'
 import i18n from '@/i18n'
 
@@ -623,5 +623,42 @@ export const useSetStaffActive = () => {
     mutationFn: ({ id, active }: { id: number; active: boolean }) => active ? staffApi.reactivate(id) : staffApi.deactivate(id),
     onSuccess: (_d, v) => { qc.invalidateQueries({ queryKey: ['staff'] }); toast.success(i18n.t(v.active ? 'staff.reactivated' : 'staff.deactivated')) },
     onError: staffError,
+  })
+}
+
+// ── Two-factor authentication (own account) ───────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here
+const twoFactorError = (err: any) => toast.error(err?.response?.data?.error ?? i18n.t('errors.generic'))
+
+export const useTwoFactorStatus = () =>
+  useQuery({ queryKey: ['twoFactor'], queryFn: twoFactorApi.status })
+
+export const useTwoFactorSetup = () =>
+  useMutation({ mutationFn: twoFactorApi.setup, onError: twoFactorError })
+
+export const useEnableTwoFactor = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (code: string) => twoFactorApi.enable(code),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['twoFactor'] }),
+    onError: twoFactorError,
+  })
+}
+
+export const useRegenerateRecoveryCodes = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: TwoFactorConfirmRequest) => twoFactorApi.regenerateRecoveryCodes(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['twoFactor'] }),
+    onError: twoFactorError,
+  })
+}
+
+export const useDisableTwoFactor = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: TwoFactorConfirmRequest) => twoFactorApi.disable(data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['twoFactor'] }); toast.success(i18n.t('security.disabledToast')) },
+    onError: twoFactorError,
   })
 }

@@ -3,6 +3,7 @@ import { useAuthStore } from '@/store/authStore'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { LoginPage, RegisterPage, ForgotPasswordPage, ResetPasswordPage, AcceptInvitePage, AcceptStaffInvitePage, AuthShell } from '@/pages/AuthPages'
 import { StaffPage } from '@/pages/StaffPage'
+import { SecurityPage } from '@/pages/SecurityPage'
 import { can, isStaffRole, type Permission } from '@/utils/permissions'
 import { useTranslation } from 'react-i18next'
 import { AppointmentResponsePage } from '@/pages/AppointmentResponsePage'
@@ -99,6 +100,7 @@ export default function App() {
         <Route path="templates" element={<Guard permission="NoteTemplates"><NoteTemplatesPage /></Guard>} />
         <Route path="billing" element={<Guard permission="InvoicesRead"><BillingPage /></Guard>} />
         <Route path="reports" element={<Guard permission="ReportsRead"><ReportsPage /></Guard>} />
+        <Route path="security" element={<SecurityPage />} />
         <Route path="staff" element={<Guard permission="StaffManage"><StaffPage /></Guard>} />
       </Route>
 

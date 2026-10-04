@@ -13,6 +13,16 @@ export interface AuthResponse {
   token: string; refreshToken: string; expires: string
   user: UserDto
 }
+/** Returned instead of a session when the account has two-factor authentication on */
+export interface TwoFactorChallenge { twoFactorRequired: true; challengeToken: string; expires: string }
+export type LoginResult = AuthResponse | TwoFactorChallenge
+export interface TwoFactorVerifyRequest { challengeToken: string; code: string }
+export interface TwoFactorRecoveryRequest { challengeToken: string; recoveryCode: string }
+export interface TwoFactorStatus { enabled: boolean; recoveryCodesRemaining: number }
+export interface TwoFactorSetup { sharedKey: string; otpAuthUri: string }
+/** password is required when the account has one; code is a current authenticator code or a recovery code */
+export interface TwoFactorConfirmRequest { password?: string; code: string }
+export interface RecoveryCodes { recoveryCodes: string[] }
 export interface UserDto {
   id: string; email: string; firstName: string; lastName: string; specialty: string
   /** Clinic role for staff, 'Patient' for portal users, empty when the account has no active clinic membership */

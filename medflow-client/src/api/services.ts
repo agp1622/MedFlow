@@ -1,6 +1,6 @@
 import api from './client'
 import type {
-  AuthResponse, LoginRequest, GoogleLoginRequest, RegisterRequest,
+  AuthResponse, LoginResult, TwoFactorVerifyRequest, TwoFactorRecoveryRequest, TwoFactorStatus, TwoFactorSetup, TwoFactorConfirmRequest, RecoveryCodes, LoginRequest, GoogleLoginRequest, RegisterRequest,
   ForgotPasswordRequest, ResetPasswordRequest,
   PagedResult, QueryParams,
   PatientDto, PatientSummaryDto, CreatePatientRequest, UpdatePatientRequest,
@@ -31,13 +31,24 @@ import type {
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const authApi = {
-  login:    (data: LoginRequest)    => api.post<AuthResponse>('/auth/login', data).then(r => r.data),
-  googleLogin: (data: GoogleLoginRequest) => api.post<AuthResponse>('/auth/google-login', data).then(r => r.data),
+  login:    (data: LoginRequest)    => api.post<LoginResult>('/auth/login', data).then(r => r.data),
+  googleLogin: (data: GoogleLoginRequest) => api.post<LoginResult>('/auth/google-login', data).then(r => r.data),
+  verifyTwoFactor: (data: TwoFactorVerifyRequest) => api.post<AuthResponse>('/auth/2fa/verify', data).then(r => r.data),
+  recoverTwoFactor: (data: TwoFactorRecoveryRequest) => api.post<AuthResponse>('/auth/2fa/recovery', data).then(r => r.data),
   register: (data: RegisterRequest) => api.post<AuthResponse>('/auth/register', data).then(r => r.data),
   forgotPassword: (data: ForgotPasswordRequest) => api.post<{ message: string }>('/auth/forgot-password', data).then(r => r.data),
   resetPassword:  (data: ResetPasswordRequest)  => api.post<{ message: string }>('/auth/reset-password', data).then(r => r.data),
   acceptInvitation: (data: AcceptInvitationRequest) => api.post<AuthResponse>('/auth/accept-invitation', data).then(r => r.data),
   acceptStaffInvitation: (data: AcceptStaffInvitationRequest) => api.post<AuthResponse>('/auth/accept-staff-invitation', data).then(r => r.data),
+}
+
+// ── Two-factor authentication (own account) ───────────────────────────────────
+export const twoFactorApi = {
+  status:  () => api.get<TwoFactorStatus>('/account/2fa').then(r => r.data),
+  setup:   () => api.post<TwoFactorSetup>('/account/2fa/setup').then(r => r.data),
+  enable:  (code: string) => api.post<RecoveryCodes>('/account/2fa/enable', { code }).then(r => r.data),
+  regenerateRecoveryCodes: (data: TwoFactorConfirmRequest) => api.post<RecoveryCodes>('/account/2fa/recovery-codes', data).then(r => r.data),
+  disable: (data: TwoFactorConfirmRequest) => api.post('/account/2fa/disable', data).then(r => r.data),
 }
 
 // ── Clinic and staff ──────────────────────────────────────────────────────────

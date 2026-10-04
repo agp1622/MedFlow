@@ -12,6 +12,7 @@ import { Spinner, PasswordInput } from '@/components/ui'
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 import toast from 'react-hot-toast'
 import { GoogleLogin } from '@react-oauth/google'
+import type { AuthResponse, LoginResult } from '@/types'
 
 // ── Login ─────────────────────────────────────────────────────────────────────
 const loginSchema = z.object({
@@ -30,24 +31,34 @@ export function LoginPage() {
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({ resolver: zodResolver(loginSchema) })
   const isPatient = audience === 'patient'
 
+  // Set when the password (or Google) step succeeded but the account needs a second factor
+  const [challenge, setChallenge] = useState<string | null>(null)
+
+  const finish = (data: AuthResponse) => {
+    // Each tab only signs in its own kind of account
+    if ((data.user.role === 'Patient') !== isPatient) {
+      toast.error(isPatient ? t('auth.login.doctorAccountHint') : t('auth.login.patientAccountHint'))
+      setAudience(isPatient ? 'doctor' : 'patient')
+      setChallenge(null)
+      return
+    }
+    login(data.token, data.user)
+    navigate('/')
+  }
+  const handleResult = (data: LoginResult) => {
+    if ('twoFactorRequired' in data) setChallenge(data.challengeToken)
+    else finish(data)
+  }
+
   const mutation = useMutation({
     mutationFn: authApi.login,
-    onSuccess: (data) => {
-      // Each tab only signs in its own kind of account
-      if ((data.user.role === 'Patient') !== isPatient) {
-        toast.error(isPatient ? t('auth.login.doctorAccountHint') : t('auth.login.patientAccountHint'))
-        setAudience(isPatient ? 'doctor' : 'patient')
-        return
-      }
-      login(data.token, data.user)
-      navigate('/')
-    },
+    onSuccess: handleResult,
     onError: () => toast.error(t('auth.login.invalidCredentials')),
   })
 
   const googleMutation = useMutation({
     mutationFn: authApi.googleLogin,
-    onSuccess: (data) => { login(data.token, data.user); navigate('/') },
+    onSuccess: handleResult,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here; narrowing would change call signatures
     onError: (err: any) => {
       const data = err?.response?.data
@@ -55,6 +66,10 @@ export function LoginPage() {
       toast.error(data?.error ?? t('auth.googleFailed'))
     },
   })
+
+  if (challenge) {
+    return <TwoFactorStep challenge={challenge} onSuccess={finish} onBack={() => setChallenge(null)} />
+  }
 
   return (
     <AuthShell
@@ -119,6 +134,48 @@ export function LoginPage() {
   )
 }
 
+// ── Login: second factor ─────────────────────────────────────────────────────
+function TwoFactorStep({ challenge, onSuccess, onBack }: {
+  challenge: string; onSuccess: (data: AuthResponse) => void; onBack: () => void
+}) {
+  const { t } = useTranslation()
+  const [useRecovery, setUseRecovery] = useState(false)
+  const [code, setCode] = useState('')
+
+  const mutation = useMutation({
+    mutationFn: (value: string) => useRecovery
+      ? authApi.recoverTwoFactor({ challengeToken: challenge, recoveryCode: value })
+      : authApi.verifyTwoFactor({ challengeToken: challenge, code: value }),
+    onSuccess,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here
+    onError: (err: any) => toast.error(err?.response?.data?.error ?? t('auth.twoFactor.invalid')),
+  })
+
+  return (
+    <AuthShell title={t('auth.twoFactor.title')}
+      subtitle={useRecovery ? t('auth.twoFactor.recoverySubtitle') : t('auth.twoFactor.subtitle')}>
+      <form className="space-y-4" onSubmit={e => { e.preventDefault(); if (code.trim()) mutation.mutate(code.trim()) }}>
+        <Field label={useRecovery ? t('auth.twoFactor.recoveryLabel') : t('auth.twoFactor.codeLabel')}>
+          <input className="input" autoFocus autoComplete="one-time-code" value={code}
+            inputMode={useRecovery ? 'text' : 'numeric'} maxLength={useRecovery ? 16 : 7}
+            placeholder={useRecovery ? 'XXXXX-XXXXX' : '123456'}
+            onChange={e => setCode(e.target.value)} />
+        </Field>
+        <button type="submit" className="btn-primary w-full h-10" disabled={mutation.isPending || !code.trim()}>
+          {mutation.isPending ? <Spinner className="w-4 h-4" /> : t('auth.twoFactor.submit')}
+        </button>
+      </form>
+      <div className="flex justify-between mt-5 text-sm">
+        <button type="button" className="text-primary-600 font-semibold hover:underline"
+          onClick={() => { setUseRecovery(v => !v); setCode('') }}>
+          {useRecovery ? t('auth.twoFactor.useApp') : t('auth.twoFactor.useRecovery')}
+        </button>
+        <button type="button" className="text-gray-500 hover:underline" onClick={onBack}>{t('auth.backToSignIn')}</button>
+      </div>
+    </AuthShell>
+  )
+}
+
 // ── Register ──────────────────────────────────────────────────────────────────
 const registerSchema = z.object({
   firstName: z.string().min(1, 'validation.required'),
@@ -142,11 +199,21 @@ export function RegisterPage() {
     onError: () => toast.error(t('auth.register.failed')),
   })
 
+  // Google sign-in here can also hit an account that has two-step verification on
+  const [challenge, setChallenge] = useState<string | null>(null)
   const googleMutation = useMutation({
     mutationFn: authApi.googleLogin,
-    onSuccess: (data) => { login(data.token, data.user); navigate('/') },
+    onSuccess: (data) => {
+      if ('twoFactorRequired' in data) { setChallenge(data.challengeToken); return }
+      login(data.token, data.user); navigate('/')
+    },
     onError: () => toast.error(t('auth.googleFailed')),
   })
+
+  if (challenge) {
+    return <TwoFactorStep challenge={challenge} onBack={() => setChallenge(null)}
+      onSuccess={data => { login(data.token, data.user); navigate('/') }} />
+  }
 
   return (
     <AuthShell title={t('auth.register.title')} subtitle={t('auth.register.subtitle')}>
