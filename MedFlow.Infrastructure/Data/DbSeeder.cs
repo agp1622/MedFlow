@@ -6,6 +6,7 @@ using MedFlow.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace MedFlow.Infrastructure.Data;
 
@@ -25,10 +26,17 @@ public static class DbSeeder
 
         if (userManager.Users.Any()) return;
 
-        var email = config["SeedUser:Email"] ?? "tpag02@gmail.com";
-        var password = config["SeedUser:Password"] ?? "MedFlow2026!";
-        var firstName = config["SeedUser:FirstName"] ?? "Pavel";
-        var lastName = config["SeedUser:LastName"] ?? "Arias";
+        // No built-in credentials: seeding needs explicitly configured values (user-secrets / environment)
+        var email = config["SeedUser:Email"];
+        var password = config["SeedUser:Password"];
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        {
+            services.GetService<ILoggerFactory>()?.CreateLogger("DbSeeder")
+                .LogWarning("Seeding skipped: SeedUser:Email and SeedUser:Password are not configured.");
+            return;
+        }
+        var firstName = config["SeedUser:FirstName"] ?? "Demo";
+        var lastName = config["SeedUser:LastName"] ?? "Doctor";
         var specialty = config["SeedUser:Specialty"] ?? "General Medicine";
 
         var user = new ApplicationUser
@@ -63,8 +71,9 @@ public static class DbSeeder
     private static async Task SeedDemoPortalPatientAsync(
         UserManager<ApplicationUser> userManager, AppDbContext db, string doctorId, IConfiguration config)
     {
-        var email = config["SeedUser:PatientEmail"] ?? "patient.demo@medflow.local";
-        var password = config["SeedUser:PatientPassword"] ?? "MedFlowPatient2026!";
+        var email = config["SeedUser:PatientEmail"];
+        var password = config["SeedUser:PatientPassword"];
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password)) return;
 
         var portalUser = new ApplicationUser
         {

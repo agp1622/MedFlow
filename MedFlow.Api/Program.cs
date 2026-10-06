@@ -28,6 +28,7 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 // JWT Auth
 var jwtSettings = builder.Configuration.GetSection("Jwt");
+MedFlow.Api.Configuration.JwtKeyValidator.Validate(jwtSettings["Key"], builder.Environment);
 var key = Encoding.UTF8.GetBytes(jwtSettings["Key"]!);
 
 builder.Services.AddAuthentication(options =>
