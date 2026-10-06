@@ -30,6 +30,7 @@ MedFlow/
 
 ### Option A — Docker Compose (recommended)
 ```bash
+cp .env.example .env   # then fill in the values (git-ignored)
 docker-compose up --build
 ```
 - API: http://localhost:8080/swagger
@@ -39,7 +40,7 @@ docker-compose up --build
 
 **1. Start SQL Server (Docker)**
 ```bash
-docker run -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=MedFlow_Dev_2024!" \
+docker run -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=$SA_PASSWORD" \
   -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest
 ```
 
@@ -79,8 +80,23 @@ npm run dev
 | `Waitlist:MaxOffersPerSlot` | Earliest-joined waiting patients emailed per freed slot (1-20, default 5) |
 | `RateLimiting:WaitlistOfferPermitLimit` | Public waitlist-offer requests per client IP per 15 minutes (default 30) |
 
-Use environment variables or Azure Key Vault for production secrets.  
-Never commit `appsettings.Production.json` to source control.
+### Secrets
+
+No real secret is committed. `appsettings*.json` hold empty values for these keys; supply them per environment:
+
+| Key (env var) | Purpose |
+|---------------|---------|
+| `Jwt:Key` (`Jwt__Key`) | Token signing key, required everywhere; outside Development/Testing it must be 32+ chars and not a placeholder, otherwise the API **refuses to start** |
+| `ConnectionStrings:DefaultConnection` (`ConnectionStrings__DefaultConnection`) | Database connection incl. password |
+| `Email:AppPassword` (`Email__AppPassword`), `Email:SenderEmail` | SMTP credentials |
+| `SeedUser:Email` / `SeedUser:Password` / `SeedUser:PatientEmail` / `SeedUser:PatientPassword` | Development demo accounts; seeding is skipped when unset |
+
+- **Local:** `cd MedFlow.Api && dotnet user-secrets set "Jwt:Key" "<32+ chars>"` (same for the other keys), or copy `.env.example` to `.env` for docker-compose.
+- **Azure:** App Service application settings with Key Vault references (`@Microsoft.KeyVault(SecretUri=...)`); `infra/main.bicep` takes secure parameters.
+- Seeding and automatic migration run **only** when `ASPNETCORE_ENVIRONMENT=Development`.
+- Never commit `appsettings.Production.json` or `.env`.
+
+> **Leaked credentials:** earlier commits contained a real SMTP app password and seed account password. Treat them as compromised: rotate them at the provider, then scan and, if required, purge git history (e.g. `gitleaks detect` / `git filter-repo`, followed by a coordinated force-push) and invalidate old clones.
 
 ### Client (`medflow-client/.env.local`)
 ```env
@@ -142,7 +158,7 @@ Accounts are either **staff** of a clinic (Owner, Doctor, Nurse or Receptionist,
 
 Attachments and notes are **not shared by default**. Patients cannot use Google sign-in.
 In Development, a fresh database is seeded with a demo patient (`patient.demo@medflow.local`,
-password from `SeedUser:PatientPassword`, default `MedFlowPatient2026!`) that has an appointment,
+password from `SeedUser:PatientPassword`, created only when `SeedUser:PatientEmail` and the password are configured) that has an appointment,
 a prescription and an invoice. The seeder only runs when there are no users yet.
 
 ### Clinics and staff roles
@@ -226,7 +242,8 @@ az deployment group create \
   --template-file infra/main.bicep \
   --parameters environmentName=prod \
                sqlAdminPassword=<SECURE_PASSWORD> \
-               jwtKey=<32_CHAR_SECRET>
+               jwtKey=<32_CHAR_SECRET> \
+               emailAppPassword=<SMTP_APP_PASSWORD>
 ```
 
 ### 2. CI/CD (Azure DevOps)
