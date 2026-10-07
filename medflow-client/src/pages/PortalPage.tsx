@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
   usePortalMe, usePortalAppointments, usePortalPrescriptions, usePortalInvoices,
@@ -124,8 +125,39 @@ function formatSize(bytes: number) {
   return `${one(bytes / (1024 * 1024))} MB`
 }
 
+const isPayable = (status: string) => status === 'Pending' || status === 'Overdue'
+
 export function PortalPage() {
   const { t } = useTranslation()
+  const qc = useQueryClient()
+  const [payingId, setPayingId] = useState<number | null>(null)
+
+  // Back from the hosted checkout: the webhook may land a moment after the redirect, so refresh the list
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const outcome = params.get('payment')
+    if (!outcome) return
+    if (outcome === 'success') {
+      toast.success(t('portal.pay.success'))
+      qc.invalidateQueries({ queryKey: ['portal'] })
+      setTimeout(() => qc.invalidateQueries({ queryKey: ['portal'] }), 4000)
+    } else {
+      toast(t('portal.pay.cancelled'))
+    }
+    window.history.replaceState({}, '', window.location.pathname)
+  }, [qc, t])
+
+  const payInvoice = async (id: number) => {
+    setPayingId(id)
+    try {
+      const { url } = await portalApi.startInvoiceCheckout(id)
+      window.location.assign(url)
+    } catch {
+      toast.error(t('portal.pay.startError'))
+      setPayingId(null)
+    }
+  }
+
   const me = usePortalMe()
   const appointments = usePortalAppointments()
   const prescriptions = usePortalPrescriptions()
@@ -220,6 +252,11 @@ export function PortalPage() {
                 <div className="flex items-center gap-3">
                   <span className="font-semibold text-gray-900">{fmt.currency(i.amount)}</span>
                   <Badge status={i.status} />
+                  {isPayable(i.status) && (
+                    <button className="btn-primary" disabled={payingId !== null} onClick={() => payInvoice(i.id)}>
+                      {payingId === i.id ? t('portal.pay.redirecting') : t('portal.pay.now')}
+                    </button>
+                  )}
                 </div>
               </li>
             ))}

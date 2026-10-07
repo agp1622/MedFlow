@@ -57,6 +57,7 @@ public interface IInvoiceRepository : IRepository<Invoice>
     Task<int> GetOverdueCountAsync(ClinicScope scope);
     Task UpdateOverdueStatusesAsync();
     Task<string> GenerateInvoiceNumberAsync();
+    Task<Invoice?> GetWithPatientAsync(int id);
     /// <summary>Data for a claim draft; null unless the invoice and its patient both belong to the clinic.</summary>
     Task<ClaimSourceData?> GetClaimSourceAsync(int id, ClinicScope scope);
 }
@@ -99,6 +100,8 @@ public interface IPortalRepository
     Task<IEnumerable<PortalAppointmentDto>> GetAppointmentsAsync(int patientId);
     Task<IEnumerable<PortalPrescriptionDto>> GetPrescriptionsAsync(int patientId);
     Task<IEnumerable<PortalInvoiceDto>> GetInvoicesAsync(int patientId);
+    /// <summary>The patient's own invoice by id, or null when it is missing or belongs to someone else.</summary>
+    Task<Invoice?> GetOwnInvoiceAsync(int id, int patientId);
     Task<IEnumerable<PortalAttachmentDto>> GetSharedAttachmentsAsync(int patientId);
     Task<PatientAttachment?> GetSharedAttachmentAsync(int id, int patientId);
     Task<IEnumerable<PortalNoteDto>> GetSharedNotesAsync(int patientId);

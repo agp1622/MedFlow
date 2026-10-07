@@ -252,6 +252,8 @@ export const portalApi = {
   appointments:  () => api.get<PortalAppointmentDto[]>('/portal/appointments').then(r => r.data),
   prescriptions: () => api.get<PortalPrescriptionDto[]>('/portal/prescriptions').then(r => r.data),
   invoices:      () => api.get<PortalInvoiceDto[]>('/portal/invoices').then(r => r.data),
+  startInvoiceCheckout: (id: number) =>
+    api.post<{ url: string }>(`/portal/invoices/${id}/checkout`).then(r => r.data),
   attachments:   () => api.get<PortalAttachmentDto[]>('/portal/attachments').then(r => r.data),
   notes:         () => api.get<PortalNoteDto[]>('/portal/notes').then(r => r.data),
   bookingSlots:  (from: string, to: string) =>

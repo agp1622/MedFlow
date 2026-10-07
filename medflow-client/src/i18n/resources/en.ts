@@ -845,6 +845,13 @@ export const en: Optional<typeof es> = {
     unavailableHelp: "Your portal access is not available right now. Please contact your doctor's office.",
     hello: 'Hello, {{name}}',
     recordsFrom: 'Your records from {{doctor}}',
+    pay: {
+      success: 'Thank you! Your payment was received.',
+      cancelled: 'Payment cancelled. You have not been charged.',
+      startError: 'Could not start the payment. Please try again.',
+      redirecting: 'Redirecting…',
+      now: 'Pay now',
+    },
     downloadError: 'Could not download this file',
     book: {
       title: 'Book an appointment',

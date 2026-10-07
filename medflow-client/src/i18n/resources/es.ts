@@ -851,6 +851,13 @@ export const es = {
     unavailableHelp: 'Su acceso al portal no está disponible en este momento. Comuníquese con el consultorio de su médico.',
     hello: 'Hola, {{name}}',
     recordsFrom: 'Su expediente de {{doctor}}',
+    pay: {
+      success: '¡Gracias! Hemos recibido su pago.',
+      cancelled: 'Pago cancelado. No se ha realizado ningún cargo.',
+      startError: 'No se pudo iniciar el pago. Inténtelo de nuevo.',
+      redirecting: 'Redirigiendo…',
+      now: 'Pagar ahora',
+    },
     downloadError: 'No se pudo descargar este archivo',
     book: {
       title: 'Reservar una cita',
