@@ -20,11 +20,18 @@ public class PortalController : ControllerBase
 {
     private readonly IPortalRepository _portal;
     private readonly IWebHostEnvironment _env;
+    private readonly IPaymentGateway _payments;
+    private readonly IConfiguration _config;
+    private readonly ILogger<PortalController> _logger;
 
-    public PortalController(IPortalRepository portal, IWebHostEnvironment env)
+    public PortalController(IPortalRepository portal, IWebHostEnvironment env, IPaymentGateway payments,
+        IConfiguration config, ILogger<PortalController> logger)
     {
         _portal = portal;
         _env = env;
+        _payments = payments;
+        _config = config;
+        _logger = logger;
     }
 
     private async Task<Patient?> ResolvePatientAsync()
@@ -66,6 +73,38 @@ public class PortalController : ControllerBase
         var patient = await ResolvePatientAsync();
         if (patient == null) return Unavailable();
         return Ok(await _portal.GetInvoicesAsync(patient.Id));
+    }
+
+    /// <summary>Starts an online payment for one of the patient's own unpaid invoices.</summary>
+    [HttpPost("invoices/{id:int}/checkout")]
+    public async Task<IActionResult> Checkout(int id)
+    {
+        var patient = await ResolvePatientAsync();
+        if (patient == null) return Unavailable();
+
+        // Missing and someone-else's look identical: 404
+        var invoice = await _portal.GetOwnInvoiceAsync(id, patient.Id);
+        if (invoice == null) return NotFound();
+        if (invoice.Status is not (InvoiceStatus.Pending or InvoiceStatus.Overdue))
+            return BadRequest(new { error = "This invoice is not payable." });
+        if (invoice.Amount <= 0) return BadRequest(new { error = "This invoice is not payable." });
+        if (!_payments.IsConfigured)
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { error = "Online payment is not available right now." });
+
+        var frontendUrl = (_config.GetSection("AllowedOrigins").Get<string[]>()?.FirstOrDefault()
+            ?? "http://localhost:5173").TrimEnd('/');
+        try
+        {
+            var url = await _payments.CreateCheckoutSessionAsync(new CheckoutRequest(
+                invoice.Id, invoice.InvoiceNumber, invoice.ServiceDescription, invoice.Amount, patient.Email,
+                $"{frontendUrl}/portal?payment=success", $"{frontendUrl}/portal?payment=cancelled"));
+            return Ok(new { url });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Could not start checkout for invoice {InvoiceId}", id);
+            return StatusCode(StatusCodes.Status502BadGateway, new { error = "Could not start the payment. Please try again." });
+        }
     }
 
     [HttpGet("attachments")]

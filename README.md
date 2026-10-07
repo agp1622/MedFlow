@@ -72,6 +72,9 @@ npm run dev
 | `Jwt:Audience` | Token audience (default: `MedFlowClient`) |
 | `Jwt:ExpiryMinutes` | Token lifetime in minutes |
 | `AllowedOrigins` | CORS allowed origins array |
+| `Payments:SecretKey` | Stripe secret key (`sk_...`); online payment is disabled while empty. Set via environment (`Payments__SecretKey`) |
+| `Payments:WebhookSecret` | Stripe webhook signing secret (`whsec_...`). Point a Stripe webhook for `checkout.session.completed` at `POST /api/payments/webhook` |
+| `Payments:Currency` | ISO currency for checkout (default `usd`) |
 
 Use environment variables or Azure Key Vault for production secrets.  
 Never commit `appsettings.Production.json` to source control.
@@ -112,6 +115,8 @@ dotnet ef database update \
 | GET/POST | `/api/prescriptions` | List / create prescriptions |
 | GET/POST | `/api/invoices` | List / create invoices |
 | PATCH | `/api/invoices/{id}/mark-paid` | Mark invoice paid |
+| POST | `/api/portal/invoices/{id}/checkout` | Patient starts online payment (returns Stripe Checkout URL) |
+| POST | `/api/payments/webhook` | Stripe webhook (signature-verified, anonymous) |
 | GET/POST | `/api/vitalsigns/patient/{id}` | Patient vitals |
 | GET/POST | `/api/medicalnotes/patient/{id}` | Patient notes |
 

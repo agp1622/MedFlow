@@ -23,6 +23,17 @@ public class FakeEmailSender : IEmailSender
     }
 }
 
+public class FakePaymentGateway : IPaymentGateway
+{
+    public bool IsConfigured { get; set; } = true;
+    public List<CheckoutRequest> Requests { get; } = new();
+    public Task<string> CreateCheckoutSessionAsync(CheckoutRequest request)
+    {
+        lock (Requests) Requests.Add(request);
+        return Task.FromResult($"https://checkout.test/pay/{request.InvoiceId}");
+    }
+}
+
 public record AuthResult(string Token, string UserId, string Role);
 
 public class TestApiFactory : WebApplicationFactory<Program>
@@ -32,6 +43,8 @@ public class TestApiFactory : WebApplicationFactory<Program>
     private string? _uploadsRoot;
     private HashSet<string> _preexistingUploads = new();
     public FakeEmailSender Email { get; } = new();
+    public FakePaymentGateway Payments { get; } = new();
+    public const string WebhookSecret = "whsec_test_secret";
 
     static TestApiFactory()
     {
@@ -40,6 +53,7 @@ public class TestApiFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("Jwt__Issuer", "MedFlowTests");
         Environment.SetEnvironmentVariable("Jwt__Audience", "MedFlowTests");
         Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", "Server=unused;Database=unused");
+        Environment.SetEnvironmentVariable("Payments__WebhookSecret", WebhookSecret);
         Environment.SetEnvironmentVariable("RateLimiting__AcceptInvitationPermitLimit", "1000");
     }
 
@@ -58,6 +72,8 @@ public class TestApiFactory : WebApplicationFactory<Program>
             services.AddDbContext<AppDbContext>(o => o.UseInMemoryDatabase(_dbName));
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(Email);
+            services.RemoveAll<IPaymentGateway>();
+            services.AddSingleton<IPaymentGateway>(Payments);
         });
     }
 

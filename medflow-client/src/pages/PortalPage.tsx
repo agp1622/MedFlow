@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   usePortalMe, usePortalAppointments, usePortalPrescriptions, usePortalInvoices,
   usePortalAttachments, usePortalNotes,
@@ -37,7 +38,38 @@ function formatSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+const isPayable = (status: string) => status === 'Pending' || status === 'Overdue'
+
 export function PortalPage() {
+  const qc = useQueryClient()
+  const [payingId, setPayingId] = useState<number | null>(null)
+
+  // Back from the hosted checkout: the webhook may land a moment after the redirect, so refresh the list
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const outcome = params.get('payment')
+    if (!outcome) return
+    if (outcome === 'success') {
+      toast.success('Thank you! Your payment was received.')
+      qc.invalidateQueries({ queryKey: ['portal'] })
+      setTimeout(() => qc.invalidateQueries({ queryKey: ['portal'] }), 4000)
+    } else {
+      toast('Payment cancelled. You have not been charged.')
+    }
+    window.history.replaceState({}, '', window.location.pathname)
+  }, [qc])
+
+  const payInvoice = async (id: number) => {
+    setPayingId(id)
+    try {
+      const { url } = await portalApi.startInvoiceCheckout(id)
+      window.location.assign(url)
+    } catch {
+      toast.error('Could not start the payment. Please try again.')
+      setPayingId(null)
+    }
+  }
+
   const me = usePortalMe()
   const appointments = usePortalAppointments()
   const prescriptions = usePortalPrescriptions()
@@ -128,6 +160,11 @@ export function PortalPage() {
                 <div className="flex items-center gap-3">
                   <span className="font-semibold text-gray-900">{fmt.currency(i.amount)}</span>
                   <Badge status={i.status} />
+                  {isPayable(i.status) && (
+                    <button className="btn-primary" disabled={payingId !== null} onClick={() => payInvoice(i.id)}>
+                      {payingId === i.id ? 'Redirecting…' : 'Pay now'}
+                    </button>
+                  )}
                 </div>
               </li>
             ))}

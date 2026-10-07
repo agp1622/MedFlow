@@ -250,6 +250,9 @@ public class InvoiceRepository : Repository<Invoice>, IInvoiceRepository
         return new PagedResult<InvoiceDto>(items, total, q.Page, q.PageSize);
     }
 
+    public async Task<Invoice?> GetWithPatientAsync(int id) =>
+        await _db.Invoices.Include(i => i.Patient).FirstOrDefaultAsync(i => i.Id == id);
+
     public async Task<IEnumerable<InvoiceDto>> GetByPatientAsync(int patientId, string doctorId) =>
         await _db.Invoices.Include(i => i.Patient)
             .Where(i => i.PatientId == patientId && i.DoctorId == doctorId)
@@ -432,6 +435,9 @@ public class PortalRepository : IPortalRepository
             .Select(i => new PortalInvoiceDto(i.Id, i.InvoiceNumber, i.ServiceDescription, i.Amount, i.PaidAmount,
                 i.Status.ToString(), i.InvoiceDate, i.DueDate, i.PaidDate))
             .ToListAsync();
+
+    public async Task<Invoice?> GetOwnInvoiceAsync(int id, int patientId) =>
+        await _db.Invoices.FirstOrDefaultAsync(i => i.Id == id && i.PatientId == patientId);
 
     public async Task<IEnumerable<PortalAttachmentDto>> GetSharedAttachmentsAsync(int patientId) =>
         await _db.PatientAttachments

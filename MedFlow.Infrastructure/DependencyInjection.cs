@@ -2,6 +2,7 @@ using MedFlow.Core.Interfaces;
 using MedFlow.Infrastructure.Data;
 using MedFlow.Infrastructure.Email;
 using MedFlow.Infrastructure.Identity;
+using MedFlow.Infrastructure.Payments;
 using MedFlow.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -32,6 +33,9 @@ public static class DependencyInjection
 
         services.Configure<EmailSettings>(config.GetSection(EmailSettings.SectionName));
         services.AddScoped<IEmailSender, SmtpEmailSender>();
+
+        services.Configure<PaymentSettings>(config.GetSection(PaymentSettings.SectionName));
+        services.AddScoped<IPaymentGateway, StripePaymentGateway>();
 
         services.AddScoped<IPatientRepository, PatientRepository>();
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();

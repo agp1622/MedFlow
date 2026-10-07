@@ -46,6 +46,7 @@ public interface IInvoiceRepository : IRepository<Invoice>
     Task<int> GetOverdueCountAsync(string doctorId);
     Task UpdateOverdueStatusesAsync();
     Task<string> GenerateInvoiceNumberAsync();
+    Task<Invoice?> GetWithPatientAsync(int id);
 }
 
 public interface IVitalSignRepository : IRepository<VitalSign>
@@ -80,6 +81,8 @@ public interface IPortalRepository
     Task<IEnumerable<PortalAppointmentDto>> GetAppointmentsAsync(int patientId);
     Task<IEnumerable<PortalPrescriptionDto>> GetPrescriptionsAsync(int patientId);
     Task<IEnumerable<PortalInvoiceDto>> GetInvoicesAsync(int patientId);
+    /// <summary>The patient's own invoice by id, or null when it is missing or belongs to someone else.</summary>
+    Task<Invoice?> GetOwnInvoiceAsync(int id, int patientId);
     Task<IEnumerable<PortalAttachmentDto>> GetSharedAttachmentsAsync(int patientId);
     Task<PatientAttachment?> GetSharedAttachmentAsync(int id, int patientId);
     Task<IEnumerable<PortalNoteDto>> GetSharedNotesAsync(int patientId);
