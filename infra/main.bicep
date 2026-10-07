@@ -15,6 +15,10 @@ param sqlAdminPassword string
 @description('JWT signing key (32+ chars)')
 param jwtKey string
 
+@secure()
+@description('SMTP app password for outgoing email (prefer a Key Vault reference in production)')
+param emailAppPassword string = ''
+
 var prefix = 'medflow-${environmentName}'
 var appServicePlanName = '${prefix}-plan'
 var webAppName = '${prefix}-api'
@@ -42,6 +46,7 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
       appSettings: [
         { name: 'ASPNETCORE_ENVIRONMENT', value: environmentName == 'prod' ? 'Production' : 'Development' }
         { name: 'Jwt__Key', value: jwtKey }
+        { name: 'Email__AppPassword', value: emailAppPassword }
         { name: 'Jwt__Issuer', value: 'MedFlowApi' }
         { name: 'Jwt__Audience', value: 'MedFlowClient' }
         { name: 'Jwt__ExpiryMinutes', value: '60' }

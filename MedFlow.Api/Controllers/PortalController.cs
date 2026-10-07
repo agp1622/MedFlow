@@ -1,4 +1,6 @@
+using MedFlow.Api.Localization;
 using MedFlow.Api.Extensions;
+using MedFlow.Api.Services;
 using MedFlow.Core;
 using MedFlow.Core.DTOs;
 using MedFlow.Core.Entities;
@@ -10,7 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace MedFlow.Api.Controllers;
 
 /// <summary>
-/// Read-only patient portal. The patient is ALWAYS resolved from the authenticated user,
+/// Patient portal (read-only except online booking). The patient is ALWAYS resolved from the authenticated user,
 /// never from a client-supplied id, so a patient can only ever reach their own records.
 /// </summary>
 [ApiController]
@@ -19,20 +21,32 @@ namespace MedFlow.Api.Controllers;
 public class PortalController : ControllerBase
 {
     private readonly IPortalRepository _portal;
+    private readonly IBookingRepository _booking;
+    private readonly IWaitlistRepository _waitlist;
     private readonly IWebHostEnvironment _env;
+    private readonly IAuditService _audit;
+    private readonly BookingConfirmationService _confirmation;
     private readonly IPaymentGateway _payments;
     private readonly IConfiguration _config;
     private readonly ILogger<PortalController> _logger;
 
-    public PortalController(IPortalRepository portal, IWebHostEnvironment env, IPaymentGateway payments,
-        IConfiguration config, ILogger<PortalController> logger)
+    public PortalController(IPortalRepository portal, IBookingRepository booking, IWaitlistRepository waitlist, IWebHostEnvironment env, IAuditService audit,
+        BookingConfirmationService confirmation, IPaymentGateway payments, IConfiguration config, ILogger<PortalController> logger)
     {
+        _confirmation = confirmation;
         _portal = portal;
+        _booking = booking;
+        _waitlist = waitlist;
         _env = env;
+        _audit = audit;
         _payments = payments;
         _config = config;
         _logger = logger;
     }
+
+    /// <summary>Records the patient's own view before any data is returned (fail closed).</summary>
+    private Task<bool> AuditViewAsync(Patient patient, AuditItemKind kind, int? itemId = null) =>
+        this.AuditAsync(_audit, patient.Id, AuditAction.View, kind, itemId);
 
     private async Task<Patient?> ResolvePatientAsync()
     {
@@ -41,13 +55,14 @@ public class PortalController : ControllerBase
     }
 
     private ObjectResult Unavailable() =>
-        StatusCode(StatusCodes.Status403Forbidden, new { error = "Portal access is unavailable." });
+        StatusCode(StatusCodes.Status403Forbidden, new { error = this.T("Portal.Unavailable") });
 
     [HttpGet("me")]
     public async Task<IActionResult> Me()
     {
         var patient = await ResolvePatientAsync();
         if (patient == null) return Unavailable();
+        if (!await AuditViewAsync(patient, AuditItemKind.Patient, patient.Id)) return Unavailable();
         return Ok(await _portal.GetProfileAsync(patient));
     }
 
@@ -56,6 +71,7 @@ public class PortalController : ControllerBase
     {
         var patient = await ResolvePatientAsync();
         if (patient == null) return Unavailable();
+        if (!await AuditViewAsync(patient, AuditItemKind.Appointment)) return Unavailable();
         return Ok(await _portal.GetAppointmentsAsync(patient.Id));
     }
 
@@ -64,6 +80,7 @@ public class PortalController : ControllerBase
     {
         var patient = await ResolvePatientAsync();
         if (patient == null) return Unavailable();
+        if (!await AuditViewAsync(patient, AuditItemKind.Prescription)) return Unavailable();
         return Ok(await _portal.GetPrescriptionsAsync(patient.Id));
     }
 
@@ -72,6 +89,7 @@ public class PortalController : ControllerBase
     {
         var patient = await ResolvePatientAsync();
         if (patient == null) return Unavailable();
+        if (!await AuditViewAsync(patient, AuditItemKind.Invoice)) return Unavailable();
         return Ok(await _portal.GetInvoicesAsync(patient.Id));
     }
 
@@ -112,6 +130,7 @@ public class PortalController : ControllerBase
     {
         var patient = await ResolvePatientAsync();
         if (patient == null) return Unavailable();
+        if (!await AuditViewAsync(patient, AuditItemKind.Attachment)) return Unavailable();
         return Ok(await _portal.GetSharedAttachmentsAsync(patient.Id));
     }
 
@@ -129,6 +148,7 @@ public class PortalController : ControllerBase
             attachment.PatientId.ToString(), attachment.StoredFileName);
         if (!System.IO.File.Exists(filePath)) return NotFound();
 
+        if (!await AuditViewAsync(patient, AuditItemKind.Attachment, id)) return Unavailable();
         await _portal.LogAccessAsync(patient.Id, "Attachment", new[] { id }, "Download");
         var bytes = await System.IO.File.ReadAllBytesAsync(filePath);
         return File(bytes, attachment.ContentType, attachment.FileName);
@@ -139,9 +159,73 @@ public class PortalController : ControllerBase
     {
         var patient = await ResolvePatientAsync();
         if (patient == null) return Unavailable();
+        if (!await AuditViewAsync(patient, AuditItemKind.Note)) return Unavailable();
         var notes = (await _portal.GetSharedNotesAsync(patient.Id)).ToList();
         if (notes.Count > 0)
             await _portal.LogAccessAsync(patient.Id, "Note", notes.Select(n => n.Id), "View");
         return Ok(notes);
+    }
+
+    [HttpGet("booking/slots")]
+    public async Task<IActionResult> Slots([FromQuery] DateOnly from, [FromQuery] DateOnly to)
+    {
+        var patient = await ResolvePatientAsync();
+        if (patient == null) return Unavailable();
+        if (to < from || to.DayNumber - from.DayNumber > 30)
+            return BadRequest(new { error = this.T("Portal.RangeMax") });
+        return Ok(await _booking.GetOpenSlotsAsync(patient, from, to));
+    }
+
+    [HttpPost("booking")]
+    public async Task<IActionResult> Book([FromBody] BookAppointmentRequest req)
+    {
+        var patient = await ResolvePatientAsync();
+        if (patient == null) return Unavailable();
+        var reason = string.IsNullOrWhiteSpace(req.Reason) ? null : req.Reason.Trim();
+        if (reason is { Length: > 500 })
+            return BadRequest(new { error = this.T("Error.ReasonMax", 500) });
+
+        var (outcome, appt) = await _booking.BookAsync(patient, req.StartsAt, reason);
+        if (outcome == BookingOutcome.Booked && appt != null)
+            await _confirmation.SendAsync(patient, appt); // never throws; the booking is already saved
+
+        return outcome switch
+        {
+            BookingOutcome.Booked => Created("/api/portal/appointments", appt),
+            BookingOutcome.NotAvailable => BadRequest(new { error = this.T("Portal.NotAvailable") }),
+            BookingOutcome.LimitReached => Conflict(new { error = this.T("Portal.LimitReached") }),
+            _ => Conflict(new { error = this.T("Portal.SlotTaken") })
+        };
+    }
+
+    [HttpGet("waitlist")]
+    public async Task<IActionResult> GetWaitlist()
+    {
+        var patient = await ResolvePatientAsync();
+        if (patient == null) return Unavailable();
+        return Ok(await _waitlist.GetForPatientAsync(patient.Id));
+    }
+
+    [HttpPost("waitlist")]
+    public async Task<IActionResult> JoinWaitlist()
+    {
+        var patient = await ResolvePatientAsync();
+        if (patient == null) return Unavailable();
+        var (outcome, entry) = await _waitlist.JoinAsync(patient);
+        if (outcome == WaitlistAddOutcome.AlreadyWaiting)
+            return Conflict(new { error = this.T("Waitlist.AlreadyWaiting") });
+        if (outcome != WaitlistAddOutcome.Added || entry == null) return Unavailable();
+        if (!await this.AuditAsync(_audit, patient.Id, AuditAction.Change, AuditItemKind.Waitlist, entry.Id)) return Unavailable();
+        return Created("/api/portal/waitlist", new PortalWaitlistDto(true, entry.JoinedAt));
+    }
+
+    [HttpDelete("waitlist")]
+    public async Task<IActionResult> LeaveWaitlist()
+    {
+        var patient = await ResolvePatientAsync();
+        if (patient == null) return Unavailable();
+        if (!await _waitlist.LeaveAsync(patient.Id)) return NotFound(new { error = this.T("Waitlist.NotOnList") });
+        await this.AuditAsync(_audit, patient.Id, AuditAction.Change, AuditItemKind.Waitlist);
+        return NoContent();
     }
 }

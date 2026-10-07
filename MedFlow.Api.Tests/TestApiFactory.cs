@@ -16,8 +16,10 @@ namespace MedFlow.Api.Tests;
 public class FakeEmailSender : IEmailSender
 {
     public List<(string To, string Subject, string Body)> Sent { get; } = new();
+    public bool Fail { get; set; }
     public Task SendAsync(string toEmail, string subject, string htmlBody)
     {
+        if (Fail) throw new InvalidOperationException("smtp down");
         lock (Sent) Sent.Add((toEmail, subject, htmlBody));
         return Task.CompletedTask;
     }
@@ -46,6 +48,12 @@ public class TestApiFactory : WebApplicationFactory<Program>
     public FakePaymentGateway Payments { get; } = new();
     public const string WebhookSecret = "whsec_test_secret";
 
+    public async Task<int> RunRemindersAsync()
+    {
+        using var scope = Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<IReminderProcessor>().ProcessDueAsync();
+    }
+
     static TestApiFactory()
     {
         // Program.cs reads these while building, so they must be environment variables
@@ -55,6 +63,11 @@ public class TestApiFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", "Server=unused;Database=unused");
         Environment.SetEnvironmentVariable("Payments__WebhookSecret", WebhookSecret);
         Environment.SetEnvironmentVariable("RateLimiting__AcceptInvitationPermitLimit", "1000");
+        Environment.SetEnvironmentVariable("RateLimiting__IntakePermitLimit", "1000");
+        Environment.SetEnvironmentVariable("RateLimiting__StaffInvitationPermitLimit", "1000");
+        Environment.SetEnvironmentVariable("RateLimiting__AppointmentResponsePermitLimit", "1000");
+        Environment.SetEnvironmentVariable("RateLimiting__WaitlistOfferPermitLimit", "1000");
+        Environment.SetEnvironmentVariable("RateLimiting__TwoFactorPermitLimit", "1000");
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -70,6 +83,8 @@ public class TestApiFactory : WebApplicationFactory<Program>
         {
             services.RemoveAll<DbContextOptions<AppDbContext>>();
             services.AddDbContext<AppDbContext>(o => o.UseInMemoryDatabase(_dbName));
+            // Tests drive the reminder processor directly; the timer must not race them
+            services.RemoveAll<Microsoft.Extensions.Hosting.IHostedService>();
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(Email);
             services.RemoveAll<IPaymentGateway>();
@@ -138,6 +153,30 @@ public class TestApiFactory : WebApplicationFactory<Program>
     {
         var token = await InviteAsync(doctorToken, patientId);
         var res = await AcceptAsync(token, email);
+        res.EnsureSuccessStatusCode();
+        return await ReadAuth(res);
+    }
+
+    /// <summary>Owner invites a staff member and the raw token is parsed from the captured email.</summary>
+    public async Task<string> InviteStaffAsync(string ownerToken, string email, string role)
+    {
+        var before = Email.Sent.Count;
+        var res = await ClientFor(ownerToken).PostAsJsonAsync("/api/staff/invitations", new { email, role });
+        res.EnsureSuccessStatusCode();
+        var mail = Email.Sent.Skip(before).Single(m => m.To == email);
+        return System.Net.WebUtility.UrlDecode(Regex.Match(mail.Body, @"token=([^&""]+)").Groups[1].Value);
+    }
+
+    public async Task<HttpResponseMessage> AcceptStaffAsync(string token, string email, string first = "Sam", string last = "Staff",
+        string password = Password) =>
+        await CreateClient().PostAsJsonAsync("/api/auth/accept-staff-invitation",
+            new { token, email, password, confirmPassword = password, firstName = first, lastName = last });
+
+    /// <summary>Invite + accept. Returns the new staff member's auth.</summary>
+    public async Task<AuthResult> JoinStaffAsync(string ownerToken, string email, string role, string first = "Sam", string last = "Staff")
+    {
+        var token = await InviteStaffAsync(ownerToken, email, role);
+        var res = await AcceptStaffAsync(token, email, first, last);
         res.EnsureSuccessStatusCode();
         return await ReadAuth(res);
     }

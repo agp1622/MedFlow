@@ -59,13 +59,14 @@ public class AccessControlTests : IClassFixture<TestApiFactory>
     }
 
     [Fact]
-    public async Task Doctor_registration_and_login_carry_the_Doctor_role()
+    public async Task Doctor_registration_and_login_carry_the_clinic_Owner_role()
     {
         var email = $"doc-{Guid.NewGuid():N}@x.com";
         var reg = await _f.RegisterDoctorAsync(email);
-        Assert.Equal("Doctor", reg.Role);
+        // A self-registered doctor owns their own clinic, so the role shown is Owner
+        Assert.Equal("Owner", reg.Role);
         var login = await _f.CreateClient().PostAsJsonAsync("/api/auth/login", new { email, password = TestApiFactory.Password });
-        Assert.Equal("Doctor", (await TestApiFactory.ReadAuth(login)).Role);
+        Assert.Equal("Owner", (await TestApiFactory.ReadAuth(login)).Role);
         Assert.Equal(HttpStatusCode.OK, (await _f.ClientFor(reg.Token).GetAsync("/api/patients")).StatusCode);
     }
 

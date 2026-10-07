@@ -1,5 +1,7 @@
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { tError } from '@/i18n'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -7,92 +9,108 @@ import { useMutation } from '@tanstack/react-query'
 import { authApi } from '@/api/services'
 import { useAuthStore } from '@/store/authStore'
 import { Spinner, PasswordInput } from '@/components/ui'
+import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 import toast from 'react-hot-toast'
 import { GoogleLogin } from '@react-oauth/google'
+import type { AuthResponse, LoginResult } from '@/types'
 
 // ── Login ─────────────────────────────────────────────────────────────────────
 const loginSchema = z.object({
-  email: z.string().email('Invalid email'),
-  password: z.string().min(1, 'Required'),
+  email: z.string().email('validation.invalidEmail'),
+  password: z.string().min(1, 'validation.required'),
 })
 type LoginForm = z.infer<typeof loginSchema>
 
 type Audience = 'doctor' | 'patient'
 
 export function LoginPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const login = useAuthStore(s => s.login)
   const [audience, setAudience] = useState<Audience>('doctor')
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({ resolver: zodResolver(loginSchema) })
   const isPatient = audience === 'patient'
 
+  // Set when the password (or Google) step succeeded but the account needs a second factor
+  const [challenge, setChallenge] = useState<string | null>(null)
+
+  const finish = (data: AuthResponse) => {
+    // Each tab only signs in its own kind of account
+    if ((data.user.role === 'Patient') !== isPatient) {
+      toast.error(isPatient ? t('auth.login.doctorAccountHint') : t('auth.login.patientAccountHint'))
+      setAudience(isPatient ? 'doctor' : 'patient')
+      setChallenge(null)
+      return
+    }
+    login(data.token, data.user)
+    navigate('/')
+  }
+  const handleResult = (data: LoginResult) => {
+    if ('twoFactorRequired' in data) setChallenge(data.challengeToken)
+    else finish(data)
+  }
+
   const mutation = useMutation({
     mutationFn: authApi.login,
-    onSuccess: (data) => {
-      // Each tab only signs in its own kind of account
-      if ((data.user.role === 'Patient') !== isPatient) {
-        toast.error(isPatient
-          ? 'This is a doctor account. Please use the "I\'m a doctor" tab.'
-          : 'This is a patient account. Please use the "I\'m a patient" tab.')
-        setAudience(isPatient ? 'doctor' : 'patient')
-        return
-      }
-      login(data.token, data.user)
-      navigate('/')
-    },
-    onError: () => toast.error('Invalid email or password'),
+    onSuccess: handleResult,
+    onError: () => toast.error(t('auth.login.invalidCredentials')),
   })
 
   const googleMutation = useMutation({
     mutationFn: authApi.googleLogin,
-    onSuccess: (data) => { login(data.token, data.user); navigate('/') },
+    onSuccess: handleResult,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here; narrowing would change call signatures
     onError: (err: any) => {
       const data = err?.response?.data
       if (data?.code === 'patient_account') setAudience('patient')
-      toast.error(data?.error ?? 'Google sign in failed')
+      toast.error(data?.error ?? t('auth.googleFailed'))
     },
   })
 
+  if (challenge) {
+    return <TwoFactorStep challenge={challenge} onSuccess={finish} onBack={() => setChallenge(null)} />
+  }
+
   return (
     <AuthShell
-      title={isPatient ? 'Patient portal' : 'Welcome back'}
-      subtitle={isPatient ? 'Sign in to see your records' : 'Sign in to your MedFlow account'}>
-      <div role="tablist" aria-label="Account type" className="grid grid-cols-2 gap-1 p-1 mb-6 rounded-xl bg-gray-100">
+      title={isPatient ? t('auth.login.patientTitle') : t('auth.login.title')}
+      subtitle={isPatient ? t('auth.login.patientSubtitle') : t('auth.login.subtitle')}>
+      <div role="tablist" aria-label={t('auth.login.accountType')} className="grid grid-cols-2 gap-1 p-1 mb-6 rounded-xl bg-gray-100">
         {(['doctor', 'patient'] as const).map(a => (
           <button key={a} type="button" role="tab" aria-selected={audience === a}
             onClick={() => setAudience(a)}
             className={`py-2 rounded-lg text-sm font-semibold transition-all ${
               audience === a ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
             }`}>
-            {a === 'doctor' ? "I'm a doctor" : "I'm a patient"}
+            {a === 'doctor' ? t('auth.login.imDoctor') : t('auth.login.imPatient')}
           </button>
         ))}
       </div>
 
       <form onSubmit={handleSubmit(d => mutation.mutate(d))} className="space-y-4">
-        <Field label="Email" error={errors.email?.message}>
-          <input className="input" type="email" placeholder={isPatient ? 'you@example.com' : 'doctor@clinic.com'} {...register('email')} />
+        <Field label={t('auth.email')} error={errors.email?.message}>
+          <input className="input" type="email" placeholder={isPatient ? t('auth.emailPlaceholderPatient') : t('auth.emailPlaceholderDoctor')} {...register('email')} />
         </Field>
-        <Field label="Password" error={errors.password?.message}>
+        <Field label={t('auth.password')} error={errors.password?.message}>
           <PasswordInput placeholder="••••••••" registration={register('password')} />
         </Field>
         <div className="text-right -mt-2">
-          <Link to="/forgot-password" className="text-primary-600 text-sm font-semibold hover:underline">Forgot password?</Link>
+          <Link to="/forgot-password" className="text-primary-600 text-sm font-semibold hover:underline">{t('auth.login.forgot')}</Link>
         </div>
         <button type="submit" className="btn-primary w-full h-10" disabled={mutation.isPending || googleMutation.isPending}>
-          {mutation.isPending ? <Spinner className="w-4 h-4" /> : 'Sign In'}
+          {mutation.isPending ? <Spinner className="w-4 h-4" /> : t('auth.login.submit')}
         </button>
       </form>
 
       {isPatient ? (
         <p className="text-center text-sm text-gray-500 mt-5">
-          Your doctor's office emails you an invitation to create your account. Didn't get one? Please contact them.
+          {t('auth.login.patientInviteNote')}
         </p>
       ) : (
         <>
           <div className="mt-6 mb-4 flex items-center justify-center">
             <div className="w-full h-px bg-gray-200"></div>
-            <span className="px-4 text-sm text-gray-500 bg-surface">OR</span>
+            <span className="px-4 text-sm text-gray-500 bg-surface">{t('auth.or')}</span>
             <div className="w-full h-px bg-gray-200"></div>
           </div>
 
@@ -103,12 +121,12 @@ export function LoginPage() {
                   googleMutation.mutate({ credential: credentialResponse.credential })
                 }
               }}
-              onError={() => toast.error('Google Sign-In failed')}
+              onError={() => toast.error(t('auth.googleFailed'))}
             />
           </div>
 
           <p className="text-center text-sm text-gray-500 mt-5">
-            No account? <Link to="/register" className="text-primary-600 font-semibold hover:underline">Register</Link>
+            {t('auth.login.noAccount')} <Link to="/register" className="text-primary-600 font-semibold hover:underline">{t('auth.login.register')}</Link>
           </p>
         </>
       )}
@@ -116,18 +134,61 @@ export function LoginPage() {
   )
 }
 
+// ── Login: second factor ─────────────────────────────────────────────────────
+function TwoFactorStep({ challenge, onSuccess, onBack }: {
+  challenge: string; onSuccess: (data: AuthResponse) => void; onBack: () => void
+}) {
+  const { t } = useTranslation()
+  const [useRecovery, setUseRecovery] = useState(false)
+  const [code, setCode] = useState('')
+
+  const mutation = useMutation({
+    mutationFn: (value: string) => useRecovery
+      ? authApi.recoverTwoFactor({ challengeToken: challenge, recoveryCode: value })
+      : authApi.verifyTwoFactor({ challengeToken: challenge, code: value }),
+    onSuccess,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here
+    onError: (err: any) => toast.error(err?.response?.data?.error ?? t('auth.twoFactor.invalid')),
+  })
+
+  return (
+    <AuthShell title={t('auth.twoFactor.title')}
+      subtitle={useRecovery ? t('auth.twoFactor.recoverySubtitle') : t('auth.twoFactor.subtitle')}>
+      <form className="space-y-4" onSubmit={e => { e.preventDefault(); if (code.trim()) mutation.mutate(code.trim()) }}>
+        <Field label={useRecovery ? t('auth.twoFactor.recoveryLabel') : t('auth.twoFactor.codeLabel')}>
+          <input className="input" autoFocus autoComplete="one-time-code" value={code}
+            inputMode={useRecovery ? 'text' : 'numeric'} maxLength={useRecovery ? 16 : 7}
+            placeholder={useRecovery ? 'XXXXX-XXXXX' : '123456'}
+            onChange={e => setCode(e.target.value)} />
+        </Field>
+        <button type="submit" className="btn-primary w-full h-10" disabled={mutation.isPending || !code.trim()}>
+          {mutation.isPending ? <Spinner className="w-4 h-4" /> : t('auth.twoFactor.submit')}
+        </button>
+      </form>
+      <div className="flex justify-between mt-5 text-sm">
+        <button type="button" className="text-primary-600 font-semibold hover:underline"
+          onClick={() => { setUseRecovery(v => !v); setCode('') }}>
+          {useRecovery ? t('auth.twoFactor.useApp') : t('auth.twoFactor.useRecovery')}
+        </button>
+        <button type="button" className="text-gray-500 hover:underline" onClick={onBack}>{t('auth.backToSignIn')}</button>
+      </div>
+    </AuthShell>
+  )
+}
+
 // ── Register ──────────────────────────────────────────────────────────────────
 const registerSchema = z.object({
-  firstName: z.string().min(1, 'Required'),
-  lastName: z.string().min(1, 'Required'),
-  email: z.string().email('Invalid email'),
-  specialty: z.string().min(1, 'Required'),
-  password: z.string().min(8, 'Minimum 8 characters').regex(/[A-Z]/, 'Must contain uppercase'),
+  firstName: z.string().min(1, 'validation.required'),
+  lastName: z.string().min(1, 'validation.required'),
+  email: z.string().email('validation.invalidEmail'),
+  specialty: z.string().min(1, 'validation.required'),
+  password: z.string().min(8, 'validation.passwordMin').regex(/[A-Z]/, 'validation.passwordUpper'),
   confirmPassword: z.string(),
-}).refine(d => d.password === d.confirmPassword, { message: 'Passwords do not match', path: ['confirmPassword'] })
+}).refine(d => d.password === d.confirmPassword, { message: 'validation.passwordMismatch', path: ['confirmPassword'] })
 type RegisterForm = z.infer<typeof registerSchema>
 
 export function RegisterPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const login = useAuthStore(s => s.login)
   const { register, handleSubmit, formState: { errors } } = useForm<RegisterForm>({ resolver: zodResolver(registerSchema) })
@@ -135,46 +196,56 @@ export function RegisterPage() {
   const mutation = useMutation({
     mutationFn: ({ confirmPassword, ...rest }: RegisterForm) => authApi.register(rest),
     onSuccess: (data) => { login(data.token, data.user); navigate('/') },
-    onError: () => toast.error('Registration failed. Email may already be in use.'),
+    onError: () => toast.error(t('auth.register.failed')),
   })
 
+  // Google sign-in here can also hit an account that has two-step verification on
+  const [challenge, setChallenge] = useState<string | null>(null)
   const googleMutation = useMutation({
     mutationFn: authApi.googleLogin,
-    onSuccess: (data) => { login(data.token, data.user); navigate('/') },
-    onError: () => toast.error('Google sign in failed'),
+    onSuccess: (data) => {
+      if ('twoFactorRequired' in data) { setChallenge(data.challengeToken); return }
+      login(data.token, data.user); navigate('/')
+    },
+    onError: () => toast.error(t('auth.googleFailed')),
   })
 
+  if (challenge) {
+    return <TwoFactorStep challenge={challenge} onBack={() => setChallenge(null)}
+      onSuccess={data => { login(data.token, data.user); navigate('/') }} />
+  }
+
   return (
-    <AuthShell title="Create your account" subtitle="Start managing your patients today">
+    <AuthShell title={t('auth.register.title')} subtitle={t('auth.register.subtitle')}>
       <form onSubmit={handleSubmit(d => mutation.mutate(d))} className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="First name" error={errors.firstName?.message}>
-            <input className="input" placeholder="John" {...register('firstName')} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+           <Field label={t('auth.register.firstName')} error={errors.firstName?.message}>
+            <input className="input" placeholder={t('auth.register.firstNamePlaceholder')} {...register('firstName')} />
           </Field>
-          <Field label="Last name" error={errors.lastName?.message}>
-            <input className="input" placeholder="Smith" {...register('lastName')} />
+          <Field label={t('auth.register.lastName')} error={errors.lastName?.message}>
+            <input className="input" placeholder={t('auth.register.lastNamePlaceholder')} {...register('lastName')} />
           </Field>
         </div>
-        <Field label="Email" error={errors.email?.message}>
-          <input className="input" type="email" placeholder="doctor@clinic.com" {...register('email')} />
+         <Field label={t('auth.email')} error={errors.email?.message}>
+          <input className="input" type="email" placeholder={t('auth.emailPlaceholderDoctor')} {...register('email')} />
         </Field>
-        <Field label="Specialty" error={errors.specialty?.message}>
-          <input className="input" placeholder="e.g. Cardiology" {...register('specialty')} />
+        <Field label={t('auth.register.specialty')} error={errors.specialty?.message}>
+          <input className="input" placeholder={t('auth.register.specialtyPlaceholder')} {...register('specialty')} />
         </Field>
-        <Field label="Password" error={errors.password?.message}>
-          <PasswordInput placeholder="Min 8 chars, 1 uppercase" registration={register('password')} />
+        <Field label={t('auth.password')} error={errors.password?.message}>
+          <PasswordInput placeholder={t('auth.register.passwordPlaceholder')} registration={register('password')} />
         </Field>
-        <Field label="Confirm password" error={errors.confirmPassword?.message}>
-          <PasswordInput placeholder="Repeat password" registration={register('confirmPassword')} />
+        <Field label={t('auth.confirmPassword')} error={errors.confirmPassword?.message}>
+          <PasswordInput placeholder={t('auth.repeatPassword')} registration={register('confirmPassword')} />
         </Field>
         <button type="submit" className="btn-primary w-full h-10" disabled={mutation.isPending || googleMutation.isPending}>
-          {mutation.isPending ? <Spinner className="w-4 h-4" /> : 'Create Account'}
+          {mutation.isPending ? <Spinner className="w-4 h-4" /> : t('auth.register.submit')}
         </button>
       </form>
 
       <div className="mt-6 mb-4 flex items-center justify-center">
         <div className="w-full h-px bg-gray-200"></div>
-        <span className="px-4 text-sm text-gray-500 bg-surface">OR</span>
+        <span className="px-4 text-sm text-gray-500 bg-surface">{t('auth.or')}</span>
         <div className="w-full h-px bg-gray-200"></div>
       </div>
       
@@ -185,51 +256,53 @@ export function RegisterPage() {
               googleMutation.mutate({ credential: credentialResponse.credential })
             }
           }}
-          onError={() => toast.error('Google Sign-In failed')}
+          onError={() => toast.error(t('auth.googleFailed'))}
         />
       </div>
 
       <p className="text-center text-sm text-gray-500 mt-5">
-        Already have an account? <Link to="/login" className="text-primary-600 font-semibold hover:underline">Sign in</Link>
+        {t('auth.register.haveAccount')} <Link to="/login" className="text-primary-600 font-semibold hover:underline">{t('auth.register.signIn')}</Link>
       </p>
     </AuthShell>
   )
 }
 
 // ── Forgot Password ───────────────────────────────────────────────────────────
-const forgotSchema = z.object({ email: z.string().email('Invalid email') })
+const forgotSchema = z.object({ email: z.string().email('validation.invalidEmail') })
 type ForgotForm = z.infer<typeof forgotSchema>
 
 export function ForgotPasswordPage() {
+  const { t } = useTranslation()
   const [message, setMessage] = useState<string | null>(null)
   const { register, handleSubmit, formState: { errors } } = useForm<ForgotForm>({ resolver: zodResolver(forgotSchema) })
 
   const mutation = useMutation({
     mutationFn: authApi.forgotPassword,
     onSuccess: (data) => setMessage(data.message),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here; narrowing would change call signatures
     onError: (err: any) => toast.error(
-      err?.response?.status === 429 ? 'Too many requests. Please try again later.' : 'Something went wrong. Please try again.'),
+      err?.response?.status === 429 ? t('errors.tooManyRequests') : t('errors.generic')),
   })
 
   return (
-    <AuthShell title="Forgot your password?" subtitle="Enter your email and we'll send you a reset link">
+    <AuthShell title={t('auth.forgot.title')} subtitle={t('auth.forgot.subtitle')}>
       {message ? (
         <div className="space-y-4">
           <p className="text-sm text-gray-700">{message}</p>
           <p className="text-center text-sm text-gray-500">
-            <Link to="/login" className="text-primary-600 font-semibold hover:underline">Back to sign in</Link>
+            <Link to="/login" className="text-primary-600 font-semibold hover:underline">{t('auth.backToSignIn')}</Link>
           </p>
         </div>
       ) : (
         <form onSubmit={handleSubmit(d => mutation.mutate(d))} className="space-y-4">
-          <Field label="Email" error={errors.email?.message}>
-            <input className="input" type="email" placeholder="doctor@clinic.com" {...register('email')} />
+          <Field label={t('auth.email')} error={errors.email?.message}>
+            <input className="input" type="email" placeholder={t('auth.emailPlaceholderDoctor')} {...register('email')} />
           </Field>
           <button type="submit" className="btn-primary w-full h-10" disabled={mutation.isPending}>
-            {mutation.isPending ? <Spinner className="w-4 h-4" /> : 'Send reset link'}
+            {mutation.isPending ? <Spinner className="w-4 h-4" /> : t('auth.forgot.submit')}
           </button>
           <p className="text-center text-sm text-gray-500">
-            <Link to="/login" className="text-primary-600 font-semibold hover:underline">Back to sign in</Link>
+            <Link to="/login" className="text-primary-600 font-semibold hover:underline">{t('auth.backToSignIn')}</Link>
           </p>
         </form>
       )}
@@ -239,12 +312,13 @@ export function ForgotPasswordPage() {
 
 // ── Reset Password ────────────────────────────────────────────────────────────
 const resetSchema = z.object({
-  newPassword: z.string().min(8, 'Minimum 8 characters').regex(/[A-Z]/, 'Must contain uppercase').regex(/[0-9]/, 'Must contain a digit'),
+  newPassword: z.string().min(8, 'validation.passwordMin').regex(/[A-Z]/, 'validation.passwordUpper').regex(/[0-9]/, 'validation.passwordDigit'),
   confirmPassword: z.string(),
-}).refine(d => d.newPassword === d.confirmPassword, { message: 'Passwords do not match', path: ['confirmPassword'] })
+}).refine(d => d.newPassword === d.confirmPassword, { message: 'validation.passwordMismatch', path: ['confirmPassword'] })
 type ResetForm = z.infer<typeof resetSchema>
 
 export function ResetPasswordPage() {
+  const { t } = useTranslation()
   const [params] = useSearchParams()
   const token = params.get('token') ?? ''
   const email = params.get('email') ?? ''
@@ -255,37 +329,38 @@ export function ResetPasswordPage() {
   const mutation = useMutation({
     mutationFn: (d: ResetForm) => authApi.resetPassword({ email, token, ...d }),
     onSuccess: () => setDone(true),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here; narrowing would change call signatures
     onError: (err: any) => {
       const data = err?.response?.data
       if (data?.error) setLinkError(data.error)
-      else toast.error(data?.errors?.[0] ?? 'Could not reset password. Please try again.')
+      else toast.error(data?.errors?.[0] ?? t('auth.reset.failed'))
     },
   })
 
   const invalid = !token || !email || linkError
 
   return (
-    <AuthShell title="Reset your password" subtitle="Choose a new password for your account">
+    <AuthShell title={t('auth.reset.title')} subtitle={t('auth.reset.subtitle')}>
       {done ? (
         <div className="space-y-4 text-center">
-          <p className="text-sm text-gray-700">Your password has been reset. You can now sign in.</p>
-          <Link to="/login" className="btn-primary w-full h-10 inline-flex items-center justify-center">Go to sign in</Link>
+          <p className="text-sm text-gray-700">{t('auth.reset.done')}</p>
+          <Link to="/login" className="btn-primary w-full h-10 inline-flex items-center justify-center">{t('auth.goToSignIn')}</Link>
         </div>
       ) : invalid ? (
         <div className="space-y-4 text-center">
-          <p className="text-sm text-gray-700">{linkError ?? 'This reset link is invalid or has expired. Please request a new one.'}</p>
-          <Link to="/forgot-password" className="btn-primary w-full h-10 inline-flex items-center justify-center">Request a new link</Link>
+          <p className="text-sm text-gray-700">{linkError ?? t('auth.reset.invalidLink')}</p>
+          <Link to="/forgot-password" className="btn-primary w-full h-10 inline-flex items-center justify-center">{t('auth.reset.requestNew')}</Link>
         </div>
       ) : (
         <form onSubmit={handleSubmit(d => mutation.mutate(d))} className="space-y-4">
-          <Field label="New password" error={errors.newPassword?.message}>
-            <input className="input" type="password" placeholder="Min 8 chars, 1 uppercase, 1 digit" {...register('newPassword')} />
+          <Field label={t('auth.reset.newPassword')} error={errors.newPassword?.message}>
+            <input className="input" type="password" placeholder={t('auth.strongPasswordPlaceholder')} {...register('newPassword')} />
           </Field>
-          <Field label="Confirm new password" error={errors.confirmPassword?.message}>
-            <input className="input" type="password" placeholder="Repeat password" {...register('confirmPassword')} />
+          <Field label={t('auth.reset.confirmNew')} error={errors.confirmPassword?.message}>
+            <input className="input" type="password" placeholder={t('auth.repeatPassword')} {...register('confirmPassword')} />
           </Field>
           <button type="submit" className="btn-primary w-full h-10" disabled={mutation.isPending}>
-            {mutation.isPending ? <Spinner className="w-4 h-4" /> : 'Reset password'}
+            {mutation.isPending ? <Spinner className="w-4 h-4" /> : t('auth.reset.submit')}
           </button>
         </form>
       )}
@@ -295,6 +370,7 @@ export function ResetPasswordPage() {
 
 // ── Accept portal invitation ──────────────────────────────────────────────────
 export function AcceptInvitePage() {
+  const { t } = useTranslation()
   const [params] = useSearchParams()
   const navigate = useNavigate()
   const login = useAuthStore(s => s.login)
@@ -306,34 +382,108 @@ export function AcceptInvitePage() {
   const mutation = useMutation({
     mutationFn: (d: ResetForm) => authApi.acceptInvitation({ token, email, password: d.newPassword, confirmPassword: d.confirmPassword }),
     onSuccess: (data) => { login(data.token, data.user); navigate('/portal') },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here; narrowing would change call signatures
     onError: (err: any) => {
       const data = err?.response?.data
       if (data?.error) setLinkError(data.error)
-      else toast.error(data?.errors?.[0] ?? 'Could not set up your account. Please try again.')
+      else toast.error(data?.errors?.[0] ?? t('auth.invite.failed'))
     },
   })
 
   const invalid = !token || !email || linkError
 
   return (
-    <AuthShell title="Welcome to MedFlow" subtitle="Create a password to open your patient portal">
+    <AuthShell title={t('auth.invite.title')} subtitle={t('auth.invite.subtitle')}>
       {invalid ? (
         <div className="space-y-4 text-center">
-          <p className="text-sm text-gray-700">{linkError ?? 'This invitation is invalid or has expired.'}</p>
-          <p className="text-sm text-gray-500">Please ask your doctor's office to send you a new invitation.</p>
-          <Link to="/login" className="btn-primary w-full h-10 inline-flex items-center justify-center">Go to sign in</Link>
+          <p className="text-sm text-gray-700">{linkError ?? t('auth.invite.invalid')}</p>
+          <p className="text-sm text-gray-500">{t('auth.invite.askNew')}</p>
+          <Link to="/login" className="btn-primary w-full h-10 inline-flex items-center justify-center">{t('auth.goToSignIn')}</Link>
         </div>
       ) : (
         <form onSubmit={handleSubmit(d => mutation.mutate(d))} className="space-y-4">
-          <p className="text-sm text-gray-600">Setting up an account for <strong>{email}</strong></p>
-          <Field label="Password" error={errors.newPassword?.message}>
-            <PasswordInput placeholder="Min 8 chars, 1 uppercase, 1 digit" registration={register('newPassword')} />
+          <p className="text-sm text-gray-600">{t('auth.invite.settingUp')} <strong>{email}</strong></p>
+          <Field label={t('auth.password')} error={errors.newPassword?.message}>
+            <PasswordInput placeholder={t('auth.strongPasswordPlaceholder')} registration={register('newPassword')} />
           </Field>
-          <Field label="Confirm password" error={errors.confirmPassword?.message}>
-            <PasswordInput placeholder="Repeat password" registration={register('confirmPassword')} />
+          <Field label={t('auth.confirmPassword')} error={errors.confirmPassword?.message}>
+            <PasswordInput placeholder={t('auth.repeatPassword')} registration={register('confirmPassword')} />
           </Field>
           <button type="submit" className="btn-primary w-full h-10" disabled={mutation.isPending}>
-            {mutation.isPending ? <Spinner className="w-4 h-4" /> : 'Create account'}
+            {mutation.isPending ? <Spinner className="w-4 h-4" /> : t('auth.invite.submit')}
+          </button>
+        </form>
+      )}
+    </AuthShell>
+  )
+}
+
+// ── Accept staff invitation (Owner invited a Doctor, Nurse or Receptionist) ──
+const staffInviteSchema = z.object({
+  firstName: z.string().trim().min(1, 'validation.required').max(100),
+  lastName: z.string().trim().min(1, 'validation.required').max(100),
+  specialty: z.string().max(100).optional(),
+  newPassword: z.string().min(8, 'validation.passwordMin').regex(/[A-Z]/, 'validation.passwordUpper').regex(/[0-9]/, 'validation.passwordDigit'),
+  confirmPassword: z.string(),
+}).refine(d => d.newPassword === d.confirmPassword, { message: 'validation.passwordMismatch', path: ['confirmPassword'] })
+type StaffInviteForm = z.infer<typeof staffInviteSchema>
+
+export function AcceptStaffInvitePage() {
+  const { t } = useTranslation()
+  const [params] = useSearchParams()
+  const navigate = useNavigate()
+  const login = useAuthStore(s => s.login)
+  const token = params.get('token') ?? ''
+  const email = params.get('email') ?? ''
+  const [linkError, setLinkError] = useState<string | null>(null)
+  const { register, handleSubmit, formState: { errors } } = useForm<StaffInviteForm>({ resolver: zodResolver(staffInviteSchema) })
+
+  const mutation = useMutation({
+    mutationFn: (d: StaffInviteForm) => authApi.acceptStaffInvitation({
+      token, email, password: d.newPassword, confirmPassword: d.confirmPassword,
+      firstName: d.firstName, lastName: d.lastName, specialty: d.specialty || undefined,
+    }),
+    onSuccess: (data) => { login(data.token, data.user); navigate('/') },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- axios error shape is untyped here; narrowing would change call signatures
+    onError: (err: any) => {
+      const data = err?.response?.data
+      if (data?.error) setLinkError(data.error)
+      else toast.error(data?.errors?.[0] ?? t('auth.staffInvite.failed'))
+    },
+  })
+
+  const invalid = !token || !email || linkError
+
+  return (
+    <AuthShell title={t('auth.staffInvite.title')} subtitle={t('auth.staffInvite.subtitle')}>
+      {invalid ? (
+        <div className="space-y-4 text-center">
+          <p className="text-sm text-gray-700">{linkError ?? t('auth.staffInvite.invalid')}</p>
+          <p className="text-sm text-gray-500">{t('auth.staffInvite.askNew')}</p>
+          <Link to="/login" className="btn-primary w-full h-10 inline-flex items-center justify-center">{t('auth.goToSignIn')}</Link>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit(d => mutation.mutate(d))} className="space-y-4">
+          <p className="text-sm text-gray-600">{t('auth.staffInvite.settingUp')} <strong>{email}</strong></p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label={t('auth.staffInvite.firstName')} error={errors.firstName?.message}>
+              <input className="input" autoComplete="given-name" {...register('firstName')} />
+            </Field>
+            <Field label={t('auth.staffInvite.lastName')} error={errors.lastName?.message}>
+              <input className="input" autoComplete="family-name" {...register('lastName')} />
+            </Field>
+          </div>
+          <Field label={t('auth.staffInvite.specialty')} error={errors.specialty?.message}>
+            <input className="input" {...register('specialty')} />
+          </Field>
+          <Field label={t('auth.password')} error={errors.newPassword?.message}>
+            <PasswordInput placeholder={t('auth.strongPasswordPlaceholder')} registration={register('newPassword')} />
+          </Field>
+          <Field label={t('auth.confirmPassword')} error={errors.confirmPassword?.message}>
+            <PasswordInput placeholder={t('auth.repeatPassword')} registration={register('confirmPassword')} />
+          </Field>
+          <button type="submit" className="btn-primary w-full h-10" disabled={mutation.isPending}>
+            {mutation.isPending ? <Spinner className="w-4 h-4" /> : t('auth.staffInvite.submit')}
           </button>
         </form>
       )}
@@ -342,9 +492,10 @@ export function AcceptInvitePage() {
 }
 
 // ── Shared Auth Shell ─────────────────────────────────────────────────────────
-function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+export function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-surface flex items-center justify-center px-4">
+    <div className="min-h-screen bg-surface flex items-center justify-center px-4 relative">
+      <LanguageSwitcher className="absolute top-3 right-3" />
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-4">
@@ -354,18 +505,19 @@ function AuthShell({ title, subtitle, children }: { title: string; subtitle: str
           <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
           <p className="text-gray-500 text-sm mt-1">{subtitle}</p>
         </div>
-        <div className="card p-8">{children}</div>
+        <div className="card p-5 sm:p-8">{children}</div>
       </div>
     </div>
   )
 }
 
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
+  const { t } = useTranslation()
   return (
     <div>
       <label className="label">{label}</label>
       {children}
-      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+      {error && <p className="text-red-500 text-xs mt-1">{tError(t, error)}</p>}
     </div>
   )
 }

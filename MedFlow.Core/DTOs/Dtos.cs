@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using MedFlow.Core.Enums;
 
 namespace MedFlow.Core.DTOs;
@@ -7,7 +8,20 @@ public record RegisterRequest(string Email, string Password, string FirstName, s
 public record LoginRequest(string Email, string Password);
 public record GoogleLoginRequest(string Credential);
 public record AuthResponse(string Token, string RefreshToken, DateTime Expires, UserDto User);
-public record UserDto(string Id, string Email, string FirstName, string LastName, string Specialty, string Role = "Doctor");
+public record UserDto(string Id, string Email, string FirstName, string LastName, string Specialty, string Role = "Doctor",
+    int? ClinicId = null, string? ClinicName = null);
+
+// ── Auth (Two-factor) ────────────────────────────────────────────────────────
+/// <summary>Returned instead of <see cref="AuthResponse"/> when the account has 2FA on. Carries no session.</summary>
+public record TwoFactorChallengeResponse(bool TwoFactorRequired, string ChallengeToken, DateTime Expires);
+public record TwoFactorVerifyRequest(string ChallengeToken, string Code);
+public record TwoFactorRecoveryRequest(string ChallengeToken, string RecoveryCode);
+public record TwoFactorStatusDto(bool Enabled, int RecoveryCodesRemaining);
+public record TwoFactorSetupDto(string SharedKey, string OtpAuthUri);
+public record TwoFactorEnableRequest(string Code);
+/// <summary>Password is required when the account has one; Code is a current authenticator code or a recovery code.</summary>
+public record TwoFactorConfirmRequest(string? Password, string Code);
+public record RecoveryCodesDto(IReadOnlyList<string> RecoveryCodes);
 
 // ── Auth (Password Recovery) ─────────────────────────────────────────────────
 public record ForgotPasswordRequest(string Email);
@@ -33,7 +47,9 @@ public record PatientDto(
     string? InsuranceProvider, string? InsurancePolicyNumber,
     DateTime? LastVisit, DateTime? NextAppointment,
     DateTime CreatedAt, DateTime UpdatedAt,
-    string PortalStatus = "NotInvited"
+    string PortalStatus = "NotInvited",
+    string? InsuranceGroupNumber = null, string? InsurancePayerId = null, string? InsuranceSubscriberName = null,
+    DateOnly? InsuranceSubscriberDateOfBirth = null, string? InsuranceSubscriberRelationship = null
 );
 
 public record PatientSummaryDto(
@@ -48,7 +64,10 @@ public record CreatePatientRequest(
     string Email, string Phone,
     string? Address, string? City, string? State, string? ZipCode,
     string? PrimaryCondition, string? Allergies, string? Notes,
-    string? InsuranceProvider, string? InsurancePolicyNumber
+    string? InsuranceProvider, string? InsurancePolicyNumber,
+    string? InsuranceGroupNumber = null, string? InsurancePayerId = null, string? InsuranceSubscriberName = null,
+    DateOnly? InsuranceSubscriberDateOfBirth = null, InsuranceRelationship? InsuranceSubscriberRelationship = null,
+    string? DoctorId = null
 );
 
 public record UpdatePatientRequest(
@@ -57,7 +76,9 @@ public record UpdatePatientRequest(
     string Email, string Phone,
     string? Address, string? City, string? State, string? ZipCode,
     string? PrimaryCondition, string? Allergies, string? Notes,
-    string? InsuranceProvider, string? InsurancePolicyNumber
+    string? InsuranceProvider, string? InsurancePolicyNumber,
+    string? InsuranceGroupNumber = null, string? InsurancePayerId = null, string? InsuranceSubscriberName = null,
+    DateOnly? InsuranceSubscriberDateOfBirth = null, InsuranceRelationship? InsuranceSubscriberRelationship = null
 );
 
 // ── Appointment ───────────────────────────────────────────────────────────────
@@ -71,7 +92,8 @@ public record AppointmentDto(
 
 public record CreateAppointmentRequest(
     int PatientId, DateTime ScheduledAt, int DurationMinutes,
-    AppointmentType Type, string? Reason, string? Location
+    AppointmentType Type, string? Reason, string? Location,
+    string? DoctorId = null
 );
 
 public record UpdateAppointmentRequest(
@@ -86,6 +108,15 @@ public record PrescriptionDto(
     string DrugName, string Dosage, string Frequency,
     string? Instructions, DateOnly IssuedDate, DateOnly ExpiryDate,
     int RefillsRemaining, string Status, DateTime CreatedAt
+);
+
+/// <summary>Everything printed on a prescription PDF; deliberately excludes email, insurance, allergies and notes.</summary>
+public record PrescriptionDocumentData(
+    int PrescriptionId, int PatientId,
+    string DoctorName, string Specialty, string? LicenseNumber, string? DoctorPhone,
+    string PatientName, DateOnly PatientDateOfBirth, string? PatientPhone, string? PatientAddress,
+    string DrugName, string Dosage, string Frequency, string? Instructions,
+    DateOnly IssuedDate, DateOnly ExpiryDate, int RefillsRemaining, PrescriptionStatus Status
 );
 
 public record CreatePrescriptionRequest(
@@ -108,6 +139,28 @@ public record InvoiceDto(
     string Status, DateTime InvoiceDate, DateTime? DueDate,
     DateTime? PaidDate, string? Notes, DateTime CreatedAt
 );
+
+/// <summary>Everything the claim draft is built from; null from the repository unless the invoice and its patient belong to the doctor.</summary>
+public record ClaimSourceData(
+    int InvoiceId, int PatientId, string InvoiceNumber, string InvoiceStatus, string ServiceDescription,
+    decimal Amount, DateTime InvoiceDate, DateTime? AppointmentDate,
+    string PatientFirstName, string PatientLastName, DateOnly PatientDateOfBirth, Gender PatientGender, string? PatientPhone,
+    string? Address, string? City, string? State, string? ZipCode,
+    string? InsuranceProvider, string? InsurancePolicyNumber, string? InsuranceGroupNumber, string? InsurancePayerId,
+    string? SubscriberName, DateOnly? SubscriberDateOfBirth, InsuranceRelationship? SubscriberRelationship,
+    string DoctorName, string? DoctorPhone);
+
+/// <summary>One CMS-1500 (02/12) item of the draft. Item is the form item number, "Carrier" or "-" (not a form item).</summary>
+public record ClaimItem(string Item, string Key, string? Value);
+public record ClaimMissing(string Item, string Key);
+public record ClaimDraft(IReadOnlyList<ClaimItem> Items, IReadOnlyList<ClaimMissing> Missing);
+
+public record ClaimItemDto(string Item, string Key, string Label, string? Value);
+public record ClaimMissingDto(string Item, string Key, string Label);
+/// <summary>Draft claim worksheet. Not an official CMS-1500 form, not an X12 837 file, not validated by any payer.</summary>
+public record ClaimDraftDto(
+    string Status, string Disclaimer, DateTime GeneratedAt, string InvoiceNumber, string InvoiceStatus,
+    IReadOnlyList<ClaimItemDto> Items, IReadOnlyList<ClaimMissingDto> Missing);
 
 public record CreateInvoiceRequest(
     int PatientId, int? AppointmentId,
@@ -143,6 +196,12 @@ public record MedicalNoteDto(
 );
 
 public record CreateMedicalNoteRequest(int PatientId, string Content, string? VisitType);
+
+// ── NoteTemplate ──────────────────────────────────────────────────────────────
+public record NoteTemplateDto(int Id, string Name, string Body, bool IsBuiltIn, DateTime? UpdatedAt);
+public record CreateNoteTemplateRequest(string Name, string Body);
+public record UpdateNoteTemplateRequest(string Name, string Body);
+public record CopyForwardDto(int NoteId, string Content, string? VisitType, DateTime NoteDate);
 
 // ── PatientAttachment ────────────────────────────────────────────────────────
 public record PatientAttachmentDto(
@@ -180,3 +239,122 @@ public record PortalAttachmentDto(
     int Id, string FileName, string ContentType, long FileSize,
     string? Category, string? Description, DateTime CreatedAt);
 public record PortalNoteDto(int Id, string DoctorName, string? VisitType, string Content, DateTime NoteDate);
+
+// ── Clinical lists (allergies, problems, medications) ─────────────────────────
+public record AllergyDto(int Id, string Substance, string? Reaction, string Severity, DateTime CreatedAt, DateTime UpdatedAt);
+public record ProblemDto(int Id, string Description, string Icd10Code, string Status, DateOnly? OnsetDate, DateTime CreatedAt, DateTime UpdatedAt);
+public record MedicationDto(int Id, string Name, string? Dosage, string? Frequency, string? Notes, DateTime CreatedAt, DateTime UpdatedAt);
+public record ClinicalSummaryDto(IEnumerable<AllergyDto> Allergies, IEnumerable<ProblemDto> Problems, IEnumerable<MedicationDto> Medications);
+
+public record SaveAllergyRequest(
+    [Required, StringLength(200)] string Substance,
+    [StringLength(500)] string? Reaction,
+    [Required] AllergySeverity? Severity);
+
+public record SaveProblemRequest(
+    [Required, StringLength(200)] string Description,
+    [Required, StringLength(16), RegularExpression(@"^\s*[A-Za-z][0-9][A-Za-z0-9](\.[A-Za-z0-9]{1,4})?\s*$", ErrorMessage = "Enter a valid ICD-10 code such as E11.9.")] string Icd10Code,
+    [Required] ProblemStatus? Status,
+    DateOnly? OnsetDate);
+
+public record SaveMedicationRequest(
+    [Required, StringLength(200)] string Name,
+    [StringLength(100)] string? Dosage,
+    [StringLength(100)] string? Frequency,
+    [StringLength(500)] string? Notes);
+// ── Intake forms ─────────────────────────────────────────────────────────────
+public record IntakeFormInfoDto(string FirstName, string ConsentVersion, string ConsentText);
+
+public record IntakeSubmitRequest(
+    string? FirstName, string? LastName, DateOnly? DateOfBirth, Gender? Gender, string? Phone,
+    string? Address, string? City, string? State, string? ZipCode,
+    string? InsuranceProvider, string? InsurancePolicyNumber,
+    string? PrimaryCondition, string? Allergies, string? CurrentMedications, string? PastHistory, string? AdditionalNotes,
+    bool ConsentAgreed, string? SignatureName);
+
+public record IntakeSubmissionSummaryDto(int Id, int PatientId, string PatientName, string Status, DateTime SubmittedAt);
+
+public record IntakeAnswersDto(
+    string FirstName, string LastName, DateOnly DateOfBirth, string Gender, string Phone,
+    string? Address, string? City, string? State, string? ZipCode,
+    string? InsuranceProvider, string? InsurancePolicyNumber,
+    string? PrimaryCondition, string? Allergies, string? CurrentMedications, string? PastHistory, string? AdditionalNotes);
+
+public record IntakeConsentDto(string ConsentVersion, bool ConsentAgreed, string SignatureName, DateTime SignedAt);
+
+public record IntakeSubmissionDetailDto(
+    int Id, int PatientId, string Status, DateTime SubmittedAt,
+    IntakeAnswersDto Answers, IntakeAnswersDto? Current, IntakeConsentDto Consent,
+    DateTime? DecidedAt, string? RejectionReason);
+
+public record IntakeRejectRequest(string? Reason);
+
+// ── Online booking ────────────────────────────────────────────────────────────
+public record AvailabilityWindowInput(DayOfWeek DayOfWeek, string StartTime, string EndTime);
+public record AvailabilityWindowDto(int Id, DayOfWeek DayOfWeek, string StartTime, string EndTime);
+public record SetWeeklyAvailabilityRequest(List<AvailabilityWindowInput> Windows);
+public record BlockedDateDto(int Id, DateOnly Date, string? Label);
+public record CreateBlockedDateRequest(DateOnly Date, string? Label);
+public record AvailabilityDto(IEnumerable<AvailabilityWindowDto> Windows, IEnumerable<BlockedDateDto> BlockedDates);
+
+public record BookingSlotDto(DateTime StartsAt, int DurationMinutes);
+public record BookAppointmentRequest(DateTime StartsAt, string? Reason);
+public enum BookingOutcome { Booked, NotAvailable, Conflict, LimitReached }
+
+// ── Appointment reminders ─────────────────────────────────────────────────────
+public record ReminderTokenRequest(string Token);
+public record ReminderRespondRequest(string Token, ReminderAction Action);
+public record ReminderLookupDto(
+    DateTime AppointmentAt, int DurationMinutes, string DoctorName, string? Location,
+    string Status, bool CanRespond
+);
+public record ReminderDeliveryDto(DateTime AttemptedAt, string Channel, string Outcome, string? Reason);
+public record ReminderLogDto(string Response, DateTime? RespondedAt, IEnumerable<ReminderDeliveryDto> Deliveries);
+
+// ── Audit log ─────────────────────────────────────────────────────────────────
+public record AuditEventDto(int Id, DateTime OccurredAt, string ActorUserId, string ActorName, string ActorRole,
+    string Action, string ItemKind, int? ItemId, string[] ChangedFields);
+public record AuditLogQuery(AuditAction? Action = null, string? Actor = null, DateTime? From = null,
+    DateTime? To = null, int Page = 1, int PageSize = 20);
+
+// ── Lab orders and results (doctor-private) ───────────────────────────────────
+public record LabResultDto(int Id, string AnalyteName, decimal Value, string? Unit, decimal? ReferenceLow, decimal? ReferenceHigh, string Flag);
+public record LabOrderDto(
+    int Id, string TestName, string? Notes, DateOnly OrderedDate, string Status,
+    IEnumerable<LabResultDto> Results, int AbnormalCount, DateTime CreatedAt, DateTime UpdatedAt);
+public record LabSummaryDto(IEnumerable<LabOrderDto> Orders, int AbnormalCount);
+
+public record SaveLabOrderRequest(
+    [Required, StringLength(150)] string TestName,
+    [StringLength(1000)] string? Notes,
+    DateOnly? OrderedDate);
+
+public record SaveLabResultRequest(
+    [Required, StringLength(100)] string AnalyteName,
+    [Required, Range(-999999999.0, 999999999.0)] decimal? Value,
+    [StringLength(30)] string? Unit,
+    [Range(-999999999.0, 999999999.0)] decimal? ReferenceLow,
+    [Range(-999999999.0, 999999999.0)] decimal? ReferenceHigh);
+
+// ── Waitlist ──────────────────────────────────────────────────────────────────
+public record AddWaitlistEntryRequest(int PatientId);
+public record WaitlistEntryDto(int Id, int PatientId, string PatientName, DateTime JoinedAt);
+public record PortalWaitlistDto(bool OnWaitlist, DateTime? JoinedAt);
+public record WaitlistTokenRequest(string Token);
+public record WaitlistOfferDto(DateTime SlotStartsAt, int DurationMinutes, string DoctorName, DateTime ExpiresAt);
+public record WaitlistClaimDto(DateTime SlotStartsAt, int DurationMinutes, string DoctorName);
+public enum WaitlistAddOutcome { Added, PatientNotFound, NotActive, AlreadyWaiting }
+public enum WaitlistClaimOutcome { Claimed, Invalid, SlotUnavailable }
+
+// ── Clinic and staff ──────────────────────────────────────────────────────────
+public record ClinicDto(int Id, string Name, string Role, string UserId);
+public record ClinicDoctorDto(string UserId, string FullName, string Role);
+public record RenameClinicRequest([Required, StringLength(200, MinimumLength = 1)] string Name);
+public record StaffMemberDto(int Id, string UserId, string Email, string FirstName, string LastName,
+    string Role, bool IsActive, DateTime JoinedAt);
+public record StaffInvitationDto(int Id, string Email, string Role, DateTime ExpiresAt, DateTime CreatedAt);
+public record InviteStaffRequest([Required, EmailAddress, StringLength(256)] string Email, [Required] ClinicRole? Role);
+public record ChangeRoleRequest([Required] ClinicRole? Role);
+public record AcceptStaffInvitationRequest(string Token, string Email, string Password, string ConfirmPassword,
+    string FirstName, string LastName, string? Specialty = null);
+public enum StaffChangeOutcome { Done, NotFound, LastOwner }

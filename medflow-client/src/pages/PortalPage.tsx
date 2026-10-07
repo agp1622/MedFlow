@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import {
   usePortalMe, usePortalAppointments, usePortalPrescriptions, usePortalInvoices,
-  usePortalAttachments, usePortalNotes,
+  usePortalAttachments, usePortalNotes, usePortalSlots, useBookAppointment,
+  usePortalWaitlist, useJoinPortalWaitlist, useLeavePortalWaitlist,
 } from '@/hooks/queries'
 import { portalApi } from '@/api/services'
 import { Badge, EmptyState, PageSpinner, Spinner } from '@/components/ui'
 import { fmt } from '@/utils/format'
-import { CalendarDays, Pill, CreditCard, FileText, StickyNote, Download } from 'lucide-react'
+import { currentLanguage } from '@/i18n'
+import { ListOrdered, CalendarPlus, CalendarDays, Pill, CreditCard, FileText, StickyNote, Download } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 type Q<T> = { data?: T[]; isLoading: boolean; isError: boolean }
@@ -16,13 +19,14 @@ function Section<T>({ icon, title, query, empty, children }: {
   icon: React.ReactNode; title: string; query: Q<T>; empty: string
   children: (items: T[]) => React.ReactNode
 }) {
+  const { t } = useTranslation()
   return (
     <section className="card p-5">
       <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900 mb-4">{icon}{title}</h2>
       {query.isLoading ? (
         <div className="flex justify-center py-6"><Spinner className="w-6 h-6" /></div>
       ) : query.isError ? (
-        <p className="text-sm text-red-500">Could not load this section. Please try again later.</p>
+        <p className="text-sm text-red-500">{t('portal.sectionError')}</p>
       ) : !query.data || query.data.length === 0 ? (
         <EmptyState title={empty} />
       ) : (
@@ -32,15 +36,99 @@ function Section<T>({ icon, title, query, empty, children }: {
   )
 }
 
+function BookingSection() {
+  const { t } = useTranslation()
+  const [date, setDate] = useState('')
+  const [reason, setReason] = useState('')
+  const slots = usePortalSlots(date)
+  const book = useBookAppointment()
+  const today = new Date().toISOString().slice(0, 10)
+
+  return (
+    <section className="card p-5">
+      <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900 mb-4">
+        <CalendarPlus size={18} className="text-primary-600" />{t('portal.book.title')}
+      </h2>
+      <div className="flex flex-wrap gap-3 mb-4">
+        <div>
+          <label className="label" htmlFor="booking-date">{t('portal.book.date')}</label>
+          <input id="booking-date" className="input" type="date" min={today} value={date}
+            onChange={e => setDate(e.target.value)} />
+        </div>
+        <div className="flex-1 min-w-[200px]">
+          <label className="label" htmlFor="booking-reason">{t('portal.book.reason')}</label>
+          <input id="booking-reason" className="input" maxLength={500} value={reason}
+            onChange={e => setReason(e.target.value)} placeholder={t('appointments.form.reasonPlaceholder')} />
+        </div>
+      </div>
+      {!date ? (
+        <p className="text-sm text-gray-500">{t('portal.book.chooseDate')}</p>
+      ) : slots.isLoading ? (
+        <div className="flex justify-center py-4"><Spinner className="w-5 h-5" /></div>
+      ) : slots.isError ? (
+        <p className="text-sm text-red-500">{t('portal.book.loadError')}</p>
+      ) : !slots.data || slots.data.length === 0 ? (
+        <EmptyState title={t('portal.book.none')} />
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {slots.data.map(s => (
+            <button key={s.startsAt} className="btn-secondary" disabled={book.isPending}
+              onClick={() => book.mutate({ startsAt: s.startsAt, reason: reason.trim() || undefined })}>
+              {new Date(s.startsAt).toISOString().slice(11, 16)}
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function WaitlistSection() {
+  const { t } = useTranslation()
+  const status = usePortalWaitlist()
+  const join = useJoinPortalWaitlist()
+  const leave = useLeavePortalWaitlist()
+  const busy = join.isPending || leave.isPending
+
+  return (
+    <section className="card p-5">
+      <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900 mb-2">
+        <ListOrdered size={18} className="text-primary-600" />{t('waitlist.portal.title')}
+      </h2>
+      <p className="text-sm text-gray-500 mb-3">{t('waitlist.portal.help')}</p>
+      {status.isLoading ? (
+        <div className="flex justify-center py-2"><Spinner className="w-5 h-5" /></div>
+      ) : status.isError ? (
+        <p className="text-sm text-red-500">{t('portal.sectionError')}</p>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-gray-700">
+            {status.data?.onWaitlist
+              ? t('waitlist.portal.on', { date: fmt.date(status.data.joinedAt) })
+              : t('waitlist.portal.off')}
+          </p>
+          {status.data?.onWaitlist ? (
+            <button className="btn-secondary" disabled={busy} onClick={() => leave.mutate()}>{t('waitlist.portal.leave')}</button>
+          ) : (
+            <button className="btn-primary" disabled={busy} onClick={() => join.mutate()}>{t('waitlist.portal.join')}</button>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
 function formatSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  const one = (n: number) => new Intl.NumberFormat(currentLanguage() === 'es' ? 'es' : 'en-US', { maximumFractionDigits: 1, minimumFractionDigits: 1 }).format(n)
+  if (bytes < 1024) return `${fmt.number(bytes)} B`
+  if (bytes < 1024 * 1024) return `${one(bytes / 1024)} KB`
+  return `${one(bytes / (1024 * 1024))} MB`
 }
 
 const isPayable = (status: string) => status === 'Pending' || status === 'Overdue'
 
 export function PortalPage() {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const [payingId, setPayingId] = useState<number | null>(null)
 
@@ -50,14 +138,14 @@ export function PortalPage() {
     const outcome = params.get('payment')
     if (!outcome) return
     if (outcome === 'success') {
-      toast.success('Thank you! Your payment was received.')
+      toast.success(t('portal.pay.success'))
       qc.invalidateQueries({ queryKey: ['portal'] })
       setTimeout(() => qc.invalidateQueries({ queryKey: ['portal'] }), 4000)
     } else {
-      toast('Payment cancelled. You have not been charged.')
+      toast(t('portal.pay.cancelled'))
     }
     window.history.replaceState({}, '', window.location.pathname)
-  }, [qc])
+  }, [qc, t])
 
   const payInvoice = async (id: number) => {
     setPayingId(id)
@@ -65,7 +153,7 @@ export function PortalPage() {
       const { url } = await portalApi.startInvoiceCheckout(id)
       window.location.assign(url)
     } catch {
-      toast.error('Could not start the payment. Please try again.')
+      toast.error(t('portal.pay.startError'))
       setPayingId(null)
     }
   }
@@ -81,17 +169,17 @@ export function PortalPage() {
   const download = async (id: number, fileName: string) => {
     setDownloading(id)
     try { await portalApi.downloadAttachment(id, fileName) }
-    catch { toast.error('Could not download this file') }
+    catch { toast.error(t('portal.downloadError')) }
     finally { setDownloading(null) }
   }
 
   if (me.isLoading) return <PageSpinner />
   if (me.isError) {
     return (
-      <div className="card p-8 text-center">
-        <h1 className="text-lg font-semibold text-gray-900">Portal unavailable</h1>
+      <div className="card p-5 sm:p-8 text-center">
+        <h1 className="text-lg font-semibold text-gray-900">{t('portal.unavailable')}</h1>
         <p className="text-sm text-gray-500 mt-2">
-          Your portal access is not available right now. Please contact your doctor's office.
+          {t('portal.unavailableHelp')}
         </p>
       </div>
     )
@@ -100,20 +188,24 @@ export function PortalPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Hello, {me.data?.firstName}</h1>
-        <p className="text-sm text-gray-500 mt-1">Your records from {me.data?.doctorName}</p>
+        <h1 className="text-2xl font-bold text-gray-900">{t('portal.hello', { name: me.data?.firstName })}</h1>
+        <p className="text-sm text-gray-500 mt-1">{t('portal.recordsFrom', { doctor: me.data?.doctorName })}</p>
       </div>
 
-      <Section icon={<CalendarDays size={18} className="text-primary-600" />} title="Upcoming appointments"
-        query={appointments} empty="No upcoming appointments">
+      <BookingSection />
+
+      <WaitlistSection />
+
+      <Section icon={<CalendarDays size={18} className="text-primary-600" />} title={t('portal.appointments')}
+        query={appointments} empty={t('portal.noAppointments')}>
         {items => (
           <ul className="divide-y divide-gray-100">
             {items.map(a => (
               <li key={a.id} className="py-3 flex flex-wrap items-center justify-between gap-2">
-                <div>
+                <div className="min-w-0">
                   <p className="font-medium text-gray-900">{fmt.dateTime(a.scheduledAt)}</p>
                   <p className="text-sm text-gray-500">
-                    {[a.reason, a.location, `${a.durationMinutes} min`].filter(Boolean).join(' · ')}
+                    {[a.reason, a.location, t('common.minutes', { count: a.durationMinutes })].filter(Boolean).join(' · ')}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -125,8 +217,8 @@ export function PortalPage() {
         )}
       </Section>
 
-      <Section icon={<Pill size={18} className="text-primary-600" />} title="Prescriptions"
-        query={prescriptions} empty="No prescriptions">
+      <Section icon={<Pill size={18} className="text-primary-600" />} title={t('portal.prescriptions')}
+        query={prescriptions} empty={t('portal.noPrescriptions')}>
         {items => (
           <ul className="divide-y divide-gray-100">
             {items.map(p => (
@@ -134,7 +226,7 @@ export function PortalPage() {
                 <div>
                   <p className="font-medium text-gray-900">{p.drugName} <span className="text-gray-500 font-normal">{p.dosage}</span></p>
                   <p className="text-sm text-gray-500">
-                    {p.frequency} · Issued {fmt.date(p.issuedDate)} · Expires {fmt.date(p.expiryDate)} · {p.refillsRemaining} refill{p.refillsRemaining === 1 ? '' : 's'} left
+                    {p.frequency} · {t('portal.issued', { date: fmt.date(p.issuedDate) })} · {t('portal.expires', { date: fmt.date(p.expiryDate) })} · {t('portal.refillsLeft', { count: p.refillsRemaining })}
                   </p>
                   {p.instructions && <p className="text-sm text-gray-500 mt-0.5">{p.instructions}</p>}
                 </div>
@@ -145,8 +237,8 @@ export function PortalPage() {
         )}
       </Section>
 
-      <Section icon={<CreditCard size={18} className="text-primary-600" />} title="Invoices"
-        query={invoices} empty="No invoices">
+      <Section icon={<CreditCard size={18} className="text-primary-600" />} title={t('portal.invoices')}
+        query={invoices} empty={t('portal.noInvoices')}>
         {items => (
           <ul className="divide-y divide-gray-100">
             {items.map(i => (
@@ -154,7 +246,7 @@ export function PortalPage() {
                 <div>
                   <p className="font-medium text-gray-900">{i.invoiceNumber} <span className="text-gray-500 font-normal">· {i.serviceDescription}</span></p>
                   <p className="text-sm text-gray-500">
-                    {fmt.date(i.invoiceDate)}{i.dueDate ? ` · Due ${fmt.date(i.dueDate)}` : ''}
+                    {fmt.date(i.invoiceDate)}{i.dueDate ? ` · ${t('portal.due', { date: fmt.date(i.dueDate) })}` : ''}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -162,7 +254,7 @@ export function PortalPage() {
                   <Badge status={i.status} />
                   {isPayable(i.status) && (
                     <button className="btn-primary" disabled={payingId !== null} onClick={() => payInvoice(i.id)}>
-                      {payingId === i.id ? 'Redirecting…' : 'Pay now'}
+                      {payingId === i.id ? t('portal.pay.redirecting') : t('portal.pay.now')}
                     </button>
                   )}
                 </div>
@@ -172,8 +264,8 @@ export function PortalPage() {
         )}
       </Section>
 
-      <Section icon={<FileText size={18} className="text-primary-600" />} title="Documents shared with you"
-        query={attachments} empty="Nothing has been shared with you yet">
+      <Section icon={<FileText size={18} className="text-primary-600" />} title={t('portal.documents')}
+        query={attachments} empty={t('portal.noDocuments')}>
         {items => (
           <ul className="divide-y divide-gray-100">
             {items.map(f => (
@@ -187,7 +279,7 @@ export function PortalPage() {
                 </div>
                 <button className="btn-secondary flex-shrink-0 inline-flex items-center gap-1.5"
                   onClick={() => download(f.id, f.fileName)} disabled={downloading === f.id}>
-                  {downloading === f.id ? <Spinner className="w-4 h-4" /> : <Download size={15} />} Download
+                  {downloading === f.id ? <Spinner className="w-4 h-4" /> : <Download size={15} />} {t('portal.download')}
                 </button>
               </li>
             ))}
@@ -195,8 +287,8 @@ export function PortalPage() {
         )}
       </Section>
 
-      <Section icon={<StickyNote size={18} className="text-primary-600" />} title="Notes from your doctor"
-        query={notes} empty="No notes have been shared with you yet">
+      <Section icon={<StickyNote size={18} className="text-primary-600" />} title={t('portal.notes')}
+        query={notes} empty={t('portal.noNotes')}>
         {items => (
           <ul className="space-y-3">
             {items.map(n => (

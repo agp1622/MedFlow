@@ -2,8 +2,9 @@ using MedFlow.Core.Enums;
 
 namespace MedFlow.Core.Entities;
 
-public class Patient : BaseEntity
+public class Patient : BaseEntity, IClinicScoped
 {
+    public int ClinicId { get; set; }
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     public string FullName => $"{FirstName} {LastName}";
@@ -27,6 +28,11 @@ public class Patient : BaseEntity
     public string? Notes { get; set; }
     public string? InsuranceProvider { get; set; }
     public string? InsurancePolicyNumber { get; set; }
+    public string? InsuranceGroupNumber { get; set; }
+    public string? InsurancePayerId { get; set; }
+    public string? InsuranceSubscriberName { get; set; }
+    public DateOnly? InsuranceSubscriberDateOfBirth { get; set; }
+    public InsuranceRelationship? InsuranceSubscriberRelationship { get; set; }
 
     // Navigation
     // Linked portal (patient-role) account, if the patient has accepted an invitation

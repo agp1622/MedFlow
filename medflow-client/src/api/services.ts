@@ -1,6 +1,6 @@
 import api from './client'
 import type {
-  AuthResponse, LoginRequest, GoogleLoginRequest, RegisterRequest,
+  AuthResponse, LoginResult, TwoFactorVerifyRequest, TwoFactorRecoveryRequest, TwoFactorStatus, TwoFactorSetup, TwoFactorConfirmRequest, RecoveryCodes, LoginRequest, GoogleLoginRequest, RegisterRequest,
   ForgotPasswordRequest, ResetPasswordRequest,
   PagedResult, QueryParams,
   PatientDto, PatientSummaryDto, CreatePatientRequest, UpdatePatientRequest,
@@ -9,21 +9,63 @@ import type {
   InvoiceDto, CreateInvoiceRequest, UpdateInvoiceRequest,
   VitalSignDto, CreateVitalSignRequest,
   MedicalNoteDto, CreateMedicalNoteRequest,
+  NoteTemplateDto, CreateNoteTemplateRequest, UpdateNoteTemplateRequest, CopyForwardDto,
   PatientAttachmentDto,
+  ClinicalSummaryDto, AllergyDto, ProblemDto, MedicationDto,
+  SaveAllergyRequest, SaveProblemRequest, SaveMedicationRequest,
+  LabSummaryDto, LabOrderDto, SaveLabOrderRequest, SaveLabResultRequest,
   AcceptInvitationRequest, InvitationResult,
+  ClinicDto, ClinicDoctorDto, StaffMemberDto, StaffInvitationDto, InviteStaffRequest, ClinicRole, AcceptStaffInvitationRequest,
   PortalProfileDto, PortalAppointmentDto, PortalPrescriptionDto, PortalInvoiceDto,
   PortalAttachmentDto, PortalNoteDto,
-  DashboardStatsDto, AppointmentStatus
+  IntakeFormInfo, IntakeSubmitRequest, IntakeSubmissionSummary, IntakeSubmissionDetail, IntakeStatus,
+  AvailabilityDto, AvailabilityWindowDto, SetWeeklyAvailabilityRequest, BlockedDateDto, CreateBlockedDateRequest,
+  BookingSlotDto, BookAppointmentRequest,
+  WaitlistEntryDto, PortalWaitlistDto, WaitlistOfferDto, WaitlistClaimDto,
+  ReminderLookupDto, ReminderLogDto, ReminderAction,
+  DashboardStatsDto, AppointmentStatus,
+  AuditEventDto, AuditLogQuery,
+  ClaimExportFormat,
+  ReportQuery, RevenueReport, VisitsReport, NoShowReport, ArAgingReport
 } from '@/types'
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const authApi = {
-  login:    (data: LoginRequest)    => api.post<AuthResponse>('/auth/login', data).then(r => r.data),
-  googleLogin: (data: GoogleLoginRequest) => api.post<AuthResponse>('/auth/google-login', data).then(r => r.data),
+  login:    (data: LoginRequest)    => api.post<LoginResult>('/auth/login', data).then(r => r.data),
+  googleLogin: (data: GoogleLoginRequest) => api.post<LoginResult>('/auth/google-login', data).then(r => r.data),
+  verifyTwoFactor: (data: TwoFactorVerifyRequest) => api.post<AuthResponse>('/auth/2fa/verify', data).then(r => r.data),
+  recoverTwoFactor: (data: TwoFactorRecoveryRequest) => api.post<AuthResponse>('/auth/2fa/recovery', data).then(r => r.data),
   register: (data: RegisterRequest) => api.post<AuthResponse>('/auth/register', data).then(r => r.data),
   forgotPassword: (data: ForgotPasswordRequest) => api.post<{ message: string }>('/auth/forgot-password', data).then(r => r.data),
   resetPassword:  (data: ResetPasswordRequest)  => api.post<{ message: string }>('/auth/reset-password', data).then(r => r.data),
   acceptInvitation: (data: AcceptInvitationRequest) => api.post<AuthResponse>('/auth/accept-invitation', data).then(r => r.data),
+  acceptStaffInvitation: (data: AcceptStaffInvitationRequest) => api.post<AuthResponse>('/auth/accept-staff-invitation', data).then(r => r.data),
+}
+
+// ── Two-factor authentication (own account) ───────────────────────────────────
+export const twoFactorApi = {
+  status:  () => api.get<TwoFactorStatus>('/account/2fa').then(r => r.data),
+  setup:   () => api.post<TwoFactorSetup>('/account/2fa/setup').then(r => r.data),
+  enable:  (code: string) => api.post<RecoveryCodes>('/account/2fa/enable', { code }).then(r => r.data),
+  regenerateRecoveryCodes: (data: TwoFactorConfirmRequest) => api.post<RecoveryCodes>('/account/2fa/recovery-codes', data).then(r => r.data),
+  disable: (data: TwoFactorConfirmRequest) => api.post('/account/2fa/disable', data).then(r => r.data),
+}
+
+// ── Clinic and staff ──────────────────────────────────────────────────────────
+export const clinicApi = {
+  get:     () => api.get<ClinicDto>('/clinic').then(r => r.data),
+  rename:  (name: string) => api.put<ClinicDto>('/clinic', { name }).then(r => r.data),
+  doctors: () => api.get<ClinicDoctorDto[]>('/clinic/doctors').then(r => r.data),
+}
+
+export const staffApi = {
+  list:        (q?: QueryParams) => api.get<PagedResult<StaffMemberDto>>('/staff', { params: q }).then(r => r.data),
+  invitations: (q?: QueryParams) => api.get<PagedResult<StaffInvitationDto>>('/staff/invitations', { params: q }).then(r => r.data),
+  invite:      (data: InviteStaffRequest) => api.post<InvitationResult>('/staff/invitations', data).then(r => r.data),
+  revokeInvitation: (id: number) => api.delete(`/staff/invitations/${id}`),
+  changeRole:  (id: number, role: ClinicRole) => api.put<StaffMemberDto>(`/staff/${id}/role`, { role }).then(r => r.data),
+  deactivate:  (id: number) => api.post<StaffMemberDto>(`/staff/${id}/deactivate`).then(r => r.data),
+  reactivate:  (id: number) => api.post<StaffMemberDto>(`/staff/${id}/reactivate`).then(r => r.data),
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -42,6 +84,28 @@ export const patientsApi = {
   revokePortalAccess: (id: number) => api.delete(`/patients/${id}/portal-access`),
 }
 
+// ── Audit log ─────────────────────────────────────────────────────────────────
+export const auditApi = {
+  getByPatient: (patientId: number, q?: AuditLogQuery) =>
+    api.get<PagedResult<AuditEventDto>>(`/patients/${patientId}/audit-log`, { params: q }).then(r => r.data),
+}
+
+// ── Reports ───────────────────────────────────────────────────────────────────
+export type ReportKind = 'revenue' | 'visits' | 'no-shows' | 'ar-aging'
+export const reportsApi = {
+  revenue:  (q: ReportQuery) => api.get<RevenueReport>('/reports/revenue', { params: q }).then(r => r.data),
+  visits:   (q: ReportQuery) => api.get<VisitsReport>('/reports/visits', { params: q }).then(r => r.data),
+  noShows:  (q: ReportQuery) => api.get<NoShowReport>('/reports/no-shows', { params: q }).then(r => r.data),
+  arAging:  (page = 1, pageSize = 20) =>
+    api.get<ArAgingReport>('/reports/ar-aging', { params: { page, pageSize } }).then(r => r.data),
+  /** CSV for the same filters as the on-screen report; returns the file name and content. */
+  exportCsv: async (kind: ReportKind, q?: ReportQuery) => {
+    const res = await api.get<Blob>(`/reports/${kind}/export`, { params: q, responseType: 'blob' })
+    const match = /filename="?([^";]+)"?/i.exec(String(res.headers['content-disposition'] ?? ''))
+    return { blob: res.data, fileName: match?.[1] ?? `${kind}.csv` }
+  },
+}
+
 // ── Appointments ──────────────────────────────────────────────────────────────
 export const appointmentsApi = {
   getAll:       (q?: QueryParams) => api.get<PagedResult<AppointmentDto>>('/appointments', { params: q }).then(r => r.data),
@@ -52,6 +116,14 @@ export const appointmentsApi = {
   update:       (id: number, data: UpdateAppointmentRequest) => api.put(`/appointments/${id}`, data),
   updateStatus: (id: number, status: AppointmentStatus) => api.patch(`/appointments/${id}/status`, status, { headers: { 'Content-Type': 'application/json' } }),
   delete:       (id: number) => api.delete(`/appointments/${id}`),
+  getReminders: (id: number) => api.get<ReminderLogDto>(`/appointments/${id}/reminders`).then(r => r.data),
+}
+
+// ── Appointment response (public, token from the reminder email) ──────────────
+export const appointmentResponseApi = {
+  lookup:  (token: string) => api.post<ReminderLookupDto>('/appointment-response/lookup', { token }).then(r => r.data),
+  respond: (token: string, action: ReminderAction) =>
+    api.post<ReminderLookupDto>('/appointment-response/respond', { token, action }).then(r => r.data),
 }
 
 // ── Prescriptions ─────────────────────────────────────────────────────────────
@@ -61,6 +133,8 @@ export const prescriptionsApi = {
   create:       (data: CreatePrescriptionRequest) => api.post<PrescriptionDto>('/prescriptions', data).then(r => r.data),
   update:       (id: number, data: UpdatePrescriptionRequest) => api.put(`/prescriptions/${id}`, data),
   delete:       (id: number) => api.delete(`/prescriptions/${id}`),
+  // Header-authenticated blob download: no token ever goes into a URL
+  downloadPdf:  (id: number) => api.get<Blob>(`/prescriptions/${id}/pdf`, { responseType: 'blob' }).then(r => r.data),
 }
 
 // ── Invoices ──────────────────────────────────────────────────────────────────
@@ -71,6 +145,9 @@ export const invoicesApi = {
   update:       (id: number, data: UpdateInvoiceRequest) => api.put(`/invoices/${id}`, data),
   markPaid:     (id: number)        => api.patch(`/invoices/${id}/mark-paid`),
   delete:       (id: number)        => api.delete(`/invoices/${id}`),
+  // Draft claim data (CMS-1500 item numbers); header-authenticated blob download, no token in the URL
+  downloadClaimDraft: (id: number, format: ClaimExportFormat = 'json') =>
+    api.get<Blob>(`/invoices/${id}/claim-export`, { params: { format }, responseType: 'blob' }).then(r => r.data),
 }
 
 // ── Vitals ────────────────────────────────────────────────────────────────────
@@ -84,8 +161,46 @@ export const vitalsApi = {
 export const notesApi = {
   getByPatient: (patientId: number) => api.get<MedicalNoteDto[]>(`/medicalnotes/patient/${patientId}`).then(r => r.data),
   create:       (data: CreateMedicalNoteRequest) => api.post<MedicalNoteDto>('/medicalnotes', data).then(r => r.data),
+  getLatest:    (patientId: number) => api.get<CopyForwardDto>(`/medicalnotes/patient/${patientId}/latest`).then(r => r.data),
   delete:       (id: number)        => api.delete(`/medicalnotes/${id}`),
   setSharing:   (id: number, shared: boolean) => api.put<MedicalNoteDto>(`/medicalnotes/${id}/sharing`, { shared }).then(r => r.data),
+}
+
+// ── Lab orders and results ────────────────────────────────────────────────────
+const labs = (patientId: number) => `/patients/${patientId}/labs`
+export const labsApi = {
+  getAll:       (patientId: number) => api.get<LabSummaryDto>(labs(patientId)).then(r => r.data),
+  createOrder:  (patientId: number, data: SaveLabOrderRequest) => api.post<LabOrderDto>(labs(patientId), data).then(r => r.data),
+  updateOrder:  (patientId: number, id: number, data: SaveLabOrderRequest) => api.put<LabOrderDto>(`${labs(patientId)}/${id}`, data).then(r => r.data),
+  cancelOrder:  (patientId: number, id: number) => api.post<LabOrderDto>(`${labs(patientId)}/${id}/cancel`).then(r => r.data),
+  deleteOrder:  (patientId: number, id: number) => api.delete(`${labs(patientId)}/${id}`),
+  addResult:    (patientId: number, orderId: number, data: SaveLabResultRequest) => api.post<LabOrderDto>(`${labs(patientId)}/${orderId}/results`, data).then(r => r.data),
+  updateResult: (patientId: number, orderId: number, id: number, data: SaveLabResultRequest) => api.put<LabOrderDto>(`${labs(patientId)}/${orderId}/results/${id}`, data).then(r => r.data),
+  deleteResult: (patientId: number, orderId: number, id: number) => api.delete<LabOrderDto>(`${labs(patientId)}/${orderId}/results/${id}`).then(r => r.data),
+}
+
+// ── Clinical lists ────────────────────────────────────────────────────────────
+const clinical = (patientId: number) => `/patients/${patientId}/clinical`
+export const clinicalApi = {
+  getSummary:       (patientId: number) => api.get<ClinicalSummaryDto>(clinical(patientId)).then(r => r.data),
+  addAllergy:       (patientId: number, data: SaveAllergyRequest) => api.post<AllergyDto>(`${clinical(patientId)}/allergies`, data).then(r => r.data),
+  updateAllergy:    (patientId: number, id: number, data: SaveAllergyRequest) => api.put<AllergyDto>(`${clinical(patientId)}/allergies/${id}`, data).then(r => r.data),
+  deleteAllergy:    (patientId: number, id: number) => api.delete(`${clinical(patientId)}/allergies/${id}`),
+  addProblem:       (patientId: number, data: SaveProblemRequest) => api.post<ProblemDto>(`${clinical(patientId)}/problems`, data).then(r => r.data),
+  updateProblem:    (patientId: number, id: number, data: SaveProblemRequest) => api.put<ProblemDto>(`${clinical(patientId)}/problems/${id}`, data).then(r => r.data),
+  deleteProblem:    (patientId: number, id: number) => api.delete(`${clinical(patientId)}/problems/${id}`),
+  addMedication:    (patientId: number, data: SaveMedicationRequest) => api.post<MedicationDto>(`${clinical(patientId)}/medications`, data).then(r => r.data),
+  updateMedication: (patientId: number, id: number, data: SaveMedicationRequest) => api.put<MedicationDto>(`${clinical(patientId)}/medications/${id}`, data).then(r => r.data),
+  deleteMedication: (patientId: number, id: number) => api.delete(`${clinical(patientId)}/medications/${id}`),
+}
+
+// ── Note Templates ────────────────────────────────────────────────────────────
+export const noteTemplatesApi = {
+  getAll:    (params?: QueryParams) => api.get<PagedResult<NoteTemplateDto>>('/notetemplates', { params }).then(r => r.data),
+  getBuiltIn: () => api.get<NoteTemplateDto[]>('/notetemplates/builtin').then(r => r.data),
+  create:    (data: CreateNoteTemplateRequest) => api.post<NoteTemplateDto>('/notetemplates', data).then(r => r.data),
+  update:    (id: number, data: UpdateNoteTemplateRequest) => api.put<NoteTemplateDto>(`/notetemplates/${id}`, data).then(r => r.data),
+  delete:    (id: number) => api.delete(`/notetemplates/${id}`),
 }
 
 // ── Attachments ───────────────────────────────────────────────────────────────
@@ -141,6 +256,13 @@ export const portalApi = {
     api.post<{ url: string }>(`/portal/invoices/${id}/checkout`).then(r => r.data),
   attachments:   () => api.get<PortalAttachmentDto[]>('/portal/attachments').then(r => r.data),
   notes:         () => api.get<PortalNoteDto[]>('/portal/notes').then(r => r.data),
+  bookingSlots:  (from: string, to: string) =>
+    api.get<BookingSlotDto[]>('/portal/booking/slots', { params: { from, to } }).then(r => r.data),
+  book:          (data: BookAppointmentRequest) =>
+    api.post<PortalAppointmentDto>('/portal/booking', data).then(r => r.data),
+  waitlist:      () => api.get<PortalWaitlistDto>('/portal/waitlist').then(r => r.data),
+  joinWaitlist:  () => api.post<PortalWaitlistDto>('/portal/waitlist').then(r => r.data),
+  leaveWaitlist: () => api.delete('/portal/waitlist'),
   // Header-authenticated blob download: no token ever goes into a URL
   downloadAttachment: async (id: number, fileName: string) => {
     const response = await api.get(`/portal/attachments/${id}/download`, { responseType: 'blob' })
@@ -153,4 +275,43 @@ export const portalApi = {
     link.remove()
     window.URL.revokeObjectURL(url)
   },
+}
+
+// ── Intake forms ──────────────────────────────────────────────────────────────
+export const intakeApi = {
+  // Public (token-gated) form used by patients
+  getForm:   (token: string) => api.get<IntakeFormInfo>(`/intake/${encodeURIComponent(token)}`).then(r => r.data),
+  submit:    (token: string, data: IntakeSubmitRequest) =>
+    api.post<{ message: string }>(`/intake/${encodeURIComponent(token)}`, data).then(r => r.data),
+  // Doctor
+  sendLink:  (patientId: number) => api.post<InvitationResult>(`/patients/${patientId}/intake-link`).then(r => r.data),
+  list:      (params?: { status?: IntakeStatus; page?: number; pageSize?: number }) =>
+    api.get<PagedResult<IntakeSubmissionSummary>>('/intake-submissions', { params }).then(r => r.data),
+  getById:   (id: number) => api.get<IntakeSubmissionDetail>(`/intake-submissions/${id}`).then(r => r.data),
+  accept:    (id: number) => api.post(`/intake-submissions/${id}/accept`),
+  reject:    (id: number, reason?: string) => api.post(`/intake-submissions/${id}/reject`, { reason }),
+}
+
+// ── Availability (doctor) ─────────────────────────────────────────────────────
+export const availabilityApi = {
+  get:             () => api.get<AvailabilityDto>('/availability').then(r => r.data),
+  setWeekly:       (data: SetWeeklyAvailabilityRequest) =>
+    api.put<AvailabilityWindowDto[]>('/availability/weekly', data).then(r => r.data),
+  addBlockedDate:  (data: CreateBlockedDateRequest) =>
+    api.post<BlockedDateDto>('/availability/blocked-dates', data).then(r => r.data),
+  removeBlockedDate: (id: number) => api.delete(`/availability/blocked-dates/${id}`),
+}
+
+// ── Waitlist (doctor) ─────────────────────────────────────────────────────────
+export const waitlistApi = {
+  getAll: (q?: QueryParams) => api.get<PagedResult<WaitlistEntryDto>>('/waitlist', { params: q }).then(r => r.data),
+  add:    (patientId: number) => api.post<WaitlistEntryDto>('/waitlist', { patientId }).then(r => r.data),
+  remove: (id: number) => api.delete(`/waitlist/${id}`),
+}
+
+// ── Waitlist offer (public, token from the offer email) ───────────────────────
+export const waitlistOfferApi = {
+  lookup: (token: string) => api.post<WaitlistOfferDto>('/waitlist-offer/lookup', { token }).then(r => r.data),
+  claim:  (token: string) => api.post<WaitlistClaimDto>('/waitlist-offer/claim', { token }).then(r => r.data),
+  leave:  (token: string) => api.post('/waitlist-offer/leave', { token }),
 }

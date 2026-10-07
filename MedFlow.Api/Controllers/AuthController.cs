@@ -1,4 +1,6 @@
+using MedFlow.Api.Localization;
 using MedFlow.Api.Extensions;
+using MedFlow.Api.Services;
 using MedFlow.Core;
 using MedFlow.Core.DTOs;
 using MedFlow.Infrastructure.Data;
@@ -21,26 +23,32 @@ public class AuthController : ControllerBase
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly RoleManager<IdentityRole> _roleManager;
     private readonly IPortalInvitationRepository _invitations;
+    private readonly IClinicService _clinics;
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly IConfiguration _config;
     private readonly AppDbContext _db;
     private readonly IEmailSender _emailSender;
     private readonly ILogger<AuthController> _logger;
+    private readonly ITwoFactorService _twoFactor;
+    private readonly IGoogleIdTokenValidator _google;
 
     public AuthController(UserManager<ApplicationUser> userManager,
-        RoleManager<IdentityRole> roleManager, IPortalInvitationRepository invitations,
+        RoleManager<IdentityRole> roleManager, IPortalInvitationRepository invitations, IClinicService clinics,
         SignInManager<ApplicationUser> signInManager,
         IConfiguration config, AppDbContext db,
-        IEmailSender emailSender, ILogger<AuthController> logger)
+        IEmailSender emailSender, ILogger<AuthController> logger, ITwoFactorService twoFactor, IGoogleIdTokenValidator google)
     {
         _userManager = userManager;
         _roleManager = roleManager;
         _invitations = invitations;
+        _clinics = clinics;
         _signInManager = signInManager;
         _config = config;
         _db = db;
         _emailSender = emailSender;
         _logger = logger;
+        _twoFactor = twoFactor;
+        _google = google;
     }
 
     private async Task AddToRoleAsync(ApplicationUser user, string role)
@@ -52,18 +60,28 @@ public class AuthController : ControllerBase
 
     private async Task<AuthResponse> BuildAuthResponseAsync(ApplicationUser user)
     {
-        var roles = await _userManager.GetRolesAsync(user);
-        var token = user.GenerateToken(_config, roles);
+        // Staff roles come from the clinic membership (the token role is for display only; authorization re-reads the
+        // membership on every request). A user without an active membership gets no role and therefore no access.
+        var identityRoles = await _userManager.GetRolesAsync(user);
+        ClinicMembershipInfo? membership = null;
+        string role;
+        if (identityRoles.Contains(Roles.Patient)) role = Roles.Patient;
+        else
+        {
+            membership = await _clinics.GetMembershipAsync(user.Id);
+            role = membership?.Role.ToString() ?? string.Empty;
+        }
+        var token = user.GenerateToken(_config, role.Length == 0 ? Array.Empty<string>() : new[] { role });
         return new AuthResponse(token, Guid.NewGuid().ToString(), DateTime.UtcNow.AddHours(1),
-            new UserDto(user.Id, user.Email!, user.FirstName, user.LastName, user.Specialty,
-                roles.FirstOrDefault() ?? string.Empty));
+            new UserDto(user.Id, user.Email!, user.FirstName, user.LastName, user.Specialty, role,
+                membership?.ClinicId, membership?.ClinicName));
     }
 
     [HttpPost("register")]
     public async Task<ActionResult<AuthResponse>> Register([FromBody] RegisterRequest req)
     {
         var existing = await _userManager.FindByEmailAsync(req.Email);
-        if (existing != null) return BadRequest(new { error = "Email already registered." });
+        if (existing != null) return BadRequest(new { error = this.T("Auth.EmailRegistered") });
 
         var user = new ApplicationUser
         {
@@ -76,7 +94,7 @@ public class AuthController : ControllerBase
 
         var result = await _userManager.CreateAsync(user, req.Password);
         if (!result.Succeeded)
-            return BadRequest(new { errors = result.Errors.Select(e => e.Description) });
+            return BadRequest(new { errors = this.IdentityMessages(result) });
 
         // Create linked Doctor record
         var doctor = new Doctor
@@ -88,37 +106,45 @@ public class AuthController : ControllerBase
         };
         _db.Doctors.Add(doctor);
         await _db.SaveChangesAsync();
-        await AddToRoleAsync(user, Roles.Doctor);
+        // Every registered doctor owns a clinic of their own
+        await _clinics.ProvisionOwnerAsync(user.Id, $"{user.FirstName} {user.LastName}");
 
         return Ok(await BuildAuthResponseAsync(user));
     }
 
     [HttpPost("login")]
-    public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest req)
+    public async Task<IActionResult> Login([FromBody] LoginRequest req)
     {
         var user = await _userManager.FindByEmailAsync(req.Email);
-        if (user == null) return Unauthorized(new { error = "Invalid credentials." });
+        if (user == null) return Unauthorized(new { error = this.T("Auth.InvalidCredentials") });
+
+        // 2FA accounts: a correct password only earns a challenge. Their failure counter is not reset by it.
+        if (await _twoFactor.IsEnabledAsync(user.Id))
+        {
+            return await _twoFactor.CheckPasswordForChallengeAsync(user.Id, req.Password) switch
+            {
+                SecondFactorResult.Ok => Ok(TwoFactorChallenge(user)),
+                SecondFactorResult.LockedOut => Unauthorized(new { error = this.T("Auth.AccountLocked") }),
+                _ => Unauthorized(new { error = this.T("Auth.InvalidCredentials") })
+            };
+        }
 
         var result = await _signInManager.CheckPasswordSignInAsync(user, req.Password, lockoutOnFailure: true);
         if (!result.Succeeded)
         {
-            if (result.IsLockedOut) return Unauthorized(new { error = "Account locked. Try again later." });
-            return Unauthorized(new { error = "Invalid credentials." });
+            if (result.IsLockedOut) return Unauthorized(new { error = this.T("Auth.AccountLocked") });
+            return Unauthorized(new { error = this.T("Auth.InvalidCredentials") });
         }
 
         return Ok(await BuildAuthResponseAsync(user));
     }
 
     [HttpPost("google-login")]
-    public async Task<ActionResult<AuthResponse>> GoogleLogin([FromBody] GoogleLoginRequest req)
+    public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest req)
     {
         try
         {
-            var settings = new GoogleJsonWebSignature.ValidationSettings
-            {
-                Audience = new[] { _config["Authentication:Google:ClientId"] }
-            };
-            var payload = await GoogleJsonWebSignature.ValidateAsync(req.Credential, settings);
+            var payload = await _google.ValidateAsync(req.Credential, _config["Authentication:Google:ClientId"]!);
 
             var user = await _userManager.FindByEmailAsync(payload.Email);
             // Portal (patient) accounts sign in with email/password only. The Google token has already
@@ -127,7 +153,7 @@ public class AuthController : ControllerBase
                 return StatusCode(StatusCodes.Status403Forbidden, new
                 {
                     code = "patient_account",
-                    error = "Patient accounts sign in with email and password. Use the Patient tab and the credentials you set from your invitation."
+                    error = this.T("Auth.PatientAccountGoogle")
                 });
 
             if (user == null)
@@ -143,7 +169,7 @@ public class AuthController : ControllerBase
 
                 var result = await _userManager.CreateAsync(user); // No password for Google Sign-In users
                 if (!result.Succeeded)
-                    return BadRequest(new { errors = result.Errors.Select(e => e.Description) });
+                    return BadRequest(new { errors = this.IdentityMessages(result) });
 
                 // Create linked Doctor record
                 var doctor = new Doctor
@@ -155,14 +181,54 @@ public class AuthController : ControllerBase
                 };
                 _db.Doctors.Add(doctor);
                 await _db.SaveChangesAsync();
-                await AddToRoleAsync(user, Roles.Doctor);
+                await _clinics.ProvisionOwnerAsync(user.Id, $"{user.FirstName} {user.LastName}");
             }
+
+            // Google has verified the address, but a user who turned on MedFlow 2FA is never let past it
+            if (await _twoFactor.IsEnabledAsync(user.Id)) return Ok(TwoFactorChallenge(user));
 
             return Ok(await BuildAuthResponseAsync(user));
         }
         catch (InvalidJwtException)
         {
-            return Unauthorized(new { error = "Invalid Google token." });
+            return Unauthorized(new { error = this.T("Auth.InvalidGoogleToken") });
+        }
+    }
+
+    private TwoFactorChallengeResponse TwoFactorChallenge(ApplicationUser user)
+    {
+        var (token, expires) = user.GenerateTwoFactorChallenge(_config);
+        return new TwoFactorChallengeResponse(true, token, expires);
+    }
+
+    /// <summary>Exchanges a challenge plus a current authenticator code for the real session. Every failure reads the same.</summary>
+    [HttpPost("2fa/verify")]
+    [EnableRateLimiting("two-factor")]
+    public Task<IActionResult> VerifyTwoFactor([FromBody] TwoFactorVerifyRequest req) =>
+        CompleteTwoFactorAsync(req.ChallengeToken, (id) => _twoFactor.VerifyCodeAsync(id, req.Code ?? string.Empty));
+
+    [HttpPost("2fa/recovery")]
+    [EnableRateLimiting("two-factor")]
+    public Task<IActionResult> RecoverTwoFactor([FromBody] TwoFactorRecoveryRequest req) =>
+        CompleteTwoFactorAsync(req.ChallengeToken, (id) => _twoFactor.VerifyRecoveryCodeAsync(id, req.RecoveryCode ?? string.Empty));
+
+    private async Task<IActionResult> CompleteTwoFactorAsync(string? challenge, Func<string, Task<SecondFactorResult>> verify)
+    {
+        var invalid = Unauthorized(new { error = this.T("TwoFactor.InvalidCode") });
+        var userId = JwtExtensions.ValidateTwoFactorChallenge(challenge, _config);
+        if (userId == null) return invalid;
+
+        switch (await verify(userId))
+        {
+            case SecondFactorResult.LockedOut:
+                return Unauthorized(new { error = this.T("Auth.AccountLocked") });
+            case SecondFactorResult.Ok:
+                var user = await _userManager.FindByIdAsync(userId);
+                if (user == null) return invalid;
+                _logger.LogInformation("Second factor completed for user {UserId}", userId);
+                return Ok(await BuildAuthResponseAsync(user));
+            default:
+                return invalid;
         }
     }
 
@@ -170,10 +236,10 @@ public class AuthController : ControllerBase
     [EnableRateLimiting("accept-invitation")]
     public async Task<IActionResult> AcceptInvitation([FromBody] AcceptInvitationRequest req)
     {
-        const string invalid = "This invitation is invalid or has expired.";
+        var invalid = this.T("Auth.InvalidInvitation");
 
         if (req.Password != req.ConfirmPassword)
-            return BadRequest(new { errors = new[] { "Passwords do not match." } });
+            return BadRequest(new { errors = new[] { this.T("Auth.PasswordsMismatch") } });
 
         var found = await _invitations.FindValidAsync(req.Token, req.Email);
         if (found == null) return BadRequest(new { error = invalid });
@@ -193,7 +259,7 @@ public class AuthController : ControllerBase
             };
             var created = await _userManager.CreateAsync(user, req.Password);
             if (!created.Succeeded)
-                return BadRequest(new { errors = created.Errors.Select(e => e.Description) });
+                return BadRequest(new { errors = this.IdentityMessages(created) });
             await AddToRoleAsync(user, Roles.Patient);
         }
         else
@@ -207,11 +273,53 @@ public class AuthController : ControllerBase
             var resetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
             var reset = await _userManager.ResetPasswordAsync(user, resetToken, req.Password);
             if (!reset.Succeeded)
-                return BadRequest(new { errors = reset.Errors.Select(e => e.Description) });
+                return BadRequest(new { errors = this.IdentityMessages(reset) });
         }
 
         await _invitations.MarkUsedAsync(invitation, patient, user.Id);
         _logger.LogInformation("Portal invitation accepted for patient {PatientId}", patient.Id);
+        return Ok(await BuildAuthResponseAsync(user));
+    }
+
+    /// <summary>Public, rate limited. Every failure looks the same so nothing about invitations or accounts leaks.</summary>
+    [HttpPost("accept-staff-invitation")]
+    [EnableRateLimiting("staff-invitation")]
+    public async Task<IActionResult> AcceptStaffInvitation([FromBody] AcceptStaffInvitationRequest req)
+    {
+        var invalid = this.T("Auth.InvalidInvitation");
+
+        if (req.Password != req.ConfirmPassword)
+            return BadRequest(new { errors = new[] { this.T("Auth.PasswordsMismatch") } });
+        if (string.IsNullOrWhiteSpace(req.FirstName) || string.IsNullOrWhiteSpace(req.LastName)
+            || req.FirstName.Length > 100 || req.LastName.Length > 100)
+            return BadRequest(new { errors = new[] { this.T("Staff.NameRequired") } });
+
+        var invitation = await _clinics.FindValidInvitationAsync(req.Token, req.Email);
+        if (invitation == null) return BadRequest(new { error = invalid });
+        // An address that has an account by now (staff, doctor or patient) is never taken over
+        if (await _userManager.FindByEmailAsync(invitation.Email) != null) return BadRequest(new { error = invalid });
+
+        var specialty = invitation.Role == ClinicRole.Doctor
+            ? (string.IsNullOrWhiteSpace(req.Specialty) ? "General Practice" : req.Specialty.Trim())
+            : string.Empty;
+        var user = new ApplicationUser
+        {
+            UserName = invitation.Email,
+            Email = invitation.Email,
+            EmailConfirmed = true, // the invitation proved control of this address
+            FirstName = req.FirstName.Trim(),
+            LastName = req.LastName.Trim(),
+            Specialty = specialty
+        };
+        var created = await _userManager.CreateAsync(user, req.Password);
+        if (!created.Succeeded) return BadRequest(new { errors = this.IdentityMessages(created) });
+
+        if (!await _clinics.AcceptInvitationAsync(invitation, user.Id, user.FirstName, user.LastName, specialty))
+        {
+            await _userManager.DeleteAsync(user);
+            return BadRequest(new { error = invalid });
+        }
+        _logger.LogInformation("Staff invitation accepted for clinic {ClinicId} as {Role}", invitation.ClinicId, invitation.Role);
         return Ok(await BuildAuthResponseAsync(user));
     }
 
@@ -220,9 +328,9 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest req)
     {
         if (string.IsNullOrWhiteSpace(req.Email) || !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(req.Email))
-            return BadRequest(new { errors = new[] { "A valid email is required." } });
+            return BadRequest(new { errors = new[] { this.T("Auth.ValidEmailRequired") } });
 
-        const string genericMessage = "If that email is registered, a password reset link has been sent.";
+        var genericMessage = this.T("Auth.ResetRequested");
         var frontendUrl = (_config.GetSection("AllowedOrigins").Get<string[]>()?.FirstOrDefault() ?? "http://localhost:5173").TrimEnd('/');
 
         try
@@ -269,10 +377,10 @@ public class AuthController : ControllerBase
     [HttpPost("reset-password")]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest req)
     {
-        const string invalidLink = "This reset link is invalid or has expired. Please request a new one.";
+        var invalidLink = this.T("Auth.InvalidResetLink");
 
         if (req.NewPassword != req.ConfirmPassword)
-            return BadRequest(new { errors = new[] { "Passwords do not match." } });
+            return BadRequest(new { errors = new[] { this.T("Auth.PasswordsMismatch") } });
 
         var user = string.IsNullOrWhiteSpace(req.Email) ? null : await _userManager.FindByEmailAsync(req.Email);
         if (user == null || string.IsNullOrWhiteSpace(req.Token))
@@ -286,13 +394,13 @@ public class AuthController : ControllerBase
                 _logger.LogWarning("Password reset failed (invalid token) for user {UserId}", user.Id);
                 return BadRequest(new { error = invalidLink });
             }
-            return BadRequest(new { errors = result.Errors.Select(e => e.Description) });
+            return BadRequest(new { errors = this.IdentityMessages(result) });
         }
 
         await _userManager.SetLockoutEndDateAsync(user, null);
         await _userManager.ResetAccessFailedCountAsync(user);
         _logger.LogInformation("Password reset completed for user {UserId}", user.Id);
 
-        return Ok(new { message = "Your password has been reset. You can now sign in." });
+        return Ok(new { message = this.T("Auth.PasswordReset") });
     }
 }

@@ -1,6 +1,9 @@
+using MedFlow.Api.Authorization;
+using MedFlow.Api.Localization;
 using MedFlow.Core;
 using MedFlow.Api.Extensions;
 using MedFlow.Core.DTOs;
+using MedFlow.Core.Enums;
 using MedFlow.Core.Entities;
 using MedFlow.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -10,11 +13,12 @@ namespace MedFlow.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = Roles.Doctor)]
+[HasPermission(Permission.ClinicRead)]
 public class AttachmentsController : ControllerBase
 {
     private readonly IPatientAttachmentRepository _attachments;
     private readonly IWebHostEnvironment _env;
+    private readonly IAuditService _audit;
 
     private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -32,17 +36,23 @@ public class AttachmentsController : ControllerBase
 
     private const long MaxFileSize = 50 * 1024 * 1024; // 50 MB
 
-    public AttachmentsController(IPatientAttachmentRepository attachments, IWebHostEnvironment env)
+    public AttachmentsController(IPatientAttachmentRepository attachments, IWebHostEnvironment env, IAuditService audit)
     {
         _attachments = attachments;
         _env = env;
+        _audit = audit;
     }
 
     [HttpGet("patient/{patientId:int}")]
+    [HasPermission(Permission.AttachmentsRead)]
     public async Task<ActionResult<IEnumerable<PatientAttachmentDto>>> GetByPatient(int patientId)
-        => Ok(await _attachments.GetByPatientAsync(patientId, User.GetUserId()));
+    {
+        if (!await this.AuditAsync(_audit, patientId, AuditAction.View, AuditItemKind.Attachment, null)) return NotFound();
+        return Ok(await _attachments.GetByPatientAsync(patientId, this.GetScope()));
+    }
 
     [HttpPost]
+    [HasPermission(Permission.AttachmentsWrite)]
     [RequestSizeLimit(52_428_800)] // 50 MB
     public async Task<ActionResult<PatientAttachmentDto>> Upload(
         [FromForm] IFormFile file,
@@ -51,15 +61,18 @@ public class AttachmentsController : ControllerBase
         [FromForm] string? description)
     {
         if (file == null || file.Length == 0)
-            return BadRequest("No file uploaded.");
+            return BadRequest(this.T("Attachment.NoFile"));
 
         if (file.Length > MaxFileSize)
-            return BadRequest("File exceeds the 50 MB size limit.");
+            return BadRequest(this.T("Attachment.TooLarge"));
 
         if (!AllowedContentTypes.Contains(file.ContentType))
-            return BadRequest($"File type '{file.ContentType}' is not allowed.");
+            return BadRequest(this.T("Attachment.TypeNotAllowed", file.ContentType));
 
         var doctorId = User.GetUserId();
+        var clinicId = this.GetScope().ClinicId;
+        // Checked before anything is written to disk
+        if (!await this.AuditAsync(_audit, patientId, AuditAction.Change, AuditItemKind.Attachment, null)) return NotFound();
         var storedFileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
         var uploadDir = Path.Combine(_env.ContentRootPath, "wwwroot", "uploads", "attachments", patientId.ToString());
         Directory.CreateDirectory(uploadDir);
@@ -72,6 +85,7 @@ public class AttachmentsController : ControllerBase
         {
             PatientId = patientId,
             DoctorId = doctorId,
+            ClinicId = clinicId,
             FileName = file.FileName,
             StoredFileName = storedFileName,
             ContentType = file.ContentType,
@@ -88,32 +102,36 @@ public class AttachmentsController : ControllerBase
     }
 
     [HttpGet("{id:int}/download")]
+    [HasPermission(Permission.AttachmentsRead)]
     public async Task<IActionResult> Download(int id)
     {
-        var attachment = await _attachments.GetWithOwnerCheckAsync(id, User.GetUserId());
+        var attachment = await _attachments.GetInClinicAsync(id, this.GetScope().ClinicId);
         if (attachment == null) return NotFound();
+        if (!await this.AuditAsync(_audit, attachment.PatientId, AuditAction.View, AuditItemKind.Attachment, attachment.Id)) return NotFound();
 
         var filePath = Path.Combine(_env.ContentRootPath, "wwwroot", "uploads", "attachments",
             attachment.PatientId.ToString(), attachment.StoredFileName);
 
         if (!System.IO.File.Exists(filePath))
-            return NotFound("File not found on disk.");
+            return NotFound(this.T("Attachment.Missing"));
 
         var bytes = await System.IO.File.ReadAllBytesAsync(filePath);
         return File(bytes, attachment.ContentType, attachment.FileName);
     }
 
     [HttpGet("{id:int}/preview")]
+    [HasPermission(Permission.AttachmentsRead)]
     public async Task<IActionResult> Preview(int id)
     {
-        var attachment = await _attachments.GetWithOwnerCheckAsync(id, User.GetUserId());
+        var attachment = await _attachments.GetInClinicAsync(id, this.GetScope().ClinicId);
         if (attachment == null) return NotFound();
+        if (!await this.AuditAsync(_audit, attachment.PatientId, AuditAction.View, AuditItemKind.Attachment, attachment.Id)) return NotFound();
 
         var filePath = Path.Combine(_env.ContentRootPath, "wwwroot", "uploads", "attachments",
             attachment.PatientId.ToString(), attachment.StoredFileName);
 
         if (!System.IO.File.Exists(filePath))
-            return NotFound("File not found on disk.");
+            return NotFound(this.T("Attachment.Missing"));
 
         var bytes = await System.IO.File.ReadAllBytesAsync(filePath);
         // Inline content disposition for in-browser preview
@@ -121,10 +139,12 @@ public class AttachmentsController : ControllerBase
     }
 
     [HttpPut("{id:int}/sharing")]
+    [HasPermission(Permission.AttachmentsWrite)]
     public async Task<ActionResult<PatientAttachmentDto>> SetSharing(int id, [FromBody] SetSharingRequest req)
     {
-        var attachment = await _attachments.GetWithOwnerCheckAsync(id, User.GetUserId());
+        var attachment = await _attachments.GetInClinicAsync(id, this.GetScope().ClinicId);
         if (attachment == null) return NotFound();
+        if (!await this.AuditAsync(_audit, attachment.PatientId, AuditAction.Change, AuditItemKind.Attachment, attachment.Id, new[] { "SharedWithPatient" })) return NotFound();
         await _attachments.SetSharingAsync(attachment, req.Shared);
         return Ok(new PatientAttachmentDto(attachment.Id, attachment.PatientId, attachment.FileName,
             attachment.ContentType, attachment.FileSize, attachment.Category, attachment.Description,
@@ -132,10 +152,12 @@ public class AttachmentsController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
+    [HasPermission(Permission.AttachmentsWrite)]
     public async Task<IActionResult> Delete(int id)
     {
-        var attachment = await _attachments.GetWithOwnerCheckAsync(id, User.GetUserId());
+        var attachment = await _attachments.GetInClinicAsync(id, this.GetScope().ClinicId);
         if (attachment == null) return NotFound();
+        if (!await this.AuditAsync(_audit, attachment.PatientId, AuditAction.Change, AuditItemKind.Attachment, id)) return NotFound();
 
         // Delete file from disk
         var filePath = Path.Combine(_env.ContentRootPath, "wwwroot", "uploads", "attachments",

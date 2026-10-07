@@ -63,6 +63,11 @@ stages:
 
     - script: |
         cd medflow-client
+        npm run lint
+      displayName: Lint React app
+
+    - script: |
+        cd medflow-client
         npm run build
       displayName: Build React app
       env:

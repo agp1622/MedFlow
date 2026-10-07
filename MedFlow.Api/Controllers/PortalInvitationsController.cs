@@ -1,3 +1,5 @@
+using MedFlow.Api.Authorization;
+using MedFlow.Api.Localization;
 using System.Net;
 using MedFlow.Api.Extensions;
 using MedFlow.Core;
@@ -11,7 +13,7 @@ namespace MedFlow.Api.Controllers;
 
 [ApiController]
 [Route("api/patients/{patientId:int}")]
-[Authorize(Roles = Roles.Doctor)]
+[HasPermission(Permission.PortalInvite)]
 public class PortalInvitationsController : ControllerBase
 {
     private readonly IPatientRepository _patients;
@@ -19,10 +21,12 @@ public class PortalInvitationsController : ControllerBase
     private readonly IEmailSender _email;
     private readonly IConfiguration _config;
     private readonly ILogger<PortalInvitationsController> _logger;
+    private readonly IAuditService _audit;
 
     public PortalInvitationsController(IPatientRepository patients, IPortalInvitationRepository invitations,
-        IEmailSender email, IConfiguration config, ILogger<PortalInvitationsController> logger)
+        IEmailSender email, IConfiguration config, ILogger<PortalInvitationsController> logger, IAuditService audit)
     {
+        _audit = audit;
         _patients = patients;
         _invitations = invitations;
         _email = email;
@@ -33,17 +37,18 @@ public class PortalInvitationsController : ControllerBase
     [HttpPost("portal-invitation")]
     public async Task<ActionResult<InvitationResultDto>> Invite(int patientId)
     {
-        var patient = await _patients.GetWithDetailsAsync(patientId, User.GetUserId());
+        var patient = await _patients.GetWithDetailsAsync(patientId, this.GetScope());
         if (patient == null) return NotFound();
 
         if (string.IsNullOrWhiteSpace(patient.Email) ||
             !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(patient.Email))
-            return BadRequest(new { errors = new[] { "Patient has no email on file." } });
+            return BadRequest(new { errors = new[] { this.T("Invite.NoEmail") } });
         if (patient.Status != PatientStatus.Active)
-            return BadRequest(new { errors = new[] { "Only active patients can be invited." } });
+            return BadRequest(new { errors = new[] { this.T("Invite.OnlyActive") } });
         if (patient.PortalUserId != null)
-            return BadRequest(new { errors = new[] { "Patient already has portal access." } });
+            return BadRequest(new { errors = new[] { this.T("Invite.HasAccess") } });
 
+        if (!await this.AuditAsync(_audit, patientId, AuditAction.Change, AuditItemKind.PortalAccess, null)) return NotFound();
         var (token, expiresAt) = await _invitations.CreateAsync(patient);
 
         var frontendUrl = (_config.GetSection("AllowedOrigins").Get<string[]>()?.FirstOrDefault()
@@ -64,18 +69,19 @@ public class PortalInvitationsController : ControllerBase
         {
             _logger.LogError(ex, "Failed to send portal invitation for patient {PatientId}", patientId);
             return StatusCode(StatusCodes.Status502BadGateway,
-                new { error = "The invitation could not be emailed. Please try again." });
+                new { error = this.T("Invite.EmailFailed") });
         }
 
         _logger.LogInformation("Portal invitation sent for patient {PatientId}", patientId);
-        return Ok(new InvitationResultDto("Invitation sent.", expiresAt));
+        return Ok(new InvitationResultDto(this.T("Invite.Sent"), expiresAt));
     }
 
     [HttpDelete("portal-access")]
     public async Task<IActionResult> Revoke(int patientId)
     {
-        var patient = await _patients.GetWithDetailsAsync(patientId, User.GetUserId());
+        var patient = await _patients.GetWithDetailsAsync(patientId, this.GetScope());
         if (patient == null) return NotFound();
+        if (!await this.AuditAsync(_audit, patientId, AuditAction.Change, AuditItemKind.PortalAccess, null)) return NotFound();
         await _invitations.RevokeAsync(patient);
         return NoContent();
     }
